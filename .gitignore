@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment & Credentials
+.env
+.env.local
+.env.production
+*.pem
+
+# Demo repos (has nested git folders)
+/git demo repo/
+
+# Build & OS files
+dist/
+build/
+.expo/
+.next/
+.DS_Store
+Thumbs.db
+*.log

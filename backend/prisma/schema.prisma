@@ -1,0 +1,188 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// 1. TENANT (CLIENT / TOURNAMENT ORGANIZER)
+model Tenant {
+  id              String         @id @default(uuid())
+  subdomain       String         @unique // e.g. "alpha" -> alpha.tourney.com
+  brandName       String
+  logoUrl         String?
+  primaryColor    String         @default("#FF4757")
+  commissionRate  Float          @default(10.0) // 10% commission on matches
+  cashfreeApiKey  String?
+  razorpayKey     String?
+  upiId           String?
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  
+  users           User[]
+  tournaments     Tournament[]
+  walletLedgers   WalletLedger[]
+}
+
+// 2. USER PROFILE (GAMERS & MANAGERS)
+model User {
+  id              String         @id @default(uuid())
+  tenantId        String
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  phoneNumber     String
+  inGameName      String         // Free Fire IGN (e.g. "RAISTAR_99")
+  inGameUid       String         // Free Fire UID (e.g. "1928374612")
+  role            Role           @default(USER) // SUPER_ADMIN, MANAGER, USER
+  depositBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
+  winningBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
+  isBanned        Boolean        @default(false)
+  deviceId        String?
+  createdAt       DateTime       @default(now())
+
+  slots           TournamentSlot[]
+  ledgers         WalletLedger[]
+  matchResults    MatchResult[]
+
+  @@unique([tenantId, phoneNumber])
+  @@index([tenantId, inGameUid])
+}
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+  USER
+}
+
+// 3. TOURNAMENT (FREE FIRE MATCHES)
+model Tournament {
+  id              String            @id @default(uuid())
+  tenantId        String
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  title           String            // e.g. "Daily Bermuda Squad Bash #102"
+  gameMode        GameMode          // BATTLE_ROYALE, CLASH_SQUAD
+  matchType       MatchType         // SOLO, DUO, SQUAD
+  mapType         MapType           // BERMUDA, PURGATORY, KALAHARI, ALPINE
+  entryFee        Decimal           @db.Decimal(10, 2)
+  prizePool       Decimal           @db.Decimal(10, 2)
+  perKillPrize    Decimal           @default(0.00) @db.Decimal(10, 2)
+  totalSlots      Int               @default(48)
+  matchTime       DateTime
+  status          TournamentStatus  @default(UPCOMING)
+  
+  // Custom Room Credentials (Encrypted/Locked until 15 mins before match)
+  roomId          String?
+  roomPassword    String?
+  roomRevealedAt  DateTime?
+
+  createdAt       DateTime          @default(now())
+  
+  slots           TournamentSlot[]
+  results         MatchResult[]
+
+  @@index([tenantId, status, matchTime])
+}
+
+enum GameMode {
+  BATTLE_ROYALE
+  CLASH_SQUAD
+}
+
+enum MatchType {
+  SOLO
+  DUO
+  SQUAD
+}
+
+enum MapType {
+  BERMUDA
+  PURGATORY
+  KALAHARI
+  ALPINE
+  NEXTERRA
+}
+
+enum TournamentStatus {
+  DRAFT
+  UPCOMING
+  OPEN
+  SLOTS_FULL
+  ROOM_REVEALED
+  LIVE
+  UNDER_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+// 4. TOURNAMENT SLOTS (ANTI-OVERBOOKING)
+model TournamentSlot {
+  id            String      @id @default(uuid())
+  tournamentId  String
+  tournament    Tournament  @relation(fields: [tournamentId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  slotNumber    Int         // 1 to 48
+  teamId        String?     // For Duo / Squad grouping
+  joinedAt      DateTime    @default(now())
+
+  @@unique([tournamentId, slotNumber])
+  @@unique([tournamentId, userId])
+}
+
+// 5. DOUBLE-ENTRY WALLET LEDGER
+model WalletLedger {
+  id              String          @id @default(uuid())
+  tenantId        String
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  amount          Decimal         @db.Decimal(10, 2)
+  balanceType     BalanceType     // DEPOSIT or WINNING
+  type            TransactionType // CREDIT or DEBIT
+  category        Category        // ADD_MONEY, JOIN_FEE, WINNING_PRIZE, WITHDRAWAL, REFUND
+  balanceAfter    Decimal         @db.Decimal(10, 2)
+  referenceId     String?         // Razorpay ID / Tournament ID
+  notes           String?
+  createdAt       DateTime        @default(now())
+
+  @@index([userId, createdAt])
+}
+
+enum BalanceType {
+  DEPOSIT
+  WINNING
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum Category {
+  ADD_MONEY
+  JOIN_FEE
+  WINNING_PRIZE
+  WITHDRAWAL
+  REFUND
+}
+
+// 6. MATCH RESULT & SCREENSHOT PROOF
+model MatchResult {
+  id              String          @id @default(uuid())
+  tournamentId    String
+  tournament      Tournament      @relation(fields: [tournamentId], references: [id])
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  screenshotUrl   String
+  imageHash       String?         // Duplicate detection (pHash)
+  detectedKills   Int?            // OCR auto extracted kills
+  verifiedKills   Int             @default(0)
+  rank            Int?            // e.g. 1 for Booyah!
+  prizeWon        Decimal         @default(0.00) @db.Decimal(10, 2)
+  isApproved      Boolean         @default(false)
+  reviewedAt      DateTime?
+
+  @@unique([tournamentId, userId])
+}

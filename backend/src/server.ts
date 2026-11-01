@@ -1,0 +1,62 @@
+import { app } from './app.js';
+import { env } from './config/env.js';
+import { disconnectPrisma } from './config/prisma.js';
+import { disconnectRedis } from './config/redis.js';
+
+/**
+ * HTTP server listener with graceful shutdown.
+ * On SIGINT / SIGTERM we: stop accepting connections -> close HTTP server
+ * -> disconnect Prisma -> disconnect Redis -> exit cleanly.
+ */
+const server = app.listen(env.PORT, () => {
+  console.log('┌─────────────────────────────────────────────┐');
+  console.log(`│  🚀 Server running in ${env.NODE_ENV.toUpperCase()} mode          │`);
+  console.log(`│  ➜ http://localhost:${env.PORT}                    │`);
+  console.log(`│  ➜ Health: /health , /api/v1/health               │`);
+  console.log('└─────────────────────────────────────────────┘');
+});
+
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+let shuttingDown = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  console.log(`\n⚠ ${signal} received — shutting down gracefully...`);
+
+  // Hard fail-safe: force exit if connections refuse to close.
+  const forceExitTimer = setTimeout(() => {
+    console.error('⚠ Forced shutdown after timeout.');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExitTimer.unref();
+
+  server.close(async (closeErr) => {
+    try {
+      console.log('● HTTP server closed.');
+      await disconnectPrisma();
+      console.log('● Prisma disconnected.');
+      await disconnectRedis();
+      console.log('● Redis disconnected.');
+      console.log('✔ Clean shutdown complete. Bye!');
+      process.exit(closeErr ? 1 : 0);
+    } catch (err) {
+      console.error('✖ Error during shutdown:', err);
+      process.exit(1);
+    }
+  });
+}
+
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+// Uncaught errors should never kill the process silently.
+process.on('uncaughtException', (err) => {
+  console.error('✖ Uncaught exception:', err);
+  void shutdown('uncaughtException');
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('✖ Unhandled promise rejection:', reason);
+});
