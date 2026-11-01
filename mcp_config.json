@@ -1,6 +1,29 @@
 {
   "$schema": "https://modelcontextprotocol.io/schema/mcp-config.json",
   "mcpServers": {
+    "sonarqube": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@lomas/sonarqubemcp@latest"
+      ],
+      "env": {
+        "SONARQUBE_URL": "${SONARQUBE_URL}",
+        "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN}"
+      }
+    },
+    "sonarqube-official": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--init",
+        "-i",
+        "--rm",
+        "-e", "SONARQUBE_URL=${SONARQUBE_URL}",
+        "-e", "SONARQUBE_TOKEN=${SONARQUBE_TOKEN}",
+        "sonarsource/sonarqube-mcp"
+      ]
+    },
     "supabase": {
       "command": "npx",
       "args": [

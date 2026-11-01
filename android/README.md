@@ -77,8 +77,14 @@ Live proof from Phase 1: changed only the player config → 19 s incremental reb
   `mipmap-anydpi-v26` adaptive icons.
 - Emulator → backend: use `10.0.2.2:5000`; real device → LAN IP + `CORS_ORIGIN` update.
 
-## Phase 2 (next)
+## Phase 2 (Done) — Full UI Flows + Retrofit API Layer
 
-Auth screens (login with phone + OTP), Retrofit API layer + Moshi DTOs against the
-Phase 1–4 backend, Tournament Feed → 48-slot picker → Room ID countdown modal → Wallet,
-Staff Spectator Scorecard Console (live scoring + 1-click payout), Google Fonts bundle.
+- `:core` networking: `TourneyApi` (12 endpoints), `AuthInterceptor` (Bearer from DataStore cache), `ApiClient` singleton (base URL + tenant from `client_config.json`), Moshi **codegen** DTOs (R8-safe, zero reflection), generic `ApiEnvelope<T>` + `ApiException` (parses `secondsUntilReveal` from the room-lock 403).
+- `:app-player` screens: Login/Register (phone + IGN + UID), Tournament Feed (map/type badges, slot progress), 48-Seat Slot Picker (squad team-code create/join, leader code share + copy), Timed Room ID (T-15 countdown → copy creds), Official Spectator Scoreboard (hacker red banners), Wallet (deposit/winning + ledger history).
+- `:app-admin` screens: login, permission-gated Dashboard (ADMIN all / SUB_ADMIN granted), Create Match (canCreateMatch), Publish Room (canUpdateRoomId), **Spectator Scorer Console** (canDistributePrize — kills steppers, ranks, hack flags, 1-click payout + confirm + summary).
+- Backend addition: `GET /api/v1/wallet` (balances + double-entry ledger) to serve the WalletScreen.
+- Builds verified: debug 18.0 MB both apps, R8 release 846 KB both apps, zero errors.
+
+## Phase 3 (next)
+
+OTP authentication (backend already has `deviceId` fraud signal), FCM push notifications for room reveal + payout, withdrawal requests (KYC-lite) driving `canManageWallet`, and the state-machine sweep (`UPCOMING → ROOM_OPEN → LIVE → VERIFICATION → COMPLETED`).
