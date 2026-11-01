@@ -27,15 +27,29 @@ model Tenant {
   walletLedgers   WalletLedger[]
 }
 
-// 2. USER PROFILE (GAMERS & MANAGERS)
+// 2. USER PROFILE (ADMIN, SUB_ADMIN / STAFF, & PLAYERS)
 model User {
   id              String         @id @default(uuid())
   tenantId        String
   tenant          Tenant         @relation(fields: [tenantId], references: [id])
   phoneNumber     String
-  inGameName      String         // Free Fire IGN (e.g. "RAISTAR_99")
-  inGameUid       String         // Free Fire UID (e.g. "1928374612")
-  role            Role           @default(USER) // SUPER_ADMIN, MANAGER, USER
+  email           String?        // Useful for Admin & Staff login
+  name            String?
+  inGameName      String?        // Free Fire IGN (e.g. "RAISTAR_99") - Required for Players
+  inGameUid       String?        // Free Fire UID (e.g. "1928374612") - Required for Players
+  role            Role           @default(USER) // ADMIN, SUB_ADMIN, USER
+  
+  // Sub-Admin (Staff) Permissions controlled by the Client Admin
+  canCreateMatch     Boolean     @default(false)
+  canUpdateRoomId    Boolean     @default(false)
+  canDistributePrize Boolean     @default(false)
+  canManageWallet    Boolean     @default(false)
+
+  // Staff linkage: who hired this sub-admin
+  adminId         String?
+  admin           User?          @relation("AdminStaff", fields: [adminId], references: [id])
+  staffMembers    User[]         @relation("AdminStaff")
+
   depositBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
   winningBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
   isBanned        Boolean        @default(false)
@@ -51,9 +65,9 @@ model User {
 }
 
 enum Role {
-  SUPER_ADMIN
-  MANAGER
-  USER
+  ADMIN       // The Client / Tournament Owner who bought the system
+  SUB_ADMIN   // Staff hired by the Admin with granular permissions
+  USER        // Gamer / Player
 }
 
 // 3. TOURNAMENT (FREE FIRE MATCHES)

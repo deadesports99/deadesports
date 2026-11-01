@@ -17,6 +17,19 @@ import { sendResponse } from '../utils/ApiResponse.js';
  */
 export const healthRouter: Router = Router();
 
+/**
+ * Runs a promise but rejects with "Timed out" if it does not settle in time.
+ * Needed because ioredis (with maxRetriesPerRequest: null) queues commands
+ * forever while Redis is down — the health check must never hang.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
@@ -46,7 +59,7 @@ healthRouter.get('/health', (_req, res) => {
 healthRouter.get('/health/db', async (_req, res, next) => {
   const start = Date.now();
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await withTimeout(prisma.$queryRaw`SELECT 1`, 4000, 'database check');
     sendResponse(res, 200, 'Database is healthy', {
       latencyMs: Date.now() - start,
       provider: 'postgresql',
@@ -59,7 +72,7 @@ healthRouter.get('/health/db', async (_req, res, next) => {
 healthRouter.get('/health/redis', async (_req, res, next) => {
   const start = Date.now();
   try {
-    const pong: string = await redis.ping();
+    const pong: string = await withTimeout(redis.ping(), 3000, 'redis check');
     if (pong !== 'PONG') {
       throw new Error(`Unexpected Redis reply: ${pong}`);
     }

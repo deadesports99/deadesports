@@ -3,7 +3,9 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { authRouter } from './routes/auth.routes.js';
 import { healthRouter } from './routes/health.routes.js';
+import { tournamentRouter } from './routes/tournament.routes.js';
 import { ApiError } from './utils/ApiError.js';
 
 /** Express application — assembled here, listening happens in server.ts. */
@@ -47,6 +49,12 @@ app.get('/', (_req: Request, res: Response) => {
 // (healthRouter already defines the /health prefix internally, see health.routes.ts)
 app.use(healthRouter);
 app.use('/api/v1', healthRouter);
+
+// Auth & RBAC
+app.use('/api/v1/auth', authRouter);
+
+// Tournament Engine (Phase 3)
+app.use('/api/v1/tournaments', tournamentRouter);
 
 // ─── 6. 404 handler for undefined routes ────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction) => {

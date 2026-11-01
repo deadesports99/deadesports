@@ -91,53 +91,74 @@ flowchart TD
 
 ---
 
-## 👥 3. Detailed Role-Based Panel Specifications
+## 👥 3. Updated Role-Based Architecture (As per Boss Demand: `poss demand..md`)
 
-### 🛡️ Panel 1: Super Admin Panel (Platform Owner)
-*Ye panel platform ke master owner (aap aur boss) ke liye hoga jisse multiple clients/tenants ko onboard aur control kiya jayega.*
-- **Client/Tenant Management:** Naye tournament organizer (client) ko create karna, unka plan/license activate karna, unka custom domain ya tenant slug assign karna.
-- **Global Financials & Commission:** 
-  - Har client se platform ka kitna commission percentage katega (e.g., 5% - 10% platform fee).
-  - Platform-wide revenue, active users, total matches hosted ka overview.
-- **Global User & Fraud Monitoring:**
-  - Cheaters, ban lists, multiple fake accounts detection (Device ID tracking).
-- **Payment Gateway Configs:**
-  - Client-wise gateway settings (Razorpay / Cashfree / PhonePe / Manual UPI QR).
-- **Global App Configuration:**
-  - Maintenance mode toggle, mandatory app update banner, notice board alerts.
+> **Key Pivot:** Hamare (Jay & Boss) ke liye alag se koi platform Super Admin panel nahi banega. Jo client humse app lega, wahi **Admin (Manager/Owner)** hoga. Aur wo apne kaam ke liye jo bande hire karega, wo **Sub-Admin (Staff/Moderator)** honge.
 
----
+```mermaid
+graph TD
+    subgraph ClientOrganization["Client Organization (Tournament Owner)"]
+        Admin["👑 Client / Admin (Owner)<br>Full Access: Financials, Match Creation, Staff Management"]
+        SubAdmin["🛡️ Sub-Admin / Staff<br>Granular Role: Room ID Update, Result Verification"]
+    end
 
-### 💼 Panel 2: Manager Panel (Tournament Organizer / Client)
-*Ye panel us organizer ko milega jo tournament host karega aur match organize karega.*
-- **Organizer Dashboard:**
-  - Today's Matches, Total Joined Players, Entry Fees Collected, Prize Money Pending, Net Profit.
-- **Tournament Creator (Advanced Free Fire Config):**
-  - **Game Mode:** Solo, Duo, Squad, Clash Squad (CS 4v4).
-  - **Map Selection:** Bermuda, Purgatory, Kalahari, Alpine, NeXTerra.
-  - **Scoring Type:** Survival/Rank Points + Per Kill Bounty (e.g. ₹10 per kill, 1st prize ₹500).
-  - **Room Specs:** Gun Property (Yes/No), Character Skill (Yes/No), Limited Ammo (Yes/No), Loadout (Yes/No).
-  - **Schedule:** Match Date, Match Time, Registration Close Time.
-  - **Slots Capacity:** 48 players (Solo) / 24 teams (Duo) / 12 teams (Squad).
-- **Room Management (Match Day Operations):**
-  - Scheduled time se 10-15 minute pehle **Room ID** & **Password** enter karna (ye direct sirf registered players ko notify hoga).
-  - Spectator links & streaming embed link (YouTube/Rooter/Loco).
-- **Result & Screenshot Verification Workflow:**
-  - Players dwara upload kiye gaye scorecard/kills screenshot review karna.
-  - Kills aur rank fill karke "Publish Result" button dabana.
-  - Automatic prize calculation aur player wallet me winning credit karna.
-- **Dispute & Refund Desk:**
-  - Agar match hacker ki wajah se cancel hua ya room issue hua, to 1-Click "Full Match Refund" feature.
+    subgraph Gamers["Esports Players"]
+        Player["🎮 User / Gamer (Player App)<br>Match Join, Slot Pick, Wallet, Room ID Access"]
+    end
+
+    Admin -->|Hires & Grants Permissions| SubAdmin
+    Admin -->|Hosts Tournaments| Player
+    SubAdmin -->|Manages Room ID / Results| Player
+```
+
+### 👑 Role 1: Admin App (The Client / Tournament Owner)
+*Ye app us client ko milega jo tournament system kharid raha hai.*
+- **Full Business Control:** Total matches hosted, entry fee revenue, net profit, pending withdrawal requests.
+- **Staff Management (Sub-Admin Creation):** 
+  - Naye staff member ko add karna (Email, Password) aur specific permissions dena:
+    * `canCreateMatch`: Boolean (Naya match create kar sakta hai ya nahi)
+    * `canUpdateRoomId`: Boolean (Custom Room ID/Pass update karne ka haq)
+    * `canDistributePrize`: Boolean (Winner ko paise distribute karne ka haq)
+    * `canManageWallet`: Boolean (Deposit/Withdrawal approve karne ka haq)
+- **Tournament Control:** Match creation (Solo/Duo/Squad/CS), map selection, entry fee, prize pool, cancellation & auto-refund.
+- **Financial Settings:** Apna personal UPI ID, QR code, payment gateway keys, aur WhatsApp support number configure karna.
 
 ---
 
-### 🎮 Panel 3: User / Player Mobile App (iOS-Style Experience)
-*Ye players ke hath me hoga jahan wo match join karenge aur game khelenge.*
-- **Onboarding & Auth:**
-  - Mobile Number + OTP Login, Google One-Tap.
-  - Free Fire Profile Setup: **Free Fire In-Game Name (IGN)** & **Free Fire UID** (Mandatory verification).
-- **Home & Match Explorer:**
-  - Category Filters: *Daily Tournaments*, *High Stakes*, *Free Entry / Giveaways*, *Clash Squad 1v1 / 4v4*.
+### 🛡️ Role 2: Sub-Admin (Staff / Moderator App - Same Admin APK)
+*Ye wahi Admin app hai, lekin staff jab login karega toh unhe sirf wahi buttons/cards dikhenge jinki permission Admin ne di hai.*
+- **Dynamic Jetpack Compose Dashboard:**
+  - Agar `canUpdateRoomId == true` hai, toh Room ID input box open hoga.
+  - Agar `canDistributePrize == true` hai, toh Result & Screenshot review section dikhega.
+  - Financial data aur Staff add karne ke rights inke paas **nahi** honge.
+
+---
+
+### 🎮 Role 3: Player Mobile App (Kotlin + Jetpack Compose)
+*Free Fire gamers ke liye dedicated client-branded app.*
+- **1-Tap Google / Phone Auth:** Firebase Auth + Free Fire UID aur In-Game Name (IGN) mandatory setup.
+- **Match Feed & Slot Selector:** Bermuda, Purgatory, Kalahari matches with live filled slots counter (e.g. 38/48).
+- **Protected Room ID View:** Match time se 15 min pehle countdown khatam hone par Room ID aur Password unlock hona (sirf registered slot holders ke liye).
+- **Dual Wallet:** Deposit balance (for joining) + Winning balance (withdrawable to UPI).
+- **Result Proof Upload:** End-game scorecard screenshot upload for kill verification.
+
+---
+
+## 📱 3.1 Android Studio Multi-Module Architecture (Kotlin + Jetpack Compose)
+
+```
+FreeFireTourneyApp/
+├── :app-player      # Player APK (Gamer UI, Slot Picker, Room ID, Wallet)
+├── :app-admin       # Admin & Staff APK (Role == "admin" vs "sub_admin" dynamic Compose screens)
+└── :core            # Shared Kotlin Data Classes (Tournament.kt, User.kt, Permissions.kt) & Supabase/Firebase Repositories
+```
+
+### ⏱️ 10-Minute Client Handover Model:
+Har naye client ke aane par sirf ye 4 steps karne honge:
+1. Client ke Supabase/Firebase credentials project me connect karna.
+2. `build.gradle.kts` me Client ka App Name, Package Name (`com.client.player`), aur Theme Colors update karna.
+3. Client ka Logo mipmap me daalna.
+4. Android Studio se 2 signed APK generate karna (`Player.apk` aur `Admin.apk`) aur client ko de dena!
   - Match Card UI: Match Banner, Map Name, Prize Pool, Per Kill Reward, Entry Fee, Available Slots Progress Bar (e.g., 38/48 Joined).
 - **Interactive Slot Selector:**
   - Solo ke liye direct entry; Squad ke liye Slot 1 se Slot 12 tak seat map (kaun sa squad slot khali hai dekh kar select karna).
@@ -261,10 +282,12 @@ CREATE TABLE wallet_transactions (
 - [ ] Swagger / Postman API documentation auto-generation for testing.
 
 ### 📍 Phase 3: Tournament Engine & Race-Condition Proof Slot Booking (Days 8–12)
-- [ ] Match creation endpoints with Free Fire presets (Bermuda/Purgatory, Solo/Duo/Squad, Gun Prop off, etc.).
-- [ ] **Atomic Slot Reservation with Redis:** Prevent two players from booking the same slot at the exact same millisecond.
-- [ ] Squad invitation flow (leader generates 6-digit squad join code for teammates).
-- [ ] Automatic entry fee deduction from User Wallet.
+- [x] Match creation endpoints with Free Fire presets (Bermuda/Purgatory, Solo/Duo/Squad, Gun Prop off, etc.).
+- [x] **Atomic Slot Reservation with Redis:** Prevent two players from booking the same slot at the exact same millisecond.
+- [x] Squad invitation flow (leader generates 6-digit squad join code for teammates).
+- [x] Automatic entry fee deduction from User Wallet.
+- [x] Cancel tournament + auto-refund all players (ledger double-entry verified).
+- [x] e2e race test: 20 concurrent joins on last 2 seats -> exactly 2 granted, SLOTS_FULL at 48.
 
 ### 📍 Phase 4: Room ID Delivery & Match Day Automation (Days 13–16)
 - [ ] Manager Room ID & Password input UI with scheduled trigger.
