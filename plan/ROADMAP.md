@@ -290,10 +290,13 @@ CREATE TABLE wallet_transactions (
 - [x] e2e race test: 20 concurrent joins on last 2 seats -> exactly 2 granted, SLOTS_FULL at 48.
 
 ### 📍 Phase 4: Room ID Delivery & Match Day Automation (Days 13–16)
-- [ ] Manager Room ID & Password input UI with scheduled trigger.
+- [x] Manager Room ID & Password input API (PATCH /room, ROOM_REVEALED status).
+- [x] Timed room release: players see creds only from T-15min (403 countdown lock).
+- [x] Player screenshot result submission + verify (MatchResult upsert).
+- [x] 1-Click winner payout: per-kill + rank prize -> winningBalance -> double-entry ledger -> COMPLETED.
 - [ ] WebSocket / Socket.io channel: Room credentials broadcast strictly to confirmed tournament participants.
 - [ ] Push Notifications via Firebase Cloud Messaging (FCM).
-- [ ] Match status state machine (`UPCOMING` -> `ROOM_OPEN` -> `LIVE` -> `VERIFICATION` -> `COMPLETED`).
+- [ ] Match status state machine hookup (frontend-driven transitions pending apps).
 
 ### 📍 Phase 5: Result Processing, Screenshot Verification & Wallet Ledger (Days 17–21)
 - [ ] Player Screenshot upload pipeline to Cloud Storage.
@@ -419,3 +422,98 @@ Aap backend developer hain, toh backend development ko in **5 specific steps** m
   `GET /api/tournaments/:id/room-credentials`
 - Match result & screenshot upload endpoint linking to Supabase Storage.
 
+
+
+---
+
+## 💼 10. Multi-Client Commercial Strategy & Monetization (From Research: `one app alll clint sell.md`)
+
+Boss ke core business objective: **"Ye sirf ek bande ko sell karne ke liye nahi hoga, multiple clients ko dena hai"** ke liye commercial and deployment model:
+
+### 🏆 10.1 Three White-Label Sales Models for Clients:
+1. **Model 1: Multi-Club Marketplace Model (Quickest Onboarding)**
+   - Ek common app platform par har client ka apna verified "Club/Community" hota hai.
+   - Client ke players club join karte hain aur unhe sirf usi client ke matches dikhte hain. Zero APK compilation needed.
+2. **Model 2: Dynamic Branded App with Tenant Code (Recommended)**
+   - Single core APK. Jab user client ke invite link ya code se app kholta hai, backend se runtime par client ka custom logo, accent colors aur banners inject ho jate hain (`X-Tenant-ID` header routing).
+3. **Model 3: Standalone Automated Whitelabel APK (Enterprise Clients)**
+   - Client ka dedicated package name (`com.clientname.esports`), custom app icon, aur isolated Google Play upload build.
+
+### 💰 10.2 Payment Routing Schemes:
+- **Small Organizers:** Dynamic UPI QR Code (Direct player-to-organizer UPI transfer with zero gateway deductions).
+- **Pro Organizers:** Client's own Razorpay / Cashfree API credentials configured inside their Admin Settings.
+- **Platform Marketplace:** Saara payment central platform par aata hai, platform apna commission (e.g. 5%) kaat kar baaki 95% client ko payout karta hai.
+
+### 🛡️ 10.3 License Protection & Remote Kill-Switch:
+- Database table `tenants` me `isActive: boolean` flag.
+- Backend auth middleware har request par verify karta hai:
+  `if (!tenant || !tenant.isActive) throw ApiError.forbidden('Tenant account is inactive');`
+- Agar koi client monthly subscription fee nahi deta, toh Boss 1-click me unka tournament creation aur match engine freeze kar sakte hain.
+
+### 📈 10.4 SaaS Pricing Tiers for Boss:
+| Tier | Pricing | Features & Inclusions |
+| :--- | :--- | :--- |
+| **Starter Tier** | ₹1,999 / month + 5% platform cut | Up to 20 Tournaments/month, Shared Branded Portal, Dynamic UPI QR |
+| **Pro Tier** | ₹4,999 / month + 3% platform cut | Unlimited Tournaments, Sub-Admin staff management, Own Payment Gateway keys |
+| **Enterprise Tier** | ₹25,000 one-time + ₹2,500/mo AMC | Standalone dedicated APK, Full custom Android build, Play Store upload assistance |
+
+
+---
+
+## ⚡ 11. Turnkey Standalone Delivery Engine (Zero Data Liability Model)
+
+> **Boss & Jay Core Philosophy:** "Hum client ko app denge, fir uske data se hamara koi lena dena nahi hai. Client ka apna Supabase aur apna Firebase 2 second me connect hoga, aur har client ka App Name, Logo, Button Colors aur Play Store build 100% alag banegi."
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 TURNKEY ZERO-LIABILITY HANDOVER BLUEPRINT                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. Zero Data Liability:                                                     │
+│    • Jay aur Boss kisi client ka user data, passwords ya match money apne   │
+│      server par store nahi karenge.                                         │
+│    • Har client ka apna free/paid Supabase database aur Firebase project     │
+│      hoga. Client apne database aur paison ka 100% khud maalik hoga.        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. 2-Second Backend Connection:                                             │
+│    • Client ka `google-services.json` daalo.                                │
+│    • Client ka `SUPABASE_URL` aur `SUPABASE_ANON_KEY` daalo.                │
+│    • App turant client ke database se baat karna shuru kar degi!            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. 10-Minute Dynamic Re-Branding Engine (Jetpack Compose):                  │
+│    • Central `client_config.json` se ek click me sab change:                │
+│      - App Name (e.g. "Thunder eSports", "Alpha Zone", "Godlike Arena")     │
+│      - Logo & App Icons (mipmap automatic resize)                           │
+│      - Button Colors & Primary Theme (Crimson, Neon Blue, Gold, Green)      │
+│      - Button Shapes (Sharp 4dp, Rounded 12dp, Pill-shaped)                 │
+│      - Play Store Package ID (com.clientname.player / com.clientname.admin) │
+│      - R8 Obfuscation Dictionary (unique DEX bytecode per client)           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. Two Clean APKs Generated:                                                │
+│    • Player.apk (Gamers ke liye)                                            │
+│    • Admin.apk (Client Owner aur uske Sub-Admin Staff ke liye)              │
+│    • Release .aab (Google Play Console par upload ke liye ready)            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 📄 Central Client Configuration Blueprint (`client_config.json`):
+```json
+{
+  "client_id": "thunder_esports",
+  "app_name": "Thunder eSports",
+  "package_name": "com.thunderesports.app",
+  "version_code": 1,
+  "version_name": "1.0.0",
+  "theme": {
+    "primary_color": "#FF5722",
+    "button_color": "#FF5722",
+    "button_corner_radius": 12,
+    "accent_color": "#FFC107",
+    "card_style": "ROUNDED_16"
+  },
+  "backend_keys": {
+    "supabase_url": "https://client-project.supabase.co",
+    "supabase_anon_key": "eyJhbGciOi...",
+    "support_whatsapp": "+919876543210"
+  }
+}
+```

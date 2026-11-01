@@ -5,7 +5,9 @@ import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { authRouter } from './routes/auth.routes.js';
 import { healthRouter } from './routes/health.routes.js';
+import { resultRouter } from './routes/result.routes.js';
 import { tournamentRouter } from './routes/tournament.routes.js';
+import { walletRouter } from './routes/wallet.routes.js';
 import { ApiError } from './utils/ApiError.js';
 
 /** Express application — assembled here, listening happens in server.ts. */
@@ -55,6 +57,12 @@ app.use('/api/v1/auth', authRouter);
 
 // Tournament Engine (Phase 3)
 app.use('/api/v1/tournaments', tournamentRouter);
+
+// Room release + results + payout (Phase 4)
+app.use('/api/v1/tournaments', resultRouter);
+
+// Wallet: balances + double-entry ledger history (Android Phase 2)
+app.use('/api/v1/wallet', walletRouter);
 
 // ─── 6. 404 handler for undefined routes ────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction) => {

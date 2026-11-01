@@ -1,0 +1,15 @@
+{
+  "client_name": "Thunder eSports",
+  "application_id": "com.thunderesports.admin",
+  "app_name": "Thunder eSports Admin",
+  "primary_color": "#7C4DFF",
+  "button_color": "#9575CD",
+  "accent_color": "#FFB300",
+  "corner_radius_dp": 12,
+  "font_style": "default",
+  "enable_dark_mode": true,
+  "api_base_url": "http://10.0.2.2:5000/api/v1",
+  "supabase_url": "",
+  "supabase_anon_key": "",
+  "tenant_id": "22f27d39-f104-41b8-a435-befab60349ae"
+}

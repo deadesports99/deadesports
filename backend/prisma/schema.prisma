@@ -182,20 +182,20 @@ enum Category {
   REFUND
 }
 
-// 6. MATCH RESULT & SCREENSHOT PROOF
+// 6. OFFICIAL MATCH RESULT & SPECTATOR VERIFICATION (No player screenshot upload needed)
 model MatchResult {
   id              String          @id @default(uuid())
   tournamentId    String
   tournament      Tournament      @relation(fields: [tournamentId], references: [id])
   userId          String
   user            User            @relation(fields: [userId], references: [id])
-  screenshotUrl   String
-  imageHash       String?         // Duplicate detection (pHash)
-  detectedKills   Int?            // OCR auto extracted kills
-  verifiedKills   Int             @default(0)
-  rank            Int?            // e.g. 1 for Booyah!
+  screenshotUrl   String?         // Optional: Official spectator match end screenshot
+  verifiedKills   Int             @default(0) // Verified by Spectator/Staff
+  rank            Int?            // Official Rank (1 = Booyah!)
   prizeWon        Decimal         @default(0.00) @db.Decimal(10, 2)
   isApproved      Boolean         @default(false)
+  isDisqualified  Boolean         @default(false) // Flagged by Spectator for hacking/teaming
+  disqualifyReason String?
   reviewedAt      DateTime?
 
   @@unique([tournamentId, userId])

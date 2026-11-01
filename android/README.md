@@ -1,0 +1,84 @@
+# TourneyFF — Android Multi-Module (Kotlin + Jetpack Compose)
+
+White-label Free Fire tournament platform — native Android client apps built on the
+100% complete Node/TS backend (`../backend`).
+
+## Modules
+
+| Module | App | Purpose |
+| --- | --- | --- |
+| `:app-player` | Player APK | Tournament Feed, 48-slot picker, T-15 min Room ID countdown, wallet, Official Spectator Scoreboard (Phase 2 screens) |
+| `:app-admin` | Owner/Staff APK | Permission-driven dynamic dashboard (ADMIN = all, SUB_ADMIN = granted cards); Spectator Scorecard Console (Phase 2) |
+| `:core` | Shared library | White-label theming (`ClientConfig`/`Theme`), domain models, DataStore `SessionManager`, `AppButton`/`GlassCard` UI kit |
+
+## Toolchain (verified builds)
+
+- Gradle **8.11.1** (wrapper included) · AGP **8.10.1** · Kotlin **2.1.20** · Compose BOM **2024.12.01**
+- compileSdk 36 · minSdk 24 · Java 17 (OpenJDK 21 runs Gradle)
+- SDK path: `android/local.properties` → `sdk.dir=C:/Users/Jay Kumar/AppData/Local/Android/Sdk`
+
+## Build
+
+```bash
+cd android
+./gradlew :app-player:assembleDebug :app-admin:assembleDebug    # demo APKs
+./gradlew :app-player:assembleRelease :app-admin:assembleRelease # R8 release (unsigned)
+```
+
+Artifacts: `app-player/build/outputs/apk/{debug,release}/`, same for `app-admin`.
+Debug ≈ 18.5 MB; R8 release ≈ 1.4 MB (shrink + obfuscate).
+
+## ⚡ 10-Minute Client Rebranding (proven: 19 s rebuild)
+
+Every client gets the same 3 files edited — **zero Kotlin changes**:
+
+1. `app-player/src/main/assets/client_config.json`
+2. `app-admin/src/main/assets/client_config.json`
+3. Client logo → `res/mipmap/` (optional)
+
+`client_config.json` drives EVERYTHING at build time (applicationId + app label via
+`JsonSlurper` → `resValue`) and at runtime (colors, shapes, dark mode via `ClientConfig`).
+
+```jsonc
+{
+  "client_name": "Thunder eSports",      // tenant branding
+  "application_id": "com.thunderesports.player", // unique Play identity per client
+  "app_name": "Thunder eSports",         // launcher label
+  "primary_color": "#FF5722",            // theme primary
+  "button_color": "#FF7043",
+  "accent_color": "#FFB300",
+  "corner_radius_dp": 12,                // 4 = Sharp · 12 = Rounded · 999 = Pill
+  "font_style": "default",               // rajdhani | orbitron | poppins | inter
+  "enable_dark_mode": true,
+  "api_base_url": "http://10.0.2.2:5000/api/v1" // emulator → host backend
+}
+```
+
+Live proof from Phase 1: changed only the player config → 19 s incremental rebuild →
+`aapt2 dump badging` showed package `com.rajff.player` + label `Raj FF Club`.
+
+## Anti-fraud architecture alignment (boss demand)
+
+- **Zero screenshot policy:** `:app-player` contains NO screenshot/image-picker/upload
+  UI (grep-verified) — results come from the official **Staff Spectator Scoreboard**.
+- **Dynamic role dashboards:** `SessionManager` caches JWT + role + permission booleans
+  in DataStore → admin app renders the exact cards a SUB_ADMIN is allowed, instantly,
+  offline, cold-start.
+- **Per-client Play identity:** distinct package names per account = decentralized Play
+  Console accounts (see `../plan/PLAYSTORE_WHITELABEL_RESEARCH.md`); "Free Fire" never
+  appears in app names — Garena trademark.
+
+## Gotchas on record
+
+- AGP 8.4+ minifies *local library* deps inside the app's R8 run — a library module must
+  keep `isMinifyEnabled = false` (+ `consumerProguardFiles`) or R8 fails with
+  `Missing classes ... com.tourney.core.*` ("Missing classes detected while running R8").
+- `minSdk 24` needs the plain-vector launcher icon fallback in `res/mipmap/` alongside
+  `mipmap-anydpi-v26` adaptive icons.
+- Emulator → backend: use `10.0.2.2:5000`; real device → LAN IP + `CORS_ORIGIN` update.
+
+## Phase 2 (next)
+
+Auth screens (login with phone + OTP), Retrofit API layer + Moshi DTOs against the
+Phase 1–4 backend, Tournament Feed → 48-slot picker → Room ID countdown modal → Wallet,
+Staff Spectator Scorecard Console (live scoring + 1-click payout), Google Fonts bundle.

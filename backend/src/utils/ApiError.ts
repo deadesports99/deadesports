@@ -32,8 +32,8 @@ export class ApiError extends Error {
   }
 
   /** 403 Forbidden — authenticated but not permitted to perform the action. */
-  public static forbidden(message: string = 'Forbidden'): ApiError {
-    return new ApiError(403, message);
+  public static forbidden(message: string = 'Forbidden', details?: unknown): ApiError {
+    return new ApiError(403, message, details);
   }
 
   /** 404 Not Found — requested resource/route does not exist. */
