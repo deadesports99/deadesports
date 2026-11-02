@@ -15,6 +15,7 @@ import {
   releaseSlot,
   reserveSlot,
 } from './slotLock.service.js';
+import { pushToTournamentParticipants } from './fcm.service.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -104,6 +105,20 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
   return sanitizeTournament(tournament, true);
 }
 
+// ─── In-Memory Feed Cache (eliminates 1.5s DB roundtrip to Supabase) ────────
+interface ListCacheEntry {
+  data: {
+    items: Record<string, unknown>[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  };
+  expiresAt: number;
+}
+const feedCache = new Map<string, ListCacheEntry>();
+
+export function clearFeedCache() {
+  feedCache.clear();
+}
+
 // ─── 2. LIST TOURNAMENTS ─────────────────────────────────────────────────
 
 export async function listTournaments(tenantId: string, query: ListTournamentsQuery) {
@@ -191,11 +206,17 @@ export async function getTournamentSlots(tenantId: string, tournamentId: string)
   return {
     totalSlots: tournament.totalSlots,
     booked: slots.length,
-    slots: slots.map((s) => ({
-      slotNumber: s.slotNumber,
-      teamId: s.teamId,
-      player: s.user,
-    })),
+    slots: Array.from({ length: tournament.totalSlots }, (_, idx) => {
+      const slotNum = idx + 1;
+      const booked = slots.find((s) => s.slotNumber === slotNum);
+      return booked
+        ? { slotNumber: slotNum, teamId: booked.teamId, player: booked.user }
+        : { slotNumber: slotNum, teamId: null, player: null };
+    }),
+
+
+
+
   };
 }
 
@@ -476,6 +497,14 @@ export async function cancelTournamentAndRefundAll(
 
   // Wipe Redis seat state so the room immediately frees up.
   await clearTournamentRedis(tournamentId);
+
+  // Push: refund alert to every confirmed participant.
+  void pushToTournamentParticipants(tournamentId, {
+    type: 'MATCH_CANCELLED',
+    tournamentId,
+    title: '❌ Match Cancelled',
+    body: 'Your entry fee has been refunded to your balance.',
+  });
 
   return { tournamentId, status: 'CANCELLED', ...result };
 }

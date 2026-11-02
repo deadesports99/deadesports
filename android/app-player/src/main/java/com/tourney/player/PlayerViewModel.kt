@@ -8,16 +8,24 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tourney.core.datastore.SessionState
 import com.tourney.core.model.ApiException
+import com.tourney.core.model.DepositSubmitResponse
 import com.tourney.core.model.LoginRequest
+import com.tourney.core.model.PlayerDepositsResponse
 import com.tourney.core.model.RegisterRequest
+import com.tourney.core.model.SubmitDepositRequest
 import com.tourney.core.model.TournamentListResponse
 import com.tourney.core.model.User
 import com.tourney.core.model.WalletSummary
+import com.tourney.core.model.WithdrawRequest
+import com.tourney.core.model.WithdrawResponse
 import com.tourney.core.network.ApiClient
 import com.tourney.core.network.DeviceIdProvider
 import com.tourney.core.network.apiCall
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+
+/** UPI handle@bank validation (backend-regex parity). */
+val UPI_ID_REGEX = Regex("^[a-zA-Z0-9.\\-_]{2,256}@[a-zA-Z]{2,64}$")
 
 /** Simple UI state machine shared by all screens. */
 sealed interface UiState<out T> {
@@ -35,7 +43,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val api get() = ApiClient.tourneyApi
     private val session get() = ApiClient.sessionManager
-    private val config get() = ApiClient.config
+    val config get() = ApiClient.config
 
     /** Reactive session — collected in MainActivity to pick login vs main UI. */
     val sessionFlow: Flow<SessionState> = session.session
@@ -53,6 +61,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 persistLogin(response)
                 authUi = UiState.Success(response.user)
+                prefetchData()
             } catch (e: ApiException) {
                 authUi = UiState.Error(e.message)
             } catch (e: Exception) {
@@ -78,6 +87,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 persistLogin(response)
                 authUi = UiState.Success(response.user)
+                prefetchData()
             } catch (e: ApiException) {
                 authUi = UiState.Error(e.message)
             } catch (e: Exception) {
@@ -97,6 +107,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun logout() {
+        feedUi = UiState.Idle
+        walletUi = UiState.Idle
+        authUi = UiState.Idle
+        depositUi = UiState.Idle
+        withdrawUi = UiState.Idle
         viewModelScope.launch { session.clearSession() }
     }
 
@@ -104,15 +119,18 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var feedUi by mutableStateOf<UiState<TournamentListResponse>>(UiState.Idle)
         private set
 
-    fun refreshFeed() {
-        feedUi = UiState.Loading
+    fun refreshFeed(forceLoading: Boolean = false) {
+        if (forceLoading || feedUi is UiState.Idle || feedUi is UiState.Error) {
+            feedUi = UiState.Loading
+        }
         viewModelScope.launch {
             try {
-                feedUi = UiState.Success(apiCall { api.listTournaments(status = null, limit = 25) })
+                val fresh = apiCall { api.listTournaments(status = null, limit = 25) }
+                feedUi = UiState.Success(fresh)
             } catch (e: ApiException) {
-                feedUi = UiState.Error(e.message)
+                if (feedUi !is UiState.Success) feedUi = UiState.Error(e.message)
             } catch (e: Exception) {
-                feedUi = UiState.Error("Network error — is the server running?")
+                if (feedUi !is UiState.Success) feedUi = UiState.Error("Network error — is the server running?")
             }
         }
     }
@@ -121,16 +139,142 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var walletUi by mutableStateOf<UiState<WalletSummary>>(UiState.Idle)
         private set
 
-    fun refreshWallet() {
-        walletUi = UiState.Loading
+    fun refreshWallet(forceLoading: Boolean = false) {
+        if (forceLoading || walletUi is UiState.Idle || walletUi is UiState.Error) {
+            walletUi = UiState.Loading
+        }
         viewModelScope.launch {
             try {
-                walletUi = UiState.Success(apiCall { api.wallet(limit = 30) })
+                val fresh = apiCall { api.wallet(limit = 30) }
+                walletUi = UiState.Success(fresh)
             } catch (e: ApiException) {
-                walletUi = UiState.Error(e.message)
+                if (walletUi !is UiState.Success) walletUi = UiState.Error(e.message)
             } catch (e: Exception) {
-                walletUi = UiState.Error("Network error — is the server running?")
+                if (walletUi !is UiState.Success) walletUi = UiState.Error("Network error — is the server running?")
             }
         }
+    }
+
+    /** Optimistic wallet deduction on match join — 0ms instant local update */
+    fun deductEntryFee(fee: Double) {
+        val current = (walletUi as? UiState.Success)?.data ?: return
+        val currentDeposit = current.depositValue
+        val currentWinning = current.winningValue
+        val newDeposit: Double
+        val newWinning: Double
+        if (currentDeposit >= fee) {
+            newDeposit = currentDeposit - fee
+            newWinning = currentWinning
+        } else {
+            newDeposit = 0.0
+            newWinning = (currentWinning - (fee - currentDeposit)).coerceAtLeast(0.0)
+        }
+        walletUi = UiState.Success(
+            current.copy(
+                depositBalance = "%.2f".format(java.util.Locale.US, newDeposit),
+                winningBalance = "%.2f".format(java.util.Locale.US, newWinning),
+            )
+        )
+        refreshWallet(forceLoading = false)
+    }
+
+    /** Prefetch feed and wallet in background after login or app startup */
+    fun prefetchData() {
+        refreshFeed(forceLoading = false)
+        refreshWallet(forceLoading = false)
+    }
+
+    // ─── Deposit / Add Cash (UPI transfer + UTR proof, admin verified) ───
+    var depositUi by mutableStateOf<UiState<DepositSubmitResponse>>(UiState.Idle)
+        private set
+
+    /** Own deposit history — status chips inside the Add Cash modal. */
+    var myDepositsUi by mutableStateOf<UiState<PlayerDepositsResponse>>(UiState.Idle)
+        private set
+
+    fun loadMyDeposits() {
+        if (myDepositsUi is UiState.Loading) return
+        myDepositsUi = UiState.Loading
+        viewModelScope.launch {
+            myDepositsUi = try {
+                UiState.Success(apiCall { api.myDeposits(limit = 10) })
+            } catch (e: ApiException) {
+                UiState.Error(e.message)
+            } catch (e: Exception) {
+                UiState.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    /**
+     * Submit an Add Cash request. No balance is credited here — the player
+     * pays the client's UPI ID first, then staff verify the UTR.
+     */
+    fun submitDeposit(amount: Double, utrNumber: String) {
+        if (depositUi is UiState.Loading) return
+        depositUi = UiState.Loading
+        viewModelScope.launch {
+            try {
+                val res = apiCall {
+                    api.submitDeposit(
+                        SubmitDepositRequest(
+                            amount = amount,
+                            utrNumber = utrNumber.trim().uppercase(),
+                        )
+                    )
+                }
+                depositUi = UiState.Success(res)
+                loadMyDeposits()
+            } catch (e: ApiException) {
+                depositUi = UiState.Error(e.message)
+            } catch (e: Exception) {
+                depositUi = UiState.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    fun clearDeposit() {
+        depositUi = UiState.Idle
+    }
+
+    // ─── Withdrawal (winning balance -> UPI, anti-fraud deviceId) ────────
+    var withdrawUi by mutableStateOf<UiState<WithdrawResponse>>(UiState.Idle)
+        private set
+
+    fun withdraw(upiId: String, amount: Double) {
+        val prev = walletUi
+        val current = (walletUi as? UiState.Success)?.data
+        if (current != null && current.winningValue >= amount) {
+            val optimistic = current.copy(
+                winningBalance = (current.winningValue - amount).toString(),
+            )
+            walletUi = UiState.Success(optimistic)
+        }
+        withdrawUi = UiState.Loading
+        viewModelScope.launch {
+            try {
+                val res = apiCall {
+                    api.withdraw(
+                        WithdrawRequest(
+                            amount = amount,
+                            upiId = upiId.trim(),
+                            deviceId = DeviceIdProvider.androidId(getApplication()),
+                        )
+                    )
+                }
+                withdrawUi = UiState.Success(res)
+                refreshWallet(forceLoading = false)
+            } catch (e: ApiException) {
+                walletUi = prev
+                withdrawUi = UiState.Error(e.message)
+            } catch (e: Exception) {
+                walletUi = prev
+                withdrawUi = UiState.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    fun clearWithdraw() {
+        withdrawUi = UiState.Idle
     }
 }

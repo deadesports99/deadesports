@@ -66,20 +66,21 @@ export async function getWalletSummary(
   const safePage = Math.max(1, page);
   const safeLimit = Math.min(50, Math.max(1, limit));
 
-  const user = await prisma.user.findFirst({
-    where: { id: userId, tenantId },
-    select: { depositBalance: true, winningBalance: true },
-  });
+  const [user, total, rows] = await Promise.all([
+    prisma.user.findFirst({
+      where: { id: userId, tenantId },
+      select: { depositBalance: true, winningBalance: true },
+    }),
+    prisma.walletLedger.count({ where: { userId } }),
+    prisma.walletLedger.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+    }),
+  ]);
+
   if (!user) throw ApiError.notFound('User not found');
-
-  const total = await prisma.walletLedger.count({ where: { userId } });
-
-  const rows = await prisma.walletLedger.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    skip: (safePage - 1) * safeLimit,
-    take: safeLimit,
-  });
 
   const deposit = Number(user.depositBalance);
   const winning = Number(user.winningBalance);

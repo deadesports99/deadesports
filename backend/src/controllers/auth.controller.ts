@@ -42,6 +42,10 @@ const createStaffSchema = z.object({
   permissions: permissionsSchema.optional(),
 });
 
+const fcmTokenSchema = z.object({
+  token: z.string().trim().min(20, 'Invalid FCM token').max(512),
+});
+
 // ─── Handlers ───────────────────────────────────────────────────────────
 
 export async function registerPlayer(
@@ -103,6 +107,21 @@ export async function getMe(req: Request, res: Response, next: NextFunction): Pr
     }
     const profile = await authService.getUserProfile(req.user.userId);
     sendResponse(res, 200, 'Profile fetched', profile);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function registerFcmToken(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const { token } = fcmTokenSchema.parse(req.body);
+    const result = await authService.saveFcmToken(req.user.userId, token);
+    sendResponse(res, 200, 'Push token registered', result);
   } catch (err) {
     next(err);
   }

@@ -100,7 +100,7 @@ async function main(): Promise<void> {
   });
   console.log(`✔ Sub-Admin: ${staff.name} — canUpdateRoomId: ${staff.canUpdateRoomId}`);
 
-  // 4) USER players with Free Fire accounts
+  // 4) USER players with Free Fire accounts & initial balances
   const player1 = await upsertUser({
     phoneNumber: '9999900003',
     role: 'USER',
@@ -108,6 +108,12 @@ async function main(): Promise<void> {
     inGameName: 'RAISTAR_99',
     inGameUid: '1928374612',
   });
+  // Give test player balance for instant match joining & withdrawal tests
+  await prisma.user.update({
+    where: { id: player1.id },
+    data: { depositBalance: 500.0, winningBalance: 250.0 }
+  });
+
   const player2 = await upsertUser({
     phoneNumber: '9999900004',
     role: 'USER',
@@ -116,6 +122,46 @@ async function main(): Promise<void> {
     inGameUid: '5819392048',
   });
   console.log(`✔ Players: ${player1.inGameName} (${player1.inGameUid}), ${player2.inGameName} (${player2.inGameUid})`);
+
+  // 4.5) Create Demo Tournaments
+  const existingTourneys = await prisma.tournament.count({ where: { tenantId: tenant.id } });
+  if (existingTourneys === 0) {
+    const matchTime1 = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+    const matchTime2 = new Date(Date.now() + 5 * 60 * 60 * 1000); // 5 hours from now
+
+    await prisma.tournament.create({
+      data: {
+        tenantId: tenant.id,
+        title: 'Daily Bermuda Squad Bash #101',
+        gameMode: 'BATTLE_ROYALE',
+        matchType: 'SQUAD',
+        mapType: 'BERMUDA',
+        entryFee: 50.0,
+        prizePool: 2000.0,
+        perKillPrize: 25.0,
+        totalSlots: 48,
+        matchTime: matchTime1,
+        status: 'OPEN',
+      }
+    });
+
+    await prisma.tournament.create({
+      data: {
+        tenantId: tenant.id,
+        title: 'Midnight Purgatory Solo War',
+        gameMode: 'BATTLE_ROYALE',
+        matchType: 'SOLO',
+        mapType: 'PURGATORY',
+        entryFee: 30.0,
+        prizePool: 1200.0,
+        perKillPrize: 15.0,
+        totalSlots: 48,
+        matchTime: matchTime2,
+        status: 'OPEN',
+      }
+    });
+    console.log('✔ Demo Tournaments created (Bermuda Squad #101 & Purgatory Solo War)');
+  }
 
   // 5) Print credentials + ready-to-use JWT tokens
   const token = (u: { id: string; tenantId: string; role: 'ADMIN' | 'SUB_ADMIN' | 'USER' }) =>

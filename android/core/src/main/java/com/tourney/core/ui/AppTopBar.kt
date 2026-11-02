@@ -34,6 +34,7 @@ fun AppTopBar(
     balanceChip: String? = null,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -66,6 +67,7 @@ fun AppTopBar(
             if (balanceChip != null) {
                 BalanceChip(balanceChip)
             }
+            actions()
         }
     }
 }

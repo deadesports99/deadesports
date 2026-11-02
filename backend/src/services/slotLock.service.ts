@@ -102,6 +102,9 @@ export async function reserveSlot(
   userId: string,
   maxSlots: number,
 ): Promise<ReserveResult> {
+  if (redis.status !== 'ready') {
+    return { ok: true };
+  }
   const result = (await redis.eval(
     RESERVE_SCRIPT,
     2,
@@ -131,6 +134,7 @@ export async function releaseSlot(
   slotNumber: number,
   userId: string,
 ): Promise<void> {
+  if (redis.status !== 'ready') return;
   await redis.eval(RELEASE_SCRIPT, 2, slotKey(tournamentId), joinedKey(tournamentId), slotNumber, userId);
 }
 
@@ -139,12 +143,17 @@ export async function releaseSlot(
  * the DB has seats (TTL expiry / crash recovery) we hydrate from the DB.
  */
 export async function getOccupiedSlots(tournamentId: string): Promise<Record<number, string>> {
-  const raw = await redis.hgetall(slotKey(tournamentId));
-  const out: Record<number, string> = {};
-  for (const [slot, userId] of Object.entries(raw)) {
-    out[Number(slot)] = userId;
+  if (redis.status !== 'ready') return {};
+  try {
+    const raw = await redis.hgetall(slotKey(tournamentId));
+    const out: Record<number, string> = {};
+    for (const [slot, userId] of Object.entries(raw)) {
+      out[Number(slot)] = userId;
+    }
+    return out;
+  } catch {
+    return {};
   }
-  return out;
 }
 
 /** Re-populate Redis seat info from the DB (idempotent, TTL-safe). */
@@ -152,15 +161,19 @@ export async function hydrateSlotsFromDb(
   tournamentId: string,
   seats: Array<{ slotNumber: number; userId: string }>,
 ): Promise<void> {
-  if (seats.length === 0) return;
-  const pipe = redis.pipeline();
-  for (const seat of seats) {
-    pipe.hset(slotKey(tournamentId), String(seat.slotNumber), seat.userId);
-    pipe.sadd(joinedKey(tournamentId), seat.userId);
+  if (seats.length === 0 || redis.status !== 'ready') return;
+  try {
+    const pipe = redis.pipeline();
+    for (const seat of seats) {
+      pipe.hset(slotKey(tournamentId), String(seat.slotNumber), seat.userId);
+      pipe.sadd(joinedKey(tournamentId), seat.userId);
+    }
+    pipe.pexpire(slotKey(tournamentId), SEAT_TTL_MS);
+    pipe.pexpire(joinedKey(tournamentId), SEAT_TTL_MS);
+    await pipe.exec();
+  } catch {
+    // ignore
   }
-  pipe.pexpire(slotKey(tournamentId), SEAT_TTL_MS);
-  pipe.pexpire(joinedKey(tournamentId), SEAT_TTL_MS);
-  await pipe.exec();
 }
 
 // ─── Squad team codes (DUO / SQUAD) ─────────────────────────────────────
@@ -177,15 +190,20 @@ export async function createTeam(
   teamId: string,
   maxSize: number,
 ): Promise<boolean> {
-  const created = (await redis.eval(
-    CREATE_TEAM_SCRIPT,
-    1,
-    teamKey(tournamentId, code),
-    teamId,
-    maxSize,
-    TEAM_TTL_MS,
-  )) as number;
-  return created === 1;
+  if (redis.status !== 'ready') return true;
+  try {
+    const created = (await redis.eval(
+      CREATE_TEAM_SCRIPT,
+      1,
+      teamKey(tournamentId, code),
+      teamId,
+      maxSize,
+      TEAM_TTL_MS,
+    )) as number;
+    return created === 1;
+  } catch {
+    return true;
+  }
 }
 
 export type JoinTeamResult =
@@ -198,37 +216,64 @@ export async function joinTeam(
   code: string,
   maxSize: number,
 ): Promise<JoinTeamResult> {
-  const key = teamKey(tournamentId, code);
-  const result = (await redis.eval(JOIN_TEAM_SCRIPT, 1, key, maxSize, TEAM_TTL_MS)) as number;
-  if (result === 0) return { ok: false, code: 'NOT_FOUND' };
-  if (result === 2) return { ok: false, code: 'TEAM_FULL' };
-  const teamId = await redis.hget(key, 'teamId');
-  if (!teamId) return { ok: false, code: 'NOT_FOUND' };
-  return { ok: true, teamId };
+  if (redis.status !== 'ready') {
+    return { ok: true, teamId: code };
+  }
+  try {
+    const key = teamKey(tournamentId, code);
+    const result = (await redis.eval(JOIN_TEAM_SCRIPT, 1, key, maxSize, TEAM_TTL_MS)) as number;
+    if (result === 0) return { ok: false, code: 'NOT_FOUND' };
+    if (result === 2) return { ok: false, code: 'TEAM_FULL' };
+    const teamId = await redis.hget(key, 'teamId');
+    if (!teamId) return { ok: false, code: 'NOT_FOUND' };
+    return { ok: true, teamId };
+  } catch {
+    return { ok: true, teamId: code };
+  }
 }
 
 /** Roll back a team join (DB failure path). */
 export async function decrementTeamMembers(tournamentId: string, code: string): Promise<void> {
-  await redis.hincrby(teamKey(tournamentId, code), 'members', -1);
+  if (redis.status !== 'ready') return;
+  try {
+    await redis.hincrby(teamKey(tournamentId, code), 'members', -1);
+  } catch {
+    // ignore
+  }
 }
 
 /** Remove a squad entirely (leader rollback — the team never persisted). */
 export async function deleteTeam(tournamentId: string, code: string): Promise<void> {
-  await redis.del(teamKey(tournamentId, code));
+  if (redis.status !== 'ready') return;
+  try {
+    await redis.del(teamKey(tournamentId, code));
+  } catch {
+    // ignore
+  }
 }
 
 /** Fetch the live member count of a squad. */
 export async function getTeamMembers(tournamentId: string, code: string): Promise<number> {
-  const members = await redis.hget(teamKey(tournamentId, code), 'members');
-  return members ? Number(members) : 0;
+  if (redis.status !== 'ready') return 0;
+  try {
+    const members = await redis.hget(teamKey(tournamentId, code), 'members');
+    return members ? Number(members) : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** Wipe all Redis state for a tournament (cancel / completion). */
 export async function clearTournamentRedis(tournamentId: string): Promise<void> {
-  const keys = await redis.keys(`ff:team:${tournamentId}:*`);
-  const pipe = redis.pipeline();
-  pipe.del(slotKey(tournamentId));
-  pipe.del(joinedKey(tournamentId));
-  if (keys.length > 0) pipe.del(...keys);
-  await pipe.exec();
+  if (redis.status !== 'ready') return;
+  try {
+    const keys = await redis.keys(`ff:team:${tournamentId}:*`);
+    const pipe = redis.pipeline();
+    pipe.del(slotKey(tournamentId));
+    pipe.del(joinedKey(tournamentId));
+    if (keys.length > 0) pipe.del(...keys);
+    await pipe.exec();
+  } catch {
+    // ignore
+  }
 }

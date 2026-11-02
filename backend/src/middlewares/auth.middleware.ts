@@ -6,6 +6,19 @@ import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { AuthUser, PermissionKey, TokenPayload } from '../types/auth.js';
 
+interface CachedAuth {
+  user: any;
+  tenant: any;
+  expiresAt: number;
+}
+
+const authCache = new Map<string, CachedAuth>();
+
+export function invalidateAuthCache(userId?: string) {
+  if (userId) authCache.delete(userId);
+  else authCache.clear();
+}
+
 /** Extract + verify the Bearer token, then load the fresh user from the DB. */
 export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
@@ -30,21 +43,32 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       throw ApiError.unauthorized('Invalid or expired token');
     }
 
-    // Load the user fresh from the DB — keeps role/permissions/bans in sync
-    // even if the admin toggled permissions without forcing a re-login.
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-    });
+    // In-memory caching (30s TTL) eliminates 400ms sequential DB round trips on every request
+    const cached = authCache.get(payload.userId);
+    let user = cached?.user;
+    let tenant = cached?.tenant;
 
-    if (!user) throw ApiError.unauthorized('User account no longer exists');
+    if (!cached || cached.expiresAt <= Date.now()) {
+      user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+      });
 
-    if (user.tenantId !== payload.tenantId) {
-      throw ApiError.unauthorized('Token tenant mismatch');
+      if (!user) throw ApiError.unauthorized('User account no longer exists');
+
+      if (user.tenantId !== payload.tenantId) {
+        throw ApiError.unauthorized('Token tenant mismatch');
+      }
+      if (user.isBanned) throw ApiError.forbidden('Your account has been banned');
+
+      tenant = await prisma.tenant.findUnique({ where: { id: payload.tenantId } });
+      if (!tenant || !tenant.isActive) throw ApiError.forbidden('Tenant account is inactive');
+
+      authCache.set(payload.userId, {
+        user,
+        tenant,
+        expiresAt: Date.now() + 30_000,
+      });
     }
-    if (user.isBanned) throw ApiError.forbidden('Your account has been banned');
-
-    const tenant = await prisma.tenant.findUnique({ where: { id: payload.tenantId } });
-    if (!tenant || !tenant.isActive) throw ApiError.forbidden('Tenant account is inactive');
 
     req.user = {
       userId: user.id,

@@ -3,18 +3,17 @@ import { env } from './env.js';
 
 /**
  * Singleton Redis client.
- * Used for the anti-overbooking slot lock (SETNX), caching and rate limiting
- * in later phases, so it is kept alive across the process lifetime.
+ * Configured with enableOfflineQueue: false so if Redis is offline,
+ * operations fail instantly in 0ms without queuing or hanging HTTP requests.
  */
 export const redis = new Redis(env.REDIS_URL, {
-  // Keep retrying forever (ioredis by default stops after 20 attempts).
-  maxRetriesPerRequest: null,
+  enableOfflineQueue: false,
+  maxRetriesPerRequest: 1,
   enableReadyCheck: true,
-  // Exponential backoff capped at 2000ms: 500ms, 1000ms, 2000ms, 2000ms, ...
-  retryStrategy: (times: number): number => {
-    const delay = Math.min(2000, 500 * 2 ** (times - 1));
-    console.warn(`[Redis] Connection lost — retrying in ${delay}ms (attempt #${times})`);
-    return delay;
+  lazyConnect: true,
+  retryStrategy: (times: number): number | null => {
+    if (times > 5) return null;
+    return Math.min(2000, 500 * 2 ** (times - 1));
   },
 });
 
@@ -24,8 +23,7 @@ redis.on('reconnecting', (delayMs: number) =>
   console.warn(`[Redis] Reconnecting in ${delayMs}ms...`),
 );
 redis.on('error', (err: Error) => {
-  // A closed connection also emits 'error'; do not spam the logs with it.
-  if (err.message !== 'Connection is closed.') {
+  if (err.message !== 'Connection is closed.' && !err.message.includes('Stream isn\'t writeable')) {
     console.error('[Redis] Error:', err.message);
   }
 });

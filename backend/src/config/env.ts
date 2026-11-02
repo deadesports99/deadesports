@@ -27,6 +27,9 @@ const envSchema = z.object({
 
   /** Comma-separated list of allowed client origins. */
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
+
+  /** Firebase service-account JSON (stringified) for FCM push. Optional — push disabled when absent. */
+  FCM_CREDENTIALS_JSON: z.string().optional(),
 });
 
 /** Zod schema that transforms CORS_ORIGIN (CSV) into a clean string[]. */

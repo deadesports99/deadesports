@@ -8,17 +8,20 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tourney.core.datastore.SessionState
 import com.tourney.core.model.ApiException
+import com.tourney.core.model.ApproveWithdrawalRequest
 import com.tourney.core.model.CreateTournamentRequest
 import com.tourney.core.model.LoginRequest
 import com.tourney.core.model.PayoutRequest
 import com.tourney.core.model.PayoutResponse
 import com.tourney.core.model.PayoutResultInput
 import com.tourney.core.model.PublishRoomRequest
+import com.tourney.core.model.RejectWithdrawalRequest
 import com.tourney.core.model.RoomCredentials
 import com.tourney.core.model.SlotsResponse
 import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentListResponse
 import com.tourney.core.model.User
+import com.tourney.core.model.WithdrawalsResponse
 import com.tourney.core.network.ApiClient
 import com.tourney.core.network.apiCall
 import kotlinx.coroutines.flow.Flow
@@ -230,6 +233,77 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                 loadTournaments()
             }
         }
+    }
+
+    // ─── Withdrawal approvals (canManageWallet) ──────────────────────────
+    var withdrawalsUi by mutableStateOf<AdminUi<WithdrawalsResponse>>(AdminUi.Idle)
+        private set
+
+    var walletBusy by mutableStateOf(false)
+        private set
+
+    var walletMessage by mutableStateOf<String?>(null)
+        private set
+
+    var walletError by mutableStateOf<String?>(null)
+        private set
+
+    fun loadWithdrawals(status: String? = "PENDING") {
+        withdrawalsUi = AdminUi.Loading
+        viewModelScope.launch {
+            try {
+                withdrawalsUi = AdminUi.Success(apiCall { api.adminWithdrawals(status = status) })
+            } catch (e: ApiException) {
+                withdrawalsUi = AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                withdrawalsUi = AdminUi.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    fun approveWithdrawal(id: String, utrNumber: String) {
+        if (walletBusy) return
+        walletBusy = true
+        walletMessage = null
+        walletError = null
+        viewModelScope.launch {
+            try {
+                apiCall { api.approveWithdrawal(id, ApproveWithdrawalRequest(utrNumber)) }
+                walletMessage = "Withdrawal approved ✓"
+                loadWithdrawals("PENDING")
+            } catch (e: ApiException) {
+                walletError = e.message
+            } catch (e: Exception) {
+                walletError = "Network error — is the server running?"
+            } finally {
+                walletBusy = false
+            }
+        }
+    }
+
+    fun rejectWithdrawal(id: String, reason: String) {
+        if (walletBusy) return
+        walletBusy = true
+        walletMessage = null
+        walletError = null
+        viewModelScope.launch {
+            try {
+                apiCall { api.rejectWithdrawal(id, RejectWithdrawalRequest(reason)) }
+                walletMessage = "Withdrawal rejected & refunded ✓"
+                loadWithdrawals("PENDING")
+            } catch (e: ApiException) {
+                walletError = e.message
+            } catch (e: Exception) {
+                walletError = "Network error — is the server running?"
+            } finally {
+                walletBusy = false
+            }
+        }
+    }
+
+    fun clearWalletFeedback() {
+        walletMessage = null
+        walletError = null
     }
 }
 

@@ -23,6 +23,9 @@ data class ClientConfig(
     val cornerRadiusDp: Int,          // 4 = Sharp, 12 = Rounded, 999 = Pill
     val fontStyle: String,            // "rajdhani" | "orbitron" | "inter" | "poppins" | "default"
     val enableDarkMode: Boolean,
+    val upiId: String,                // client's collection UPI ID (Add Cash QR / intent)
+    val upiName: String,              // payee name shown in GPay / PhonePe / Paytm
+    val minDeposit: Int,              // minimum top-up in ₹
 ) {
     /** Corner radius as Float for Compose RoundedCornerShape (clamped to a sane max). */
     val cornerRadius: Float = cornerRadiusDp.coerceIn(0, 48).toFloat()
@@ -41,6 +44,9 @@ data class ClientConfig(
             cornerRadiusDp = 12,
             fontStyle = "default",
             enableDarkMode = true,
+            upiId = "thunderesports@okaxis",
+            upiName = "Thunder eSports",
+            minDeposit = 10,
         )
 
         /** Parse assets/client_config.json (org.json — no extra dependency). */
@@ -56,6 +62,9 @@ data class ClientConfig(
             cornerRadiusDp = json.optInt("corner_radius_dp", DEFAULT.cornerRadiusDp),
             fontStyle = json.optString("font_style", DEFAULT.fontStyle),
             enableDarkMode = json.optBoolean("enable_dark_mode", DEFAULT.enableDarkMode),
+            upiId = json.optString("upi_id", DEFAULT.upiId),
+            upiName = json.optString("upi_name", DEFAULT.upiName),
+            minDeposit = json.optInt("min_deposit", DEFAULT.minDeposit),
         )
 
         /** Convenience: load from this app's bundled asset file. */

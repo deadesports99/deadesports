@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import * as tournamentService from '../services/tournament.service.js';
+import * as matchSweepService from '../services/matchSweep.service.js';
 import { sendResponse } from '../utils/ApiResponse.js';
 
 // ─── Zod validation schemas ──────────────────────────────────────────────
@@ -108,6 +109,19 @@ export async function cancelTournamentAndRefundAll(req: Request, res: Response, 
     const { reason } = cancelSchema.parse(req.body);
     const result = await tournamentService.cancelTournamentAndRefundAll(req.user, String(req.params.id), reason);
     sendResponse(res, 200, 'Tournament cancelled and all players refunded', result);
+  } catch (err) {
+    next(err);
+  }
+}
+/**
+ * Time-based lifecycle sweep (manual trigger) — same engine the background
+ * scheduler runs every minute. Useful for ops "advance now" during a demo.
+ */
+export async function sweepMatchStates(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const result = await matchSweepService.sweepMatchStates(new Date(), req.user.tenantId);
+    sendResponse(res, 200, 'Match state sweep complete', result);
   } catch (err) {
     next(err);
   }

@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { authRouter } from './routes/auth.routes.js';
+import { adminWalletRouter } from './routes/adminWallet.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { resultRouter } from './routes/result.routes.js';
 import { tournamentRouter } from './routes/tournament.routes.js';
@@ -63,6 +64,9 @@ app.use('/api/v1/tournaments', resultRouter);
 
 // Wallet: balances + double-entry ledger history (Android Phase 2)
 app.use('/api/v1/wallet', walletRouter);
+
+// Admin wallet console: withdrawal approvals (Android Phase 3)
+app.use('/api/v1/admin/wallet', adminWalletRouter);
 
 // ─── 6. 404 handler for undefined routes ────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction) => {

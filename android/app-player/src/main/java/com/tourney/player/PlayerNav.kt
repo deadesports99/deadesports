@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,9 +34,22 @@ private enum class PlayerTab(val route: String, val label: String, val icon: Ima
 @Composable
 fun PlayerNavHost(
     playerViewModel: PlayerViewModel,
+    pushTarget: Pair<String, String>? = null,
+    onPushHandled: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val matchViewModel: MatchViewModel = viewModel()
+
+    // FCM deep-link: jump to the right screen from a notification tap.
+    LaunchedEffect(pushTarget) {
+        val (type, id) = pushTarget ?: return@LaunchedEffect
+        when (type) {
+            "ROOM_REVEALED" -> navController.navigate("room/$id")
+            "PRIZE_WON" -> navController.navigate("scoreboard/$id")
+            else -> navController.navigate(PlayerTab.MATCHES.route) { popUpTo(PlayerTab.MATCHES.route) { inclusive = true } }
+        }
+        onPushHandled()
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -70,23 +84,31 @@ fun PlayerNavHost(
                 composable(PlayerTab.MATCHES.route) {
                     TournamentFeedScreen(
                         viewModel = playerViewModel,
-                        onOpenSlots = { id, type -> navController.navigate("slots/$id/$type") },
+                        onOpenSlots = { id, type, fee -> navController.navigate("slots/$id/$type/$fee") },
                         onOpenRoom = { id -> navController.navigate("room/$id") },
                         onOpenScoreboard = { id -> navController.navigate("scoreboard/$id") },
-                        onLogout = { playerViewModel.logout() },
+                        onLogout = {
+                            playerViewModel.logout()
+                            matchViewModel.resetSession()
+                        },
                     )
                 }
                 composable(PlayerTab.WALLET.route) {
                     WalletScreen(viewModel = playerViewModel, onBack = { navController.popBackStack() })
                 }
-                composable("slots/{id}/{type}") { entry ->
+                composable("slots/{id}/{type}/{fee}") { entry ->
                     val id = entry.arguments?.getString("id") ?: return@composable
                     val type = runCatching { MatchType.valueOf(entry.arguments?.getString("type") ?: "SOLO") }.getOrDefault(MatchType.SOLO)
+                    val fee = entry.arguments?.getString("fee") ?: "0"
                     SlotPickerScreen(
                         tournamentId = id,
                         matchType = type,
+                        entryFee = fee,
                         viewModel = matchViewModel,
                         onBack = { navController.popBackStack() },
+                        onJoinSuccess = { feeAmount ->
+                            playerViewModel.deductEntryFee(feeAmount)
+                        },
                     )
                 }
                 composable("room/{id}") { entry ->

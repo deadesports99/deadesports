@@ -7,7 +7,10 @@ import okhttp3.Response
  * OkHttp interceptor that stamps `Authorization: Bearer <jwt>` on every request.
  * Reads the cached token synchronously (no suspends allowed inside intercept).
  */
-class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {
+class AuthInterceptor(
+    private val tokenProvider: () -> String?,
+    private val onUnauthorized: () -> Unit = {},
+) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val token = tokenProvider()
         val request = if (token.isNullOrBlank()) {
@@ -17,6 +20,10 @@ class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {
                 .header("Authorization", "Bearer $token")
                 .build()
         }
-        return chain.proceed(request)
+        val response = chain.proceed(request)
+        if (response.code == 401) {
+            onUnauthorized()
+        }
+        return response
     }
 }

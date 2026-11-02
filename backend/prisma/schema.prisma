@@ -24,6 +24,8 @@ model Tenant {
   
   users           User[]
   tournaments     Tournament[]
+  withdrawals     WithdrawalRequest[]
+  deposits        DepositRequest[]
   walletLedgers   WalletLedger[]
 }
 
@@ -54,10 +56,13 @@ model User {
   winningBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
   isBanned        Boolean        @default(false)
   deviceId        String?
+  fcmToken        String?        // last registered FCM push token
   createdAt       DateTime       @default(now())
 
   slots           TournamentSlot[]
   ledgers         WalletLedger[]
+  withdrawals     WithdrawalRequest[]
+  deposits        DepositRequest[]
   matchResults    MatchResult[]
 
   @@unique([tenantId, phoneNumber])
@@ -162,6 +167,59 @@ model WalletLedger {
   createdAt       DateTime        @default(now())
 
   @@index([userId, createdAt])
+}
+
+// 7. WITHDRAWAL REQUESTS (player -> admin UPI payout queue)
+model WithdrawalRequest {
+  id            String           @id @default(uuid())
+  tenantId      String
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  amount        Decimal          @db.Decimal(10, 2)
+  upiId         String
+  status        WithdrawalStatus @default(PENDING)
+  deviceId      String?          // fraud signal captured at request time
+  utrNumber     String?          // admin fills on approval
+  rejectionNote String?
+  reviewedBy    String?          // admin/staff user id
+  reviewedAt    DateTime?
+  createdAt     DateTime         @default(now())
+
+  @@index([tenantId, status, createdAt])
+  @@index([userId, createdAt])
+}
+
+// 8. DEPOSIT REQUESTS (player -> admin "Add Cash" UPI / UTR verification)
+model DepositRequest {
+  id            String        @id @default(uuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  amount        Decimal       @db.Decimal(10, 2)
+  utrNumber     String        // 12-char UPI reference the player submits as proof
+  status        DepositStatus @default(PENDING)
+  rejectionNote String?
+  reviewedBy    String?       // admin/staff user id
+  reviewedAt    DateTime?
+  createdAt     DateTime      @default(now())
+
+  @@index([tenantId, status, createdAt])
+  @@index([userId, createdAt])
+  @@index([tenantId, utrNumber])
+}
+
+enum DepositStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum BalanceType {

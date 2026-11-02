@@ -85,6 +85,16 @@ Live proof from Phase 1: changed only the player config → 19 s incremental reb
 - Backend addition: `GET /api/v1/wallet` (balances + double-entry ledger) to serve the WalletScreen.
 - Builds verified: debug 18.0 MB both apps, R8 release 846 KB both apps, zero errors.
 
-## Phase 3 (next)
+## Phase 3 (Done) — FCM Push + UPI Withdrawals + Realtime
 
-OTP authentication (backend already has `deviceId` fraud signal), FCM push notifications for room reveal + payout, withdrawal requests (KYC-lite) driving `canManageWallet`, and the state-machine sweep (`UPCOMING → ROOM_OPEN → LIVE → VERIFICATION → COMPLETED`).
+- **FCM engine** (`:core/fcm/TourneyMessagingService`): high-priority channels for `ROOM_REVEALED` / `PRIZE_WON` / `MATCH_CANCELLED`; `onNewToken` syncs to `POST /auth/fcm-token`; notification tap deep-links to Room/Scoreboard. Backend `fcm.service.ts` (firebase-admin, graceful no-creds) fires alerts on room publish, payout, cancel.
+- **Player withdrawals**: `WithdrawalModal` (UPI `handle@bank` regex, min ₹50, ≤ winning balance, `deviceId` fraud signal) → `POST /wallet/withdraw`; pending/approved/rejected shown in the ledger.
+- **Admin approvals**: `AdminWalletScreen` gated by `canManageWallet` — list (IGN/UID/phone/amount/UPI), Approve (UTR) / Reject & auto-refund.
+- **Realtime slots**: 5s lifecycle-aware polling in `SlotPickerScreen` + `GlowProgressBar` pulsing when ≥ 40/48 full.
+- **`SlideToJoinButton`**: drag thumb, 80% threshold, haptic ticks + success buzz, shimmer prompt, auto-reset.
+- Backend: `WithdrawalRequest` model + 5 endpoints, e2e-verified (withdraw/approve/reject/refund math exact, 403s correct).
+- Builds verified: debug 18.3 MB both, R8 release 1.15-1.17 MB (firebase adds ~300 KB), zero errors.
+
+## Phase 4 (next)
+
+Per-client Firebase wiring for production push (per white-label client: `google-services.json` + backend `FCM_CREDENTIALS_JSON`), OTP auth, withdrawal list refresh on pull, deposit top-up via UPI/Razorpay, and the `UPCOMING → ROOM_OPEN → LIVE → VERIFICATION → COMPLETED` state-machine sweep.

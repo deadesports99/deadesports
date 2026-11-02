@@ -11,6 +11,7 @@ import com.tourney.core.model.JoinRequest
 import com.tourney.core.model.JoinResult
 import com.tourney.core.model.RoomCredentials
 import com.tourney.core.model.ScoreboardResponse
+import com.tourney.core.model.SlotEntry
 import com.tourney.core.model.SlotsResponse
 import com.tourney.core.network.ApiClient
 import com.tourney.core.network.apiCall
@@ -40,6 +41,9 @@ class MatchViewModel(app: Application) : AndroidViewModel(app) {
     private val api get() = ApiClient.tourneyApi
 
     // ─── Slots + join ────────────────────────────────────────────────────
+    private val slotCache = mutableMapOf<String, SlotsResponse>()
+    private var currentTournamentId: String? = null
+
     var slotsUi by mutableStateOf<UiState<SlotsResponse>>(UiState.Idle)
         private set
 
@@ -53,15 +57,47 @@ class MatchViewModel(app: Application) : AndroidViewModel(app) {
     var actionError by mutableStateOf<String?>(null)
         private set
 
-    fun loadSlots(tournamentId: String) {
-        slotsUi = UiState.Loading
+    fun loadSlots(tournamentId: String, forceLoading: Boolean = false) {
+        currentTournamentId = tournamentId
+        val cached = slotCache[tournamentId]
+        if (!forceLoading && cached != null) {
+            slotsUi = UiState.Success(cached)
+            silentRefreshSlots(tournamentId)
+            return
+        }
+        if (slotsUi !is UiState.Success) {
+            slotsUi = UiState.Loading
+        }
         viewModelScope.launch {
             try {
-                slotsUi = UiState.Success(apiCall { api.tournamentSlots(tournamentId) })
+                val fresh = apiCall { api.tournamentSlots(tournamentId) }
+                slotCache[tournamentId] = fresh
+                if (currentTournamentId == tournamentId) {
+                    slotsUi = UiState.Success(fresh)
+                }
             } catch (e: ApiException) {
-                slotsUi = UiState.Error(e.message)
+                if (currentTournamentId == tournamentId && slotsUi !is UiState.Success) {
+                    slotsUi = UiState.Error(e.message)
+                }
             } catch (e: Exception) {
-                slotsUi = UiState.Error("Network error — is the server running?")
+                if (currentTournamentId == tournamentId && slotsUi !is UiState.Success) {
+                    slotsUi = UiState.Error("Network error — is the server running?")
+                }
+            }
+        }
+    }
+
+    /** Silent refresh — no loading flash (used by the 5s realtime poller). */
+    fun silentRefreshSlots(tournamentId: String) {
+        viewModelScope.launch {
+            try {
+                val fresh = apiCall { api.tournamentSlots(tournamentId) }
+                slotCache[tournamentId] = fresh
+                if (currentTournamentId == tournamentId) {
+                    slotsUi = UiState.Success(fresh)
+                }
+            } catch (e: Exception) {
+                // keep last good state during background polls
             }
         }
     }
@@ -70,6 +106,35 @@ class MatchViewModel(app: Application) : AndroidViewModel(app) {
         if (joining) return
         joining = true
         actionError = null
+
+        val prevSlots = slotsUi
+        val currentData = (slotsUi as? UiState.Success)?.data
+        if (currentData != null) {
+            // Optimistic seat lock in 0ms!
+            val updatedList = currentData.slots.toMutableList()
+            val existingIndex = updatedList.indexOfFirst { it.slotNumber == slotNumber }
+            val optimisticSlot = SlotEntry(
+                slotNumber = slotNumber,
+                teamId = teamCode,
+                player = SlotEntry.SlotPlayer(
+                    id = "me",
+                    inGameName = "You (Booked)",
+                    inGameUid = "",
+                )
+            )
+            if (existingIndex >= 0) {
+                updatedList[existingIndex] = optimisticSlot
+            } else {
+                updatedList.add(optimisticSlot)
+            }
+            val updatedData = currentData.copy(
+                booked = currentData.booked + 1,
+                slots = updatedList,
+            )
+            slotCache[tournamentId] = updatedData
+            slotsUi = UiState.Success(updatedData)
+        }
+
         viewModelScope.launch {
             try {
                 lastJoinResult = apiCall {
@@ -78,16 +143,26 @@ class MatchViewModel(app: Application) : AndroidViewModel(app) {
                         JoinRequest(slotNumber = slotNumber, teamCode = teamCode?.takeIf { it.isNotBlank() }),
                     )
                 }
+                silentRefreshSlots(tournamentId)
             } catch (e: ApiException) {
+                slotsUi = prevSlots // rollback
                 actionError = e.message
             } catch (e: Exception) {
+                slotsUi = prevSlots // rollback
                 actionError = "Network error — is the server running?"
             } finally {
                 joining = false
-                // Seats changed (ours booked / squad filled) — reload.
-                loadSlots(tournamentId)
             }
         }
+    }
+
+    fun resetSession() {
+        slotCache.clear()
+        currentTournamentId = null
+        slotsUi = UiState.Idle
+        lastJoinResult = null
+        actionError = null
+        roomState = RoomState.Idle
     }
 
     fun clearActionError() { actionError = null }

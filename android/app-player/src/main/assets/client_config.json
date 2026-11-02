@@ -8,8 +8,11 @@
   "corner_radius_dp": 12,
   "font_style": "default",
   "enable_dark_mode": true,
-  "api_base_url": "http://10.0.2.2:5000/api/v1",
-  "supabase_url": "",
+  "api_base_url": "http://localhost:5000/api/v1",
+  "supabase_url": "https://zupnlhdtfirufmlurkef.supabase.co",
   "supabase_anon_key": "",
-  "tenant_id": "22f27d39-f104-41b8-a435-befab60349ae"
+  "tenant_id": "a3c11cd0-324e-4886-b27c-9667fd7f59dc",
+  "upi_id": "thunderesports@okaxis",
+  "upi_name": "Thunder eSports",
+  "min_deposit": 10
 }

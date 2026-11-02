@@ -192,3 +192,15 @@ export async function getUserProfile(userId: string): Promise<ReturnType<typeof 
   if (!user) throw ApiError.notFound('User not found');
   return sanitizeUser(user);
 }
+
+/** Register the device's FCM push token against the user account. */
+export async function saveFcmToken(userId: string, token: string): Promise<{ registered: boolean }> {
+  if (!token || token.trim().length < 20) {
+    throw ApiError.badRequest('Invalid FCM token');
+  }
+  await prisma.user.update({
+    where: { id: userId },
+    data: { fcmToken: token.trim() },
+  });
+  return { registered: true };
+}

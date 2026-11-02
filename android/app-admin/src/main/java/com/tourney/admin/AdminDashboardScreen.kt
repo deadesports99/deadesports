@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.SportsEsports
@@ -78,6 +79,15 @@ fun AdminDashboardScreen(
                 Icons.Filled.EmojiEvents,
                 isAdmin || perms.canDistributePrize,
                 "scorer",
+            )
+        )
+        add(
+            AdminFeature(
+                "Withdrawals",
+                "Approve (UTR) or reject & refund player UPI payouts",
+                Icons.Filled.AccountBalanceWallet,
+                isAdmin || perms.canManageWallet,
+                "wallet",
             )
         )
     }

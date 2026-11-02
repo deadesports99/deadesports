@@ -59,4 +59,11 @@ dependencies {
     ksp(libs.moshi.codegen)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+
+    // FCM: high-priority push (room reveal / prize won / match cancelled)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+
+    // UPI deposit QR rendering (dynamic amount QR for Add Cash)
+    implementation(libs.zxing.core)
 }

@@ -41,5 +41,11 @@ fun AdminNavHost(viewModel: AdminViewModel) {
                 onBack = { navController.popBackStack() },
             )
         }
+        composable("wallet") {
+            AdminWalletScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
     }
 }

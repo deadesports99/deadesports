@@ -2,16 +2,26 @@ package com.tourney.player
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,70 +29,255 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.model.LedgerEntry
+import com.tourney.core.model.PlayerDepositsResponse
 import com.tourney.core.model.WalletSummary
 import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.AppTopBar
+import com.tourney.core.ui.CurrencyIcon
 import com.tourney.core.ui.ErrorState
 import com.tourney.core.ui.GlassCard
 import com.tourney.core.ui.LoadingState
-import com.tourney.core.ui.BalanceChip
+import com.tourney.core.ui.TournamentArt
+import com.tourney.core.ui.formatMoney
 
 /**
- * Wallet — deposit + winning balances (withdrawable) and the double-entry
- * transaction history (JOIN_FEE / REFUND / WINNING_PRIZE / ADD_MONEY).
+ * Wallet — deposit + winning balances (withdrawable), pending Add Cash
+ * requests and the double-entry transaction history
+ * (ADD_MONEY / JOIN_FEE / REFUND / WINNING_PRIZE / WITHDRAWAL).
+ *
+ * Pull down anywhere to refresh balances + ledger (no app restart needed).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WalletScreen(
     viewModel: PlayerViewModel,
     onBack: () -> Unit,
 ) {
     val state = viewModel.walletUi
+    val deposits = (viewModel.myDepositsUi as? UiState.Success)?.data
 
-    LaunchedEffect(Unit) { if (state is UiState.Idle) viewModel.refreshWallet() }
+    var showWithdraw by remember { mutableStateOf(false) }
+    var showDeposit by remember { mutableStateOf(false) }
+    var showLowWinningAlert by remember { mutableStateOf(false) }
+    var pulling by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Wallet", onBack = onBack)
+    LaunchedEffect(state) { if (state !is UiState.Loading) pulling = false }
+    LaunchedEffect(Unit) { viewModel.loadMyDeposits() }
 
-        when (state) {
-            UiState.Idle, UiState.Loading -> LoadingState("Loading wallet…")
-            is UiState.Error -> ErrorState(state.message) { viewModel.refreshWallet() }
-            is UiState.Success -> WalletContent(state.data, onRefresh = { viewModel.refreshWallet() })
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshWallet()
+                viewModel.loadMyDeposits()
+            }
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTopBar(title = "Wallet", onBack = onBack)
+
+            PullToRefreshBox(
+                isRefreshing = pulling,
+                onRefresh = {
+                    pulling = true
+                    viewModel.refreshWallet()
+                    viewModel.loadMyDeposits()
+                },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                when (state) {
+                    UiState.Idle, UiState.Loading -> LoadingState("Loading wallet…")
+                    is UiState.Error -> ErrorState(state.message) { viewModel.refreshWallet() }
+                    is UiState.Success -> WalletContent(
+                        wallet = state.data,
+                        deposits = deposits,
+                        onAddMoney = {
+                            viewModel.clearDeposit()
+                            showDeposit = true
+                        },
+                        onWithdraw = {
+                            if (state.data.winningValue >= 50) {
+                                showWithdraw = true
+                            } else {
+                                showLowWinningAlert = true
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    if (showDeposit) {
+        DepositModal(
+            viewModel = viewModel,
+            upiId = viewModel.config.upiId,
+            upiName = viewModel.config.upiName,
+            minDeposit = viewModel.config.minDeposit,
+            onDismiss = { showDeposit = false },
+        )
+    }
+
+    if (showLowWinningAlert) {
+        AlertDialog(
+            onDismissRequest = { showLowWinningAlert = false },
+            title = { Text("Minimum ₹50 Winning Required", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Winning balance is withdrawable money earned from matches. " +
+                        "Join a paid tournament, win prizes and your winnings will appear here. " +
+                        "Add Cash top-ups go to your Deposit Balance (entry fees) instead.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showLowWinningAlert = false }) { Text("Got it") }
+            },
+        )
+    }
+
+    if (showWithdraw && state is UiState.Success) {
+        WithdrawalModal(
+            winningBalance = state.data.winningValue,
+            viewModel = viewModel,
+            onDismiss = { showWithdraw = false },
+        )
     }
 }
 
 @Composable
-private fun WalletContent(wallet: WalletSummary, onRefresh: () -> Unit) {
+private fun WalletContent(
+    wallet: WalletSummary,
+    deposits: PlayerDepositsResponse?,
+    onAddMoney: () -> Unit,
+    onWithdraw: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BalanceCard("Deposit Balance", wallet.depositValue, Color(0xFF1B5E20), Modifier.weight(1f))
-                BalanceCard("Winning Balance", wallet.winningValue, Color(0xFF01579B), Modifier.weight(1f))
+                BalanceCard(
+                    label = "Deposit Balance",
+                    value = wallet.depositValue,
+                    subtext = "For match entry fees",
+                    tint = Color(0xFF2E7D32),
+                    currencyIcon = TournamentArt.diamond,
+                    modifier = Modifier.weight(1f),
+                )
+                BalanceCard(
+                    label = "Winning Balance",
+                    value = wallet.winningValue,
+                    subtext = "Withdrawable to UPI",
+                    tint = Color(0xFF0288D1),
+                    currencyIcon = TournamentArt.goldCoin,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
-        item {
-            Text("Transactions (${wallet.pagination.total})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-        if (wallet.ledger.isEmpty()) {
-            item {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("No transactions yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        deposits?.let { history ->
+            if (history.pendingValue > 0) {
+                item {
+                    GlassCard(cornerRadius = 12.dp, modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("⏳", fontSize = 16.sp)
+                            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                                Text(
+                                    "₹${formatMoney(history.pendingValue)} Add Cash under verification",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    "Balance is credited after staff verify your UTR",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppButton(
+                    text = "➕ Add Cash",
+                    onClick = onAddMoney,
+                    modifier = Modifier.weight(1f),
+                )
+                AppButton(
+                    text = "💸 Withdraw",
+                    onClick = onWithdraw,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        item {
+            Text(
+                "Transactions (${wallet.pagination.total})",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        if (wallet.ledger.isEmpty()) {
+            item {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "No transactions yet. Add cash or join a match to get started.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
         items(wallet.ledger, key = { it.id }) { entry -> LedgerRow(entry) }
     }
 }
 
 @Composable
-private fun BalanceCard(label: String, value: Double, tint: Color, modifier: Modifier = Modifier) {
+private fun BalanceCard(
+    label: String,
+    value: Double,
+    subtext: String,
+    tint: Color,
+    currencyIcon: Int,
+    modifier: Modifier = Modifier,
+) {
     GlassCard(modifier = modifier.fillMaxWidth()) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Text("₹${formatMoney(value)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = tint)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CurrencyIcon(currencyIcon, size = 13.dp)
+            Text(
+                " $label",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+            )
+        }
+        Text(
+            "₹${formatMoney(value)}",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = tint,
+        )
+        Text(
+            subtext,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 10.sp,
+        )
     }
 }
 
@@ -95,9 +290,22 @@ private fun LedgerRow(entry: LedgerEntry) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(entry.categoryLabel, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        entry.categoryLabel,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    CategoryChip(entry.category)
+                }
                 entry.notes?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                    )
                 }
                 Text(
                     formatLedgerTime(entry.createdAt),
@@ -109,7 +317,7 @@ private fun LedgerRow(entry: LedgerEntry) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = (if (entry.isCredit) "+" else "-") + "₹" + formatMoney(entry.amountValue),
-                    color = if (entry.isCredit) Color(0xFF1B5E20) else MaterialTheme.colorScheme.error,
+                    color = if (entry.isCredit) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                 )
@@ -121,6 +329,32 @@ private fun LedgerRow(entry: LedgerEntry) {
                 )
             }
         }
+    }
+}
+
+/** Small category chip — ADD_MONEY / JOIN_FEE / REFUND / PRIZE / WITHDRAWAL. */
+@Composable
+private fun CategoryChip(category: String) {
+    val (label, tint) = when (category) {
+        "ADD_MONEY" -> "DEPOSIT" to Color(0xFF2E7D32)
+        "JOIN_FEE" -> "ENTRY" to Color(0xFFB71C1C)
+        "WINNING_PRIZE" -> "PRIZE" to Color(0xFF00838F)
+        "WITHDRAWAL" -> "PAYOUT" to Color(0xFFE65100)
+        "REFUND" -> "REFUND" to Color(0xFF6A1B9A)
+        else -> category to Color(0xFF546E7A)
+    }
+    Surface(
+        color = tint.copy(alpha = 0.14f),
+        shape = MaterialTheme.shapes.extraSmall,
+        modifier = Modifier.padding(start = 6.dp),
+    ) {
+        Text(
+            label,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = tint,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+        )
     }
 }
 

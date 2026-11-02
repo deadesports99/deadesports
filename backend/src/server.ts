@@ -2,6 +2,7 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import { disconnectPrisma } from './config/prisma.js';
 import { disconnectRedis } from './config/redis.js';
+import { startMatchSweepScheduler, stopMatchSweepScheduler } from './services/matchSweep.service.js';
 
 /**
  * HTTP server listener with graceful shutdown.
@@ -16,6 +17,10 @@ const server = app.listen(env.PORT, () => {
   console.log('└─────────────────────────────────────────────┘');
 });
 
+// 🕒 Auto lifecycle sweep: UPCOMING/OPEN -> ROOM_REVEALED (T-15) -> LIVE.
+// Runs in-process every minute; safe to run alongside an external cron.
+startMatchSweepScheduler();
+
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 let shuttingDown = false;
@@ -25,6 +30,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
 
   console.log(`\n⚠ ${signal} received — shutting down gracefully...`);
+  stopMatchSweepScheduler();
 
   // Hard fail-safe: force exit if connections refuse to close.
   const forceExitTimer = setTimeout(() => {

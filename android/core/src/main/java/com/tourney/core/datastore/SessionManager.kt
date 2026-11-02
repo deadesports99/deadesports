@@ -34,13 +34,24 @@ class SessionManager(private val context: Context) {
     private var cachedToken: String? = null
 
     /** Synchronous token read for the AuthInterceptor (never suspends). */
-    fun currentToken(): String? = cachedToken
+    fun currentToken(): String? {
+        if (cachedToken == null) {
+            runCatching {
+                kotlinx.coroutines.runBlocking {
+                    val prefs = context.sessionDataStore.data.first()
+                    cachedToken = prefs[Keys.AUTH_TOKEN]
+                }
+            }
+        }
+        return cachedToken
+    }
 
     private object Keys {
         val AUTH_TOKEN = stringPreferencesKey("auth_token")
         val USER_ID = stringPreferencesKey("user_id")
         val TENANT_ID = stringPreferencesKey("tenant_id")
         val ROLE = stringPreferencesKey("role")
+        val FCM_TOKEN = stringPreferencesKey("fcm_token")
         val PERM_CREATE_MATCH = booleanPreferencesKey("perm_can_create_match")
         val PERM_UPDATE_ROOM = booleanPreferencesKey("perm_can_update_room")
         val PERM_DISTRIBUTE_PRIZE = booleanPreferencesKey("perm_can_distribute_prize")
@@ -51,8 +62,10 @@ class SessionManager(private val context: Context) {
     val session: Flow<SessionState> = context.sessionDataStore.data.map { prefs ->
         val roleString = prefs[Keys.ROLE]
         val role = roleString?.let { runCatching { Role.valueOf(it) }.getOrNull() }
+        val token = prefs[Keys.AUTH_TOKEN]
+        cachedToken = token
         SessionState(
-            authToken = prefs[Keys.AUTH_TOKEN],
+            authToken = token,
             userId = prefs[Keys.USER_ID],
             tenantId = prefs[Keys.TENANT_ID],
             role = role,
@@ -62,7 +75,7 @@ class SessionManager(private val context: Context) {
                 canDistributePrize = prefs[Keys.PERM_DISTRIBUTE_PRIZE] ?: false,
                 canManageWallet = prefs[Keys.PERM_MANAGE_WALLET] ?: false,
             ),
-            isLoggedIn = prefs[Keys.AUTH_TOKEN] != null,
+            isLoggedIn = token != null,
         )
     }
 
@@ -94,4 +107,20 @@ class SessionManager(private val context: Context) {
         cachedToken = null
         context.sessionDataStore.edit { it.clear() }
     }
+
+    fun clearSessionSync() {
+        cachedToken = null
+        runCatching {
+            kotlinx.coroutines.runBlocking {
+                context.sessionDataStore.edit { it.clear() }
+            }
+        }
+    }
+
+    // ─── FCM push token (registered on onNewToken, synced to backend) ─────
+    suspend fun saveFcmToken(token: String) {
+        context.sessionDataStore.edit { prefs -> prefs[Keys.FCM_TOKEN] = token }
+    }
+
+    suspend fun fcmToken(): String? = context.sessionDataStore.data.first()[Keys.FCM_TOKEN]
 }

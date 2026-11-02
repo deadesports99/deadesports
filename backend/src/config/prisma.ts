@@ -1,4 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { env } from './env.js';
 
@@ -8,7 +9,12 @@ import { env } from './env.js';
  * schema file anymore, it lives in prisma.config.ts for the CLI and here for
  * the runtime client).
  */
-const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
+const pool = new pg.Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+const adapter = new PrismaPg(pool);
 
 export const prisma = new PrismaClient({
   adapter,
@@ -37,4 +43,5 @@ prisma.$on('error', (event) => {
 /** Gracefully close the Prisma connection pool (used during server shutdown). */
 export async function disconnectPrisma(): Promise<void> {
   await prisma.$disconnect();
+  await pool.end();
 }

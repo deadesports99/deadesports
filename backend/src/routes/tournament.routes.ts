@@ -10,7 +10,9 @@ import { authenticate, requirePermission, requireRole } from '../middlewares/aut
  *  GET    /:id                 authenticated -> details + my slot
  *  GET    /:id/slots           authenticated -> seats with player IGN
  *  POST   /:id/join            authenticated + USER -> atomic slot booking
- *  POST   /:id/cancel          authenticated + ADMIN -> cancel + refund all
+ *  POST   /:id/cancel          authenticated + canCreateMatch -> cancel + refund all
+ *  POST   /sweep/states        authenticated + canCreateMatch -> run the time-based
+ *                              lifecycle sweep now (T-15 reveal -> LIVE)
  */
 export const tournamentRouter: Router = Router();
 
@@ -35,8 +37,15 @@ tournamentRouter.post(
 );
 
 tournamentRouter.post(
+  '/sweep/states',
+  authenticate,
+  requirePermission('canCreateMatch'),
+  tournamentController.sweepMatchStates,
+);
+
+tournamentRouter.post(
   '/:id/cancel',
   authenticate,
-  requireRole('ADMIN'),
+  requirePermission('canCreateMatch'),
   tournamentController.cancelTournamentAndRefundAll,
 );

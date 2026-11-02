@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { AuthUser } from '../types/auth.js';
 import { clearTournamentRedis } from './slotLock.service.js';
+import { pushToTournamentParticipants, pushToUsers } from './fcm.service.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -44,6 +45,14 @@ export async function updateRoomCredentials(
       roomRevealedAt: new Date(),
       status: 'ROOM_REVEALED',
     },
+  });
+
+  // Push: alert every confirmed participant that the room is out (T-15 gate).
+  void pushToTournamentParticipants(tournamentId, {
+    type: 'ROOM_REVEALED',
+    tournamentId,
+    title: '🏟 Room ID Released!',
+    body: `Custom room unlocked for "${updated.title}" — open the app for the code.`,
   });
 
   return {
@@ -323,6 +332,18 @@ export async function distributeTournamentPrizes(
 
   // 5) Wipe Redis seat state — tournament is closed.
   await clearTournamentRedis(tournamentId);
+
+  // Push: alert the winners their prize money was credited.
+  void pushToUsers(
+    summary.map((r) => r.userId),
+    {
+      type: 'PRIZE_WON',
+      tournamentId,
+      title: '💰 Prize Credited!',
+      body: `Your winnings from "${tournament.title}" are in your Winning Balance.`,
+      data: { totalPaid: String(round2(summary.reduce((acc, r) => acc + r.totalPrize, 0))) },
+    },
+  );
 
   return {
     tournamentId,

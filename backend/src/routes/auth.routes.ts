@@ -21,3 +21,6 @@ authRouter.post('/admin/staff', authenticate, requireRole('ADMIN'), authControll
 
 // Own profile (any authenticated role)
 authRouter.get('/me', authenticate, authController.getMe);
+
+// Device push token (any authenticated role)
+authRouter.post('/fcm-token', authenticate, authController.registerFcmToken);

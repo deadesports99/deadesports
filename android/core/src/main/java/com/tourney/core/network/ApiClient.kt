@@ -51,7 +51,12 @@ object ApiClient {
         }
 
         val okHttp = OkHttpClient.Builder()
-            .addInterceptor(AuthInterceptor { sessionManager.currentToken() })
+            .addInterceptor(
+                AuthInterceptor(
+                    tokenProvider = { sessionManager.currentToken() },
+                    onUnauthorized = { sessionManager.clearSessionSync() },
+                )
+            )
             .addInterceptor(logging)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
