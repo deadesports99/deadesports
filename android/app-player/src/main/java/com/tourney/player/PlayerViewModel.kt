@@ -44,6 +44,48 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val api get() = ApiClient.tourneyApi
     private val session get() = ApiClient.sessionManager
     val config get() = ApiClient.config
+    private val diskCache = app.getSharedPreferences("tourney_local_cache", android.content.Context.MODE_PRIVATE)
+
+    init {
+        loadDiskCache()
+    }
+
+    private fun loadDiskCache() {
+        runCatching {
+            val feedJson = diskCache.getString("cached_feed", null)
+            if (!feedJson.isNullOrBlank()) {
+                val adapter = ApiClient.moshi.adapter(TournamentListResponse::class.java)
+                val cached = adapter.fromJson(feedJson)
+                if (cached != null && cached.items.isNotEmpty()) {
+                    feedUi = UiState.Success(cached)
+                }
+            }
+        }
+        runCatching {
+            val walletJson = diskCache.getString("cached_wallet", null)
+            if (!walletJson.isNullOrBlank()) {
+                val adapter = ApiClient.moshi.adapter(WalletSummary::class.java)
+                val cached = adapter.fromJson(walletJson)
+                if (cached != null) {
+                    walletUi = UiState.Success(cached)
+                }
+            }
+        }
+    }
+
+    private fun saveFeedCache(data: TournamentListResponse) {
+        runCatching {
+            val adapter = ApiClient.moshi.adapter(TournamentListResponse::class.java)
+            diskCache.edit().putString("cached_feed", adapter.toJson(data)).apply()
+        }
+    }
+
+    private fun saveWalletCache(data: WalletSummary) {
+        runCatching {
+            val adapter = ApiClient.moshi.adapter(WalletSummary::class.java)
+            diskCache.edit().putString("cached_wallet", adapter.toJson(data)).apply()
+        }
+    }
 
     /** Reactive session — collected in MainActivity to pick login vs main UI. */
     val sessionFlow: Flow<SessionState> = session.session
@@ -112,6 +154,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         authUi = UiState.Idle
         depositUi = UiState.Idle
         withdrawUi = UiState.Idle
+        runCatching { diskCache.edit().clear().apply() }
         viewModelScope.launch { session.clearSession() }
     }
 
@@ -127,6 +170,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val fresh = apiCall { api.listTournaments(status = null, limit = 25) }
                 feedUi = UiState.Success(fresh)
+                saveFeedCache(fresh)
             } catch (e: ApiException) {
                 if (feedUi !is UiState.Success) feedUi = UiState.Error(e.message)
             } catch (e: Exception) {
@@ -147,6 +191,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val fresh = apiCall { api.wallet(limit = 30) }
                 walletUi = UiState.Success(fresh)
+                saveWalletCache(fresh)
             } catch (e: ApiException) {
                 if (walletUi !is UiState.Success) walletUi = UiState.Error(e.message)
             } catch (e: Exception) {

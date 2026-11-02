@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.model.ScoreboardEntry
+import com.tourney.core.ui.formatMoney
 import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.AppTopBar
 import com.tourney.core.ui.ErrorState

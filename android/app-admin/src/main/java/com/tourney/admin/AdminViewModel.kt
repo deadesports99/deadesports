@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tourney.core.datastore.SessionState
+import com.tourney.core.model.AckRequest
+import com.tourney.core.model.AdminDepositsResponse
 import com.tourney.core.model.ApiException
 import com.tourney.core.model.ApproveWithdrawalRequest
 import com.tourney.core.model.CreateTournamentRequest
@@ -301,9 +303,74 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ─── Deposit verification (canManageWallet) ──────────────────────────
+    var depositsUi by mutableStateOf<AdminUi<AdminDepositsResponse>>(AdminUi.Idle)
+        private set
+
+    fun loadDeposits(status: String? = "PENDING") {
+        depositsUi = AdminUi.Loading
+        viewModelScope.launch {
+            try {
+                depositsUi = AdminUi.Success(apiCall { api.adminDeposits(status = status) })
+            } catch (e: ApiException) {
+                depositsUi = AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                depositsUi = AdminUi.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    /** 1-click: verify the UTR and credit the player's deposit balance. */
+    fun approveDeposit(id: String) {
+        if (walletBusy) return
+        walletBusy = true
+        walletMessage = null
+        walletError = null
+        viewModelScope.launch {
+            try {
+                apiCall { api.approveDeposit(id, AckRequest()) }
+                walletMessage = "Deposit approved & balance credited ✓"
+                loadDeposits("PENDING")
+            } catch (e: ApiException) {
+                walletError = e.message
+            } catch (e: Exception) {
+                walletError = "Network error — is the server running?"
+            } finally {
+                walletBusy = false
+            }
+        }
+    }
+
+    fun rejectDeposit(id: String, reason: String) {
+        if (walletBusy) return
+        walletBusy = true
+        walletMessage = null
+        walletError = null
+        viewModelScope.launch {
+            try {
+                apiCall { api.rejectDeposit(id, RejectWithdrawalRequest(reason)) }
+                walletMessage = "Deposit rejected ✓"
+                loadDeposits("PENDING")
+            } catch (e: ApiException) {
+                walletError = e.message
+            } catch (e: Exception) {
+                walletError = "Network error — is the server running?"
+            } finally {
+                walletBusy = false
+            }
+        }
+    }
+
     fun clearWalletFeedback() {
         walletMessage = null
         walletError = null
+    }
+
+    /** Dashboard pull-to-refresh: re-sync the match list + wallet queues. */
+    fun refreshDashboard() {
+        loadTournaments()
+        loadWithdrawals("PENDING")
+        loadDeposits("PENDING")
     }
 }
 

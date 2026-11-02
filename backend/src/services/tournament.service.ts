@@ -102,6 +102,7 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
     include: { _count: { select: { slots: true } } },
   });
 
+  clearFeedCache();
   return sanitizeTournament(tournament, true);
 }
 
@@ -399,6 +400,7 @@ export async function joinTournament(
       },
     );
 
+    clearFeedCache();
     return {
       slotNumber: result.slot.slotNumber,
       teamId: result.slot.teamId,
@@ -486,7 +488,8 @@ export async function cancelTournamentAndRefundAll(
         totalRefunded += Number(tournament.entryFee);
       }
 
-      return { refundedPlayers: slots.length, totalRefunded };
+      clearFeedCache();
+    return { refundedPlayers: slots.length, totalRefunded };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

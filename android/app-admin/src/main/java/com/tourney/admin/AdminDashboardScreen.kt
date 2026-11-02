@@ -15,11 +15,18 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -43,7 +50,10 @@ private data class AdminFeature(
 /**
  * Role + permission-driven dashboard. ADMIN sees everything; SUB_ADMIN sees
  * exactly the cards their granular permissions grant; USER is blocked.
+ *
+ * Pull down to re-sync the match list, withdrawal queue and deposit queue.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
     session: SessionState,
@@ -52,6 +62,11 @@ fun AdminDashboardScreen(
 ) {
     val isAdmin = session.role == Role.ADMIN
     val perms = session.permissions
+    var pulling by remember { mutableStateOf(false) }
+
+    LaunchedEffect(viewModel.tournamentsUi) {
+        if (viewModel.tournamentsUi !is AdminUi.Loading) pulling = false
+    }
 
     val features = buildList {
         add(
@@ -83,8 +98,8 @@ fun AdminDashboardScreen(
         )
         add(
             AdminFeature(
-                "Withdrawals",
-                "Approve (UTR) or reject & refund player UPI payouts",
+                "Wallet Console",
+                "Deposits (Add Cash UTR) + withdrawals (UPI payouts) in one queue",
                 Icons.Filled.AccountBalanceWallet,
                 isAdmin || perms.canManageWallet,
                 "wallet",
@@ -95,6 +110,14 @@ fun AdminDashboardScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(title = "Dashboard")
 
+        PullToRefreshBox(
+            isRefreshing = pulling,
+            onRefresh = {
+                pulling = true
+                viewModel.refreshDashboard()
+            },
+            modifier = Modifier.weight(1f),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -165,6 +188,7 @@ fun AdminDashboardScreen(
             ) {
                 Text("Logout", color = MaterialTheme.colorScheme.error)
             }
+        }
         }
     }
 }

@@ -29,7 +29,7 @@ object ApiClient {
     lateinit var config: ClientConfig
         private set
 
-    private val moshi: Moshi by lazy { Moshi.Builder().build() }
+    val moshi: Moshi by lazy { Moshi.Builder().build() }
 
     private fun isDebugBuild(context: Context): Boolean =
         (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0

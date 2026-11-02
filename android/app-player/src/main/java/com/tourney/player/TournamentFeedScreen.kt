@@ -47,9 +47,8 @@ import com.tourney.core.ui.MapBanner
 import com.tourney.core.ui.ModeBadge
 import com.tourney.core.ui.StatusBadge
 import com.tourney.core.ui.TournamentArt
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.tourney.core.ui.formatMatchTime
+import com.tourney.core.ui.formatMoney
 
 /**
  * Tournament feed — high-res Free Fire map banners + mode badges, live slot
@@ -345,16 +344,4 @@ private fun StatBlock(label: String, value: String, valueColor: Color = Color.Un
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor)
     }
-}
-
-fun formatMoney(value: Double): String =
-    if (value == value.toLong().toDouble()) value.toLong().toString() else String.format("%.2f", value)
-
-private val timeFormat: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM, hh:mm a").withZone(ZoneId.systemDefault())
-
-fun formatMatchTime(iso: String): String = try {
-    timeFormat.format(Instant.parse(iso))
-} catch (e: Exception) {
-    iso
 }
