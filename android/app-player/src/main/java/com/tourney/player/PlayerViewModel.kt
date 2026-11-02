@@ -54,8 +54,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         runCatching {
             val feedJson = diskCache.getString("cached_feed", null)
             if (!feedJson.isNullOrBlank()) {
-                val adapter = ApiClient.moshi.adapter(TournamentListResponse::class.java)
-                val cached = adapter.fromJson(feedJson)
+                val cached = ApiClient.fromJson(TournamentListResponse::class.java, feedJson)
                 if (cached != null && cached.items.isNotEmpty()) {
                     feedUi = UiState.Success(cached)
                 }
@@ -64,8 +63,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         runCatching {
             val walletJson = diskCache.getString("cached_wallet", null)
             if (!walletJson.isNullOrBlank()) {
-                val adapter = ApiClient.moshi.adapter(WalletSummary::class.java)
-                val cached = adapter.fromJson(walletJson)
+                val cached = ApiClient.fromJson(WalletSummary::class.java, walletJson)
                 if (cached != null) {
                     walletUi = UiState.Success(cached)
                 }
@@ -75,15 +73,15 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun saveFeedCache(data: TournamentListResponse) {
         runCatching {
-            val adapter = ApiClient.moshi.adapter(TournamentListResponse::class.java)
-            diskCache.edit().putString("cached_feed", adapter.toJson(data)).apply()
+            val json = ApiClient.toJson(TournamentListResponse::class.java, data)
+            diskCache.edit().putString("cached_feed", json).apply()
         }
     }
 
     private fun saveWalletCache(data: WalletSummary) {
         runCatching {
-            val adapter = ApiClient.moshi.adapter(WalletSummary::class.java)
-            diskCache.edit().putString("cached_wallet", adapter.toJson(data)).apply()
+            val json = ApiClient.toJson(WalletSummary::class.java, data)
+            diskCache.edit().putString("cached_wallet", json).apply()
         }
     }
 
@@ -162,10 +160,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var feedUi by mutableStateOf<UiState<TournamentListResponse>>(UiState.Idle)
         private set
 
+    var isFeedRefreshing by mutableStateOf(false)
+        private set
+
     fun refreshFeed(forceLoading: Boolean = false) {
         if (forceLoading || feedUi is UiState.Idle || feedUi is UiState.Error) {
             feedUi = UiState.Loading
         }
+        isFeedRefreshing = true
         viewModelScope.launch {
             try {
                 val fresh = apiCall { api.listTournaments(status = null, limit = 25) }
@@ -175,6 +177,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 if (feedUi !is UiState.Success) feedUi = UiState.Error(e.message)
             } catch (e: Exception) {
                 if (feedUi !is UiState.Success) feedUi = UiState.Error("Network error — is the server running?")
+            } finally {
+                isFeedRefreshing = false
             }
         }
     }
@@ -183,10 +187,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var walletUi by mutableStateOf<UiState<WalletSummary>>(UiState.Idle)
         private set
 
+    var isWalletRefreshing by mutableStateOf(false)
+        private set
+
     fun refreshWallet(forceLoading: Boolean = false) {
         if (forceLoading || walletUi is UiState.Idle || walletUi is UiState.Error) {
             walletUi = UiState.Loading
         }
+        isWalletRefreshing = true
         viewModelScope.launch {
             try {
                 val fresh = apiCall { api.wallet(limit = 30) }
@@ -196,6 +204,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 if (walletUi !is UiState.Success) walletUi = UiState.Error(e.message)
             } catch (e: Exception) {
                 if (walletUi !is UiState.Success) walletUi = UiState.Error("Network error — is the server running?")
+            } finally {
+                isWalletRefreshing = false
             }
         }
     }

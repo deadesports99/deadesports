@@ -37,7 +37,8 @@ C:\Free Fire turnament\
 │   │   ├── config\                         # env.ts, prisma.ts, redis.ts
 │   │   ├── controllers\                    # auth, tournament, result, wallet controllers
 │   │   ├── middlewares\                    # auth.middleware.ts (RBAC), errorHandler.ts
-│   │   ├── routes\                         # auth, tournament, result, wallet routes
+│   │   ├── routes\                         # auth, tournament (+/sweep/states), result,
+│   │   │                                  # wallet (deposit), adminWallet (deposits/withdrawals)
 │   │   ├── services\                       # auth, tournament, slotLock (Lua), payout services
 │   │   ├── types\                          # auth, tournament, express types
 │   │   ├── utils\                          # ApiError.ts, ApiResponse.ts
@@ -57,9 +58,11 @@ C:\Free Fire turnament\
 │   ├── core\                               # 🧩 Shared Library Module
 │   │   ├── datastore\                      # SessionManager.kt (DataStore JWT + role + permissions)
 │   │   ├── model\                          # User, Tournament, Scoreboard, Wallet, ApiEnvelope
-│   │   ├── network\                        # TourneyApi.kt (12 endpoints), AuthInterceptor, ApiClient
+│   │   ├── network\                        # TourneyApi.kt (~20 endpoints), AuthInterceptor, ApiClient
 │   │   ├── theme\                          # ClientConfig.kt, Theme.kt (Dynamic Material 3)
-│   │   └── ui\                             # AppButton, GlassCard, AppTopBar, CountdownText, StatusBadge
+│   │   ├── ui\                             # AppButton, GlassCard, AppTopBar, CountdownText, StatusBadge
+│   │   │                                  # TournamentArt (map/mode art), UpiQr (UPI deep link + QR)
+│   │   └── res\drawable\                    # Official FF maps (webp), mode badges, currency icons
 │   │
 │   ├── app-player\                         # 🎮 Player APK Module (Gamers)
 │   │   ├── assets\client_config.json       # Branding configuration
@@ -83,7 +86,7 @@ C:\Free Fire turnament\
     ├── ROADMAP.md                          # Master Architecture Roadmap
     ├── PLAYSTORE_WHITELABEL_RESEARCH.md    # Play Store policy, trademark & Indian gaming law research
     ├── backend\                            # Backend Phases 1-4 (All Completed)
-    └── android\                            # Android Phases 1 & 2 (Done), Phase 3 (Active)
+    └── android\                            # Android Phases 1-4 (All Done)
 ```
 
 ---
@@ -110,24 +113,40 @@ C:\Free Fire turnament\
   - Android: `TourneyMessagingService.kt` with channels, `WithdrawalModal.kt` with UPI regex & fraud signals, `AdminWalletScreen.kt` with UTR approval / refund dialogs, 5s lifecycle slot polling + `GlowProgressBar`, and iOS-grade `SlideToJoinButton.kt`.
   - Builds: Debug 18.3 MB & R8 Release 1.15 MB passing cleanly.
 
+- **Phase 4 (Deposit UPI Flow, Lifecycle Sweep & High-Res Assets) — ✅ Done:**
+  - Backend: `DepositRequest` + `DepositStatus` model; `POST /wallet/deposit` (12-char UTR → PENDING),
+    `GET /wallet/deposits`, `GET /admin/wallet/deposits`, `POST /admin/wallet/deposits/:id/approve|reject`
+    (approve credits `depositBalance` + `ADD_MONEY/CREDIT/DEPOSIT` ledger, double-approve blocked by a
+    conditional status flip). `matchSweep.service.ts` auto-advances `OPEN/SLOTS_FULL → ROOM_REVEALED (T-15) → LIVE`
+    every 60s (plus manual `POST /tournaments/sweep/states`). Cancel endpoint now guarded by `canCreateMatch`
+    and refunds every booked slot in one serializable transaction (verified).
+  - Fixed: pg v9 treats `sslmode=require` as `verify-full` and ignored the pool's `ssl` options → the runtime
+    Prisma client could not reach Supabase. `config/prisma.ts` now strips only the URL flag (TLS stays on).
+  - Android: official FF map/mode artwork in `:core/res/drawable` (files are WebP — correct `.webp` extension),
+    `TournamentArt.kt` mapping, map banners + mode badges on `TournamentCard`, diamond/gold-coin icons in
+    `WalletScreen`, `DepositModal.kt` (quick chips, dynamic `upi://pay` QR via zxing, GPay/PhonePe intent,
+    12-char UTR validation + pending list), `AdminWalletScreen.kt` Withdrawals/Deposits tabs, and
+    `PullToRefreshBox` on feed, wallet and admin dashboard + empty states.
+  - Verification: backend `npm run build` clean; 19/19 deposit+refund API checks and 6/6 sweep checks passed;
+    Debug (23.3/23.0 MB) and R8 Release (5.27/2.13 MB) builds passing.
+
 ---
 
-## 🎯 4. Active Milestone: Phase 4 (Deposit Top-Up, State Sweep & Asset Integration)
+## 🎯 4. Milestone Status: Phase 4 ✅ COMPLETE
 
-Target plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/4_Deposit_StateSweep_and_AssetIntegration/PLAN.md)  
-Target prompt file: [prompt.md](file:///C:/Free%20Fire%20turnament/prompt.md)
+Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/4_Deposit_StateSweep_and_AssetIntegration/PLAN.md)
 
-### Key Features to Implement in Phase 4:
-1. **Free Fire High-Res Asset Injection:**
-   - Downloaded assets (`ui-ux demo/free fire assests/`) ko `:core` drawables me link karna (Bermuda, Purgatory, Kalahari, Alpine, NeXTerra maps, Clash Squad badges).
-2. **Player UPI Deposit / Add Cash Flow:**
-   - Dynamic UPI QR & Intent (`upi://pay`) in `DepositModal.kt` + 12-digit UTR submission.
-3. **Admin Deposit Approvals Console:**
-   - `AdminWalletScreen.kt` me Deposits tab with 1-Click Approve (double-entry `ADD_MONEY` credit) & Reject.
-4. **Match Lifecycle Auto-Sweep & Auto-Refund:**
-   - 15-min Room reveal auto transition, live match transition, aur cancelled match par 1-click all-player auto refund.
-5. **Pull-to-Refresh & Error Handlers:**
-   - Compose pull-to-refresh on all feed & wallet lists.
+1. **Free Fire High-Res Asset Injection** — done (`TournamentArt.kt`, `:core/res/drawable`).
+2. **Player UPI Deposit / Add Cash** — done (`DepositModal.kt`, `upi://pay` QR + intent, UTR flow).
+3. **Admin Deposit Approvals Console** — done (`AdminWalletScreen.kt` Withdrawals | Deposits tabs).
+4. **Match Lifecycle Auto-Sweep & Auto-Refund** — done (`matchSweep.service.ts` + refund cancellation).
+5. **Pull-to-Refresh & Empty/Error States** — done (feed, wallet, admin dashboard).
+
+### Suggested next milestone (Phase 5 ideas)
+- Staff "Sweep now" + match-cancel buttons in the admin app (backend endpoints already exist).
+- Deposit/withdrawal CSV export + daily reconciliation totals for the admin.
+- Room-creds countdown push scheduling + WhatsApp/Telegram share of room ID.
+- Configurable tenant UPI ID from the admin app instead of `client_config.json`.
 
 ---
 
@@ -136,6 +155,6 @@ Target prompt file: [prompt.md](file:///C:/Free%20Fire%20turnament/prompt.md)
 When continuing from this file in a new chat:
 1. Greet the user in **Hinglish**.
 2. Acknowledge that Backend Phases 1-4 and Android Phases 1-2 are **100% completed & verified**.
-3. Point directly to **Android Phase 3** and review the prompt in `prompt.md`.
+3. Backend + Android Phases 1-4 are complete; next work starts from the Phase 5 ideas above.
 4. Always leverage the reference repos in `git demo repo\` when generating code or prompts.
 5. Keep all checklist files in `plan/` updated.

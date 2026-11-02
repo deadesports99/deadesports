@@ -366,11 +366,21 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         walletError = null
     }
 
+    var isDashboardRefreshing by mutableStateOf(false)
+        private set
+
     /** Dashboard pull-to-refresh: re-sync the match list + wallet queues. */
     fun refreshDashboard() {
-        loadTournaments()
-        loadWithdrawals("PENDING")
-        loadDeposits("PENDING")
+        isDashboardRefreshing = true
+        viewModelScope.launch {
+            try {
+                loadTournaments()
+                loadWithdrawals("PENDING")
+                loadDeposits("PENDING")
+            } finally {
+                isDashboardRefreshing = false
+            }
+        }
     }
 }
 

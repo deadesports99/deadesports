@@ -66,9 +66,7 @@ fun TournamentFeedScreen(
     onLogout: () -> Unit,
 ) {
     val state = viewModel.feedUi
-    var pulling by remember { mutableStateOf(false) }
-
-    LaunchedEffect(state) { if (state !is UiState.Loading) pulling = false }
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -102,9 +100,9 @@ fun TournamentFeedScreen(
             )
 
             PullToRefreshBox(
-                isRefreshing = pulling,
+                isRefreshing = viewModel.isFeedRefreshing,
                 onRefresh = {
-                    pulling = true
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     viewModel.refreshFeed()
                 },
                 modifier = Modifier.weight(1f),

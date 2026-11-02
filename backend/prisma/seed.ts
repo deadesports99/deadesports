@@ -20,6 +20,7 @@ async function main(): Promise<void> {
       brandName: 'Apex Free Fire Club',
       primaryColor: '#FF4757',
       commissionRate: 10,
+      upiId: 'thunderesports@okaxis',
       isActive: true,
     },
     create: {
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
       brandName: 'Apex Free Fire Club',
       primaryColor: '#FF4757',
       commissionRate: 10,
+      upiId: 'thunderesports@okaxis',
       isActive: true,
     },
   });

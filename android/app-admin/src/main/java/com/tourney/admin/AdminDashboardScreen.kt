@@ -62,11 +62,7 @@ fun AdminDashboardScreen(
 ) {
     val isAdmin = session.role == Role.ADMIN
     val perms = session.permissions
-    var pulling by remember { mutableStateOf(false) }
-
-    LaunchedEffect(viewModel.tournamentsUi) {
-        if (viewModel.tournamentsUi !is AdminUi.Loading) pulling = false
-    }
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     val features = buildList {
         add(
@@ -111,9 +107,9 @@ fun AdminDashboardScreen(
         AppTopBar(title = "Dashboard")
 
         PullToRefreshBox(
-            isRefreshing = pulling,
+            isRefreshing = viewModel.isDashboardRefreshing,
             onRefresh = {
-                pulling = true
+                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                 viewModel.refreshDashboard()
             },
             modifier = Modifier.weight(1f),

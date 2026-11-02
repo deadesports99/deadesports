@@ -71,6 +71,9 @@ object ApiClient {
 
         tourneyApi = retrofit.create(TourneyApi::class.java)
     }
+
+    fun <T> toJson(clazz: Class<T>, value: T): String = moshi.adapter(clazz).toJson(value)
+    fun <T> fromJson(clazz: Class<T>, json: String): T? = moshi.adapter(clazz).fromJson(json)
 }
 
 /** Stable per-install device identifier (used for fraud signals on register). */

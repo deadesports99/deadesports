@@ -31,9 +31,12 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ─── 4. Simple request logger ───────────────────────────────────────────
+// ─── 4. Simple request logger (Sanitized to prevent Log Injection) ───────
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - IP: ${req.ip ?? 'unknown'}`);
+  const safeMethod = req.method.replace(/[\r\n]/g, '');
+  const safeUrl = req.originalUrl.replace(/[\r\n]/g, '');
+  const safeIp = (req.ip ?? 'unknown').replace(/[\r\n]/g, '');
+  console.log(`[${new Date().toISOString()}] ${safeMethod} ${safeUrl} - IP: ${safeIp}`);
   next();
 });
 

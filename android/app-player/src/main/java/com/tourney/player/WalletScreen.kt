@@ -59,9 +59,8 @@ fun WalletScreen(
     var showWithdraw by remember { mutableStateOf(false) }
     var showDeposit by remember { mutableStateOf(false) }
     var showLowWinningAlert by remember { mutableStateOf(false) }
-    var pulling by remember { mutableStateOf(false) }
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
-    LaunchedEffect(state) { if (state !is UiState.Loading) pulling = false }
     LaunchedEffect(Unit) { viewModel.loadMyDeposits() }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -84,9 +83,9 @@ fun WalletScreen(
             AppTopBar(title = "Wallet", onBack = onBack)
 
             PullToRefreshBox(
-                isRefreshing = pulling,
+                isRefreshing = viewModel.isWalletRefreshing,
                 onRefresh = {
-                    pulling = true
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     viewModel.refreshWallet()
                     viewModel.loadMyDeposits()
                 },

@@ -9,8 +9,24 @@ import { env } from './env.js';
  * schema file anymore, it lives in prisma.config.ts for the CLI and here for
  * the runtime client).
  */
+/**
+ * pg v9 treats `sslmode=require` as `verify-full`, which overrides the explicit
+ * `ssl` object below and breaks against Supabase's pooler (its chain contains a
+ * managed/self-signed CA). We therefore keep TLS on via `ssl` and drop only the
+ * URL flag — same intent as the original `rejectUnauthorized: false` config.
+ */
+function withoutSslMode(databaseUrl: string): string {
+  try {
+    const url = new URL(databaseUrl);
+    url.searchParams.delete('sslmode');
+    return url.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
+
 const pool = new pg.Pool({
-  connectionString: env.DATABASE_URL,
+  connectionString: withoutSslMode(env.DATABASE_URL),
   ssl: { rejectUnauthorized: false },
 });
 

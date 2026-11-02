@@ -16,7 +16,7 @@ data class ClientConfig(
     val applicationId: String,
     val appName: String,
     val tenantId: String,             // white-label tenant bound into this client build
-    val apiBaseUrl: String,           // backend root, e.g. http://10.0.2.2:5000/api/v1
+    val apiBaseUrl: String,           // backend root, e.g. http://localhost:5000/api/v1
     val primaryColorHex: String,
     val buttonColorHex: String,
     val accentColorHex: String,
@@ -37,7 +37,7 @@ data class ClientConfig(
             applicationId = "com.thunderesports.player",
             appName = "Thunder eSports",
             tenantId = "22f27d39-f104-41b8-a435-befab60349ae",
-            apiBaseUrl = "http://10.0.2.2:5000/api/v1",
+            apiBaseUrl = "http://localhost:5000/api/v1",
             primaryColorHex = "#FF5722",
             buttonColorHex = "#FF7043",
             accentColorHex = "#FFB300",
