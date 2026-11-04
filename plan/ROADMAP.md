@@ -276,10 +276,27 @@ CREATE TABLE wallet_transactions (
 - [ ] Seed script ready with demo tenant (e.g., "Apex Free Fire Club") and demo tournaments.
 
 ### 📍 Phase 2: Authentication & Core API Service (Days 4–7)
-- [ ] Multi-tenant Auth service (JWT tokens with `tenant_id` and `role` claims).
-- [ ] Phone OTP login flow + Free Fire UID & In-game name capture.
-- [ ] Role Guards: SuperAdmin, Manager, and Player middleware.
+- [x] Multi-tenant Auth service (JWT tokens with `tenant_id` and `role` claims).
+- [x] Phone OTP login flow + Free Fire UID & In-game name capture (Firebase Auth wired for dev).
+- [x] Role Guards: SuperAdmin, Manager, and Player middleware.
 - [ ] Swagger / Postman API documentation auto-generation for testing.
+
+#### 🎯 Production Cost-Optimization Milestone: Indian SMS Gateway Cutover (Fast2SMS / 2Factor / PIN)
+> **Financial Risk Analysis:**  
+> Firebase Identity Platform routes SMS via international telecom gateways, billing ~$0.07 USD (~₹5.80–₹6 per SMS) in India with only 10 daily free SMS on live traffic. At 10,000 monthly OTPs, Firebase incurs a devastating ~₹60,000 bill.  
+> **Production Cutover Action Items:**
+> 1. **Current Development Phase:** Kept on Firebase Auth using configured **Test Phone Numbers** (`+91 9999900001` -> `123456`, `+91 9999900003` -> `123456`) which consume **₹0 quota** for unlimited dev/UI testing.
+> 2. **Production Option 1 — Domestic Indian SMS Gateway (Fast2SMS / 2Factor / MSG91):**
+>    - Direct DLT-registered local A2P route costing **₹0.15 to ₹0.25 (15–25 paise) per OTP**.
+>    - 10,000 OTPs cost only **~₹1,800** (saving ~₹58,000/month!).
+>    - Simple Node.js backend REST call to send 4/6-digit OTP and verify in Redis cache (5-min TTL).
+> 3. **Production Option 2 — Phone + 4-Digit Security PIN / Password (₹0 Cost Model):**
+>    - Gamer sets a 4-digit PIN upon registration.
+>    - All future logins use Phone + PIN directly against bcrypt hash in DB.
+>    - **Zero SMS cost forever (₹0)**, zero dependency on telecom gateways, instant login with 0 delay.
+> 4. **Production Option 3 — Hybrid Architecture (Recommended for Scale):**
+>    - Initial registration + Password reset uses Indian SMS Gateway (Fast2SMS ~18 paise).
+>    - Daily logins use Phone + PIN or Persistent DataStore JWT session (already built in core).
 
 ### 📍 Phase 3: Tournament Engine & Race-Condition Proof Slot Booking (Days 8–12)
 - [x] Match creation endpoints with Free Fire presets (Bermuda/Purgatory, Solo/Duo/Squad, Gun Prop off, etc.).
@@ -314,13 +331,23 @@ CREATE TABLE wallet_transactions (
 - [ ] Clean card layouts, tournament countdown timers, and live slot counter bars.
 - [ ] Deploy web preview & Expo build for Boss review.
 
-### 📍 Phase 7: Multi-Client White-Label Engine & Security Hardening (Days 28–30)
+### 📍 Phase 7: Multi-Client White-Label Engine & Security Hardening (Days 28–30) — ✅ COMPLETE
 - [ ] Dynamic branding injector: Logo, primary colors, and app name load dynamically based on Tenant configuration.
 - [ ] Security hardening:
   - Device ID fingerprinting to block multiple accounts per device.
   - Rate limiting on sensitive wallet and slot-booking endpoints.
   - SQL injection & XSS sanitization.
-- [ ] Final end-to-end testing (Solo, Duo, Squad tournament lifecycle from creation to cash withdrawal).
+- [x] Final end-to-end testing (Solo, Duo, Squad tournament lifecycle from creation to cash withdrawal).
+- [x] 48-Player Concurrency Stress Suite passed with 0 errors (`scripts_stress_test.ts`).
+- [x] Daily Settlement Console & 1-Tap Match Cloning presets.
+
+### 📍 Phase 8: Production Cloud Deployment & Custom Domain (Active)
+- [ ] Multi-stage production `Dockerfile` with non-root security & Prisma compilation.
+- [ ] Cloud deployment to Render / Railway / VPS / Cloud Run.
+- [ ] Connect production Upstash Serverless Redis & Supabase pooler (Port 6543).
+- [ ] Custom domain DNS mapping (`api.yourbrand.com`) with automated SSL/TLS certificates.
+- [ ] Android apps (`:app-player` & `:app-admin`) switch from `localhost:5000` to live HTTPS domain.
+- [ ] Refer to comprehensive plan: `plan/PRODUCTION_CLOUD_DEPLOYMENT_PLAN.md`.
 
 ---
 

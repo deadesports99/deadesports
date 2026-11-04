@@ -70,6 +70,14 @@ object ApiClient {
             .build()
 
         tourneyApi = retrofit.create(TourneyApi::class.java)
+
+        // Initialize Realtime WebSocket Gateway
+        TourneyRealtimeClient.init(
+            baseUrl = config.apiBaseUrl,
+            tenantId = config.tenantId,
+            tokenProvider = { sessionManager.currentToken() }
+        )
+        TourneyRealtimeClient.connect()
     }
 
     fun <T> toJson(clazz: Class<T>, value: T): String = moshi.adapter(clazz).toJson(value)

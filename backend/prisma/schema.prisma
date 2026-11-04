@@ -18,7 +18,10 @@ model Tenant {
   commissionRate  Float          @default(10.0) // 10% commission on matches
   cashfreeApiKey  String?
   razorpayKey     String?
-  upiId           String?
+  upiId           String?        // Collecting UPI handle (players pay here)
+  upiName         String?        // Payee name shown in the UPI app / QR
+  supportWhatsapp String?        // Digits only, e.g. "919999900001"
+  minDeposit      Int            @default(10)
   isActive        Boolean        @default(true)
   createdAt       DateTime       @default(now())
   

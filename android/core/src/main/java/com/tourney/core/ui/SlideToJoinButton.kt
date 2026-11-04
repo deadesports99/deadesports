@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -78,7 +79,7 @@ fun SlideToJoinButton(
 
     var trackWidthPx by remember { mutableFloatStateOf(0f) }
     val maxOffset = (trackWidthPx - thumbPx - (thumbPaddingPx * 2)).coerceAtLeast(0f)
-    val threshold = maxOffset * 0.60f // 60% swipe to confirm
+    val threshold = maxOffset * 0.35f // 35% swipe or flick to confirm
 
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var isConfirmed by remember { mutableStateOf(false) }
@@ -86,12 +87,30 @@ fun SlideToJoinButton(
     val primary = MaterialTheme.colorScheme.primary
     val onPrimary = MaterialTheme.colorScheme.onPrimary
 
+    fun triggerConfirm() {
+        if (!enabled || loading || isConfirmed) return
+        isConfirmed = true
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        scope.launch {
+            val anim = Animatable(dragOffset)
+            anim.animateTo(maxOffset, tween(220, easing = FastOutSlowInEasing)) {
+                dragOffset = this.value
+            }
+            onConfirm()
+            delay(500)
+            anim.animateTo(0f, tween(250, easing = FastOutSlowInEasing)) {
+                dragOffset = this.value
+            }
+            isConfirmed = false
+        }
+    }
+
     // Shimmer effect for prompt text
     val shimmer = rememberInfiniteTransition(label = "slideShimmer")
     val textAlpha by shimmer.animateFloat(
-        initialValue = 0.45f,
+        initialValue = 0.55f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(800), androidx.compose.animation.core.RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(750), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "textAlpha",
     )
 
@@ -114,28 +133,18 @@ fun SlideToJoinButton(
             .clip(RoundedCornerShape(29.dp))
             .background(Color(0xFF1E1E24))
             .onSizeChanged { trackWidthPx = it.width.toFloat() }
+            .clickable(
+                enabled = enabled && !loading && !isConfirmed,
+                onClick = { triggerConfirm() }
+            )
             .draggable(
                 state = draggableState,
                 orientation = Orientation.Horizontal,
-                enabled = enabled && !loading,
-                onDragStopped = {
-                    if (dragOffset >= threshold) {
-                        isConfirmed = true
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        scope.launch {
-                            // Snap to end
-                            dragOffset = maxOffset
-                            onConfirm()
-                            // Wait briefly before resetting
-                            delay(400)
-                            val anim = Animatable(dragOffset)
-                            anim.animateTo(0f, tween(250, easing = FastOutSlowInEasing)) {
-                                dragOffset = this.value
-                            }
-                            isConfirmed = false
-                        }
+                enabled = enabled && !loading && !isConfirmed,
+                onDragStopped = { velocity ->
+                    if (dragOffset >= threshold || (velocity > 250f && dragOffset > maxOffset * 0.15f)) {
+                        triggerConfirm()
                     } else {
-                        // Snap back to start smoothly
                         scope.launch {
                             val anim = Animatable(dragOffset)
                             anim.animateTo(0f, tween(200, easing = FastOutSlowInEasing)) {
@@ -179,14 +188,18 @@ fun SlideToJoinButton(
                     fontSize = 15.sp,
                 )
             } else {
-                val labelText = if (progressFraction >= 0.60f) "Release to Join! 🔥" else text
+                val labelText = if (progressFraction >= 0.35f) "Release to Join! 🔥" else text
                 Text(
                     text = labelText,
-                    color = if (progressFraction >= 0.60f) Color.White else primary.copy(alpha = textAlpha),
+                    color = when {
+                        !enabled -> Color(0xFF8E8E9A)
+                        progressFraction >= 0.35f -> Color.White
+                        else -> primary.copy(alpha = textAlpha)
+                    },
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 60.dp),
+                    modifier = Modifier.padding(horizontal = 56.dp),
                 )
             }
         }
@@ -198,7 +211,7 @@ fun SlideToJoinButton(
                 .offset { IntOffset(dragOffset.roundToInt(), 0) }
                 .size(thumbSize)
                 .clip(CircleShape)
-                .background(if (enabled && !loading) primary else Color.DarkGray),
+                .background(if (enabled && !loading) primary else Color(0xFF353540)),
             contentAlignment = Alignment.Center,
         ) {
             if (loading) {
@@ -211,7 +224,7 @@ fun SlideToJoinButton(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Slide Arrow",
-                    tint = onPrimary,
+                    tint = if (enabled) onPrimary else Color(0xFF757582),
                     modifier = Modifier.size(24.dp),
                 )
             }

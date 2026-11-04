@@ -276,7 +276,7 @@ private fun ScorerRow(viewModel: AdminViewModel, player: ScorerPlayer) {
                     value = rankText,
                     onValueChange = { input ->
                         rankText = input.filter(Char::isDigit).take(3)
-                        rankText.toIntOrNull()?.let { if (it in 1..99) viewModel.updateRank(player.userId, it) }
+                        rankText.toIntOrNull()?.let { if (it in 1..48) viewModel.updateRank(player.userId, it) }
                     },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
@@ -292,6 +292,19 @@ private fun ScorerRow(viewModel: AdminViewModel, player: ScorerPlayer) {
                     onCheckedChange = { viewModel.toggleDisqualify(player.userId) },
                 )
             }
+        }
+
+        // Reason is shown to the player on the official scoreboard.
+        if (player.disqualified) {
+            androidx.compose.material3.OutlinedTextField(
+                value = player.disqualifyReason,
+                onValueChange = { viewModel.updateDisqualifyReason(player.userId, it) },
+                label = { Text("Disqualification reason (visible to players)") },
+                placeholder = { Text("e.g. Aim hack / teaming with opponents") },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
         }
     }
 }

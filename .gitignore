@@ -20,3 +20,20 @@ build/
 .DS_Store
 Thumbs.db
 *.log
+
+# Android build output (AGP writes into module dirs)
+android/**/build/
+android/.gradle/
+android/local.properties
+
+# Firebase / signing secrets — NEVER commit a client's keys
+google-services.json
+*.jks
+*.keystore
+keystore.properties
+
+# Per-client build artifacts (APKs + hashes)
+dist/
+
+# Local verification screenshots (adb captures)
+screenshots/

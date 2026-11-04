@@ -27,16 +27,33 @@ const listQuerySchema = z.object({
 });
 
 const joinSchema = z.object({
-  slotNumber: z.coerce.number().int().min(1, 'slotNumber must be 1-48').max(48, 'slotNumber must be 1-48'),
+  slotNumber: z.coerce.number().int().min(1, 'slotNumber must be 1-48').max(48, 'slotNumber must be 1-48').optional(),
   teamCode: z
     .string()
     .trim()
     .regex(/^\d{6}$/, 'teamCode must be a 6-digit squad code')
     .optional(),
+  inGameName: z
+    .string()
+    .trim()
+    .min(2, 'In-game name must be at least 2 characters')
+    .max(30, 'In-game name max 30 characters')
+    .optional(),
+  inGameUid: z
+    .string()
+    .trim()
+    .regex(/^\d{6,12}$/, 'Free Fire UID must be 6-12 digits')
+    .optional(),
+  saveAsDefault: z.boolean().optional(),
 });
 
 const cancelSchema = z.object({
   reason: z.string().trim().min(5, 'A cancellation reason is required').max(300),
+});
+
+const cloneSchema = z.object({
+  matchTime: z.coerce.date({ error: 'matchTime must be a valid ISO date' }),
+  title: z.string().trim().min(3, 'Title must be at least 3 characters').max(100).optional(),
 });
 
 // ─── Handlers ────────────────────────────────────────────────────────────
@@ -56,7 +73,7 @@ export async function listTournaments(req: Request, res: Response, next: NextFun
   try {
     if (!req.user) throw new Error('Authenticated user missing');
     const query = listQuerySchema.parse(req.query);
-    const result = await tournamentService.listTournaments(req.user.tenantId, query);
+    const result = await tournamentService.listTournaments(req.user.tenantId, query, req.user);
     sendResponse(res, 200, 'Tournaments fetched', result);
   } catch (err) {
     next(err);
@@ -96,6 +113,9 @@ export async function joinTournament(req: Request, res: Response, next: NextFunc
       String(req.params.id),
       body.slotNumber,
       body.teamCode,
+      body.inGameName,
+      body.inGameUid,
+      body.saveAsDefault,
     );
     sendResponse(res, 201, 'Slot booked successfully', result);
   } catch (err) {
@@ -113,6 +133,22 @@ export async function cancelTournamentAndRefundAll(req: Request, res: Response, 
     next(err);
   }
 }
+
+/**
+ * Phase 7 — 1-tap clone: copy an existing tournament's format into a fresh
+ * OPEN match at the given time (default title: "<original> (Next)").
+ */
+export async function cloneTournament(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const body = cloneSchema.parse(req.body);
+    const tournament = await tournamentService.cloneTournament(req.user, String(req.params.id), body);
+    sendResponse(res, 201, 'Tournament cloned', tournament);
+  } catch (err) {
+    next(err);
+  }
+}
+
 /**
  * Time-based lifecycle sweep (manual trigger) — same engine the background
  * scheduler runs every minute. Useful for ops "advance now" during a demo.

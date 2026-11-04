@@ -11,6 +11,10 @@ import com.tourney.core.model.AckRequest
 import com.tourney.core.model.AdminDepositsResponse
 import com.tourney.core.model.ApiException
 import com.tourney.core.model.ApproveWithdrawalRequest
+import com.tourney.core.model.CancelMatchRequest
+import com.tourney.core.model.CancelMatchResult
+import com.tourney.core.model.CloneTournamentRequest
+import com.tourney.core.model.CreateStaffRequest
 import com.tourney.core.model.CreateTournamentRequest
 import com.tourney.core.model.LoginRequest
 import com.tourney.core.model.PayoutRequest
@@ -20,14 +24,24 @@ import com.tourney.core.model.PublishRoomRequest
 import com.tourney.core.model.RejectWithdrawalRequest
 import com.tourney.core.model.RoomCredentials
 import com.tourney.core.model.SlotsResponse
+import com.tourney.core.model.StaffListResponse
+import com.tourney.core.model.StaffPermissions
+import com.tourney.core.model.SweepResult
+import com.tourney.core.model.DailySettlement
+import com.tourney.core.model.TenantSettings
+import com.tourney.core.model.UpdateTenantSettingsRequest
 import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentListResponse
+import com.tourney.core.model.UpdateStaffRequest
 import com.tourney.core.model.User
 import com.tourney.core.model.WithdrawalsResponse
 import com.tourney.core.network.ApiClient
 import com.tourney.core.network.apiCall
+import com.tourney.core.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /** Admin UI state machine (same shape as the player's, kept local to this app). */
 sealed interface AdminUi<out T> {
@@ -53,12 +67,18 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
     var authUi by mutableStateOf<AdminUi<User>>(AdminUi.Idle)
         private set
 
-    fun login(phoneNumber: String) {
+    fun login(phoneNumber: String, idToken: String? = null) {
         authUi = AdminUi.Loading
         viewModelScope.launch {
             try {
                 val response = apiCall {
-                    api.login(LoginRequest(tenantId = config.tenantId, phoneNumber = phoneNumber))
+                    api.login(
+                        LoginRequest(
+                            tenantId = config.tenantId,
+                            phoneNumber = phoneNumber.takeIf { it.isNotBlank() },
+                            idToken = idToken,
+                        )
+                    )
                 }
                 session.saveSession(
                     authToken = response.token,
@@ -191,7 +211,18 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         if (idx >= 0) {
             val current = scorerParticipants[idx]
             scorerParticipants = scorerParticipants.toMutableList().apply {
-                this[idx] = current.copy(rank = rank.coerceIn(1, 999))
+                this[idx] = current.copy(rank = rank.coerceIn(1, 48))
+            }
+        }
+    }
+
+    /** Spectator-typed reason shown to players on the scoreboard. */
+    fun updateDisqualifyReason(userId: String, reason: String) {
+        val idx = scorerParticipants.indexOfFirst { it.userId == userId }
+        if (idx >= 0) {
+            val current = scorerParticipants[idx]
+            scorerParticipants = scorerParticipants.toMutableList().apply {
+                this[idx] = current.copy(disqualifyReason = reason.take(120))
             }
         }
     }
@@ -220,7 +251,9 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                             verifiedKills = if (player.disqualified) 0 else player.verifiedKills,
                             rank = player.rank,
                             isDisqualified = player.disqualified,
-                            disqualifyReason = if (player.disqualified) "Disqualified by spectator" else null,
+                            disqualifyReason = if (player.disqualified) {
+                                player.disqualifyReason.ifBlank { "Disqualified by spectator" }
+                            } else null,
                         )
                     }
                 payoutUi = AdminUi.Success(
@@ -366,8 +399,375 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         walletError = null
     }
 
+    // ─── Staff / Sub-Admin management (ADMIN only) ───────────────────────
+    var staffUi by mutableStateOf<AdminUi<StaffListResponse>>(AdminUi.Idle)
+        private set
+
+    var staffBusy by mutableStateOf(false)
+        private set
+
+    var staffMessage by mutableStateOf<String?>(null)
+        private set
+
+    var staffError by mutableStateOf<String?>(null)
+        private set
+
+    fun loadStaff() {
+        staffUi = AdminUi.Loading
+        staffError = null
+        viewModelScope.launch {
+            try {
+                staffUi = AdminUi.Success(apiCall { api.staffList() })
+            } catch (e: ApiException) {
+                staffUi = AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                staffUi = AdminUi.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    /** Hire a staff member — they log in with the same phone number. */
+    fun createStaff(
+        name: String,
+        email: String,
+        phoneNumber: String,
+        permissions: StaffPermissions,
+    ) {
+        if (staffBusy) return
+        staffBusy = true
+        staffMessage = null
+        staffError = null
+        viewModelScope.launch {
+            try {
+                apiCall {
+                    api.createStaff(
+                        CreateStaffRequest(
+                            name = name.trim(),
+                            email = email.trim(),
+                            phoneNumber = phoneNumber.trim(),
+                            permissions = permissions,
+                        )
+                    )
+                }
+                staffMessage = "Staff hired ✓"
+                loadStaff()
+            } catch (e: ApiException) {
+                staffError = e.message
+            } catch (e: Exception) {
+                staffError = "Network error — is the server running?"
+            } finally {
+                staffBusy = false
+            }
+        }
+    }
+
+    fun updateStaff(
+        id: String,
+        permissions: StaffPermissions,
+        name: String? = null,
+        email: String? = null,
+        isActive: Boolean? = null,
+    ) {
+        if (staffBusy) return
+        staffBusy = true
+        staffMessage = null
+        staffError = null
+        viewModelScope.launch {
+            try {
+                apiCall {
+                    api.updateStaff(
+                        id,
+                        UpdateStaffRequest(
+                            name = name?.trim()?.takeIf { it.isNotEmpty() },
+                            email = email?.trim()?.takeIf { it.isNotEmpty() },
+                            permissions = permissions,
+                            isActive = isActive,
+                        ),
+                    )
+                }
+                staffMessage = "Permissions updated ✓"
+                loadStaff()
+            } catch (e: ApiException) {
+                staffError = e.message
+            } catch (e: Exception) {
+                staffError = "Network error — is the server running?"
+            } finally {
+                staffBusy = false
+            }
+        }
+    }
+
+    /** Soft delete — the account keeps its audit history but can no longer log in. */
+    fun deactivateStaff(id: String) {
+        if (staffBusy) return
+        staffBusy = true
+        staffMessage = null
+        staffError = null
+        viewModelScope.launch {
+            try {
+                apiCall { api.removeStaff(id) }
+                staffMessage = "Staff removed ✓"
+                loadStaff()
+            } catch (e: ApiException) {
+                staffError = e.message
+            } catch (e: Exception) {
+                staffError = "Network error — is the server running?"
+            } finally {
+                staffBusy = false
+            }
+        }
+    }
+
+    fun clearStaffFeedback() {
+        staffMessage = null
+        staffError = null
+    }
+
     var isDashboardRefreshing by mutableStateOf(false)
         private set
+
+    // ─── Phase 6: Match Operations (sweep + cancel & refund) ─────────────
+    /** Live match list for the operations console (scheduled / live / done). */
+    var matchOpsUi by mutableStateOf<AdminUi<TournamentListResponse>>(AdminUi.Idle)
+        private set
+
+    var isMatchOpsRefreshing by mutableStateOf(false)
+        private set
+
+    var opsBusyMatchId by mutableStateOf<String?>(null)
+        private set
+
+    var opsSweeping by mutableStateOf(false)
+        private set
+
+    var opsMessage by mutableStateOf<String?>(null)
+        private set
+
+    var opsError by mutableStateOf<String?>(null)
+        private set
+
+    fun loadMatchOps() {
+        if (matchOpsUi is AdminUi.Idle || matchOpsUi is AdminUi.Error) {
+            matchOpsUi = AdminUi.Loading
+        }
+        isMatchOpsRefreshing = true
+        viewModelScope.launch {
+            try {
+                matchOpsUi = AdminUi.Success(apiCall { api.listTournaments(status = null, limit = 40) })
+            } catch (e: ApiException) {
+                if (matchOpsUi !is AdminUi.Success) matchOpsUi = AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                if (matchOpsUi !is AdminUi.Success) matchOpsUi = AdminUi.Error("Network error — is the server running?")
+            } finally {
+                isMatchOpsRefreshing = false
+            }
+        }
+    }
+
+    /** Advance every due match now instead of waiting for the 60s scheduler. */
+    fun sweepNow() {
+        if (opsSweeping) return
+        opsSweeping = true
+        opsMessage = null
+        opsError = null
+        viewModelScope.launch {
+            try {
+                val result = apiCall { api.sweepMatchStates() }
+                opsMessage = result.summary
+                loadMatchOps()
+                loadTournaments()
+            } catch (e: ApiException) {
+                opsError = e.message
+            } catch (e: Exception) {
+                opsError = "Sweep failed — network error"
+            } finally {
+                opsSweeping = false
+            }
+        }
+    }
+
+    /** Cancel a match and refund every booked seat in one transaction. */
+    fun cancelMatch(tournamentId: String, reason: String = "Cancelled by organizer") {
+        if (opsBusyMatchId != null) return
+        opsBusyMatchId = tournamentId
+        opsMessage = null
+        opsError = null
+        viewModelScope.launch {
+            try {
+                val result: CancelMatchResult = apiCall {
+                    api.cancelTournament(tournamentId, CancelMatchRequest(reason.trim()))
+                }
+                opsMessage = "Match cancelled — ₹${"%.2f".format(java.util.Locale.US, result.totalRefunded)} " +
+                    "refunded to ${result.refundedPlayers} player(s)"
+                loadMatchOps()
+                loadTournaments()
+            } catch (e: ApiException) {
+                opsError = e.message
+            } catch (e: Exception) {
+                opsError = "Cancel failed — network error"
+            } finally {
+                opsBusyMatchId = null
+            }
+        }
+    }
+
+    // ─── Phase 7: Daily settlement + CSV export ───────────────────────────
+    var settlementUi by mutableStateOf<AdminUi<DailySettlement>>(AdminUi.Idle)
+        private set
+
+    var settlementExporting by mutableStateOf(false)
+        private set
+
+    fun loadSettlement(date: String) {
+        settlementUi = AdminUi.Loading
+        viewModelScope.launch {
+            settlementUi = try {
+                AdminUi.Success(apiCall { api.dailySettlement(date) })
+            } catch (e: ApiException) {
+                AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                AdminUi.Error("Could not load settlement — network error")
+            }
+        }
+    }
+
+    /** Writes the server-generated CSV to cache for a secure Android share URI. */
+    fun exportSettlementCsv(date: String, onResult: (File?, String?) -> Unit) {
+        if (settlementExporting) return
+        settlementExporting = true
+        viewModelScope.launch {
+            try {
+                val response = api.exportSettlementCsv(date)
+                val exportDir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
+                val output = File(exportDir, "settlement-$date.csv")
+                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    response.byteStream().use { input -> output.outputStream().use { input.copyTo(it) } }
+                }
+                onResult(output, null)
+            } catch (e: ApiException) {
+                onResult(null, e.message)
+            } catch (e: Exception) {
+                onResult(null, "CSV export failed — check your network")
+            } finally {
+                settlementExporting = false
+            }
+        }
+    }
+
+    // ─── Phase 7: One-tap match cloning ───────────────────────────────────
+    var cloneBusyMatchId by mutableStateOf<String?>(null)
+        private set
+
+    var cloneMessage by mutableStateOf<String?>(null)
+        private set
+
+    var cloneError by mutableStateOf<String?>(null)
+        private set
+
+    fun cloneMatch(sourceId: String, matchTime: String, title: String? = null) {
+        if (cloneBusyMatchId != null) return
+        cloneBusyMatchId = sourceId
+        cloneMessage = null
+        cloneError = null
+        viewModelScope.launch {
+            try {
+                apiCall {
+                    api.cloneTournament(
+                        sourceId,
+                        CloneTournamentRequest(matchTime = matchTime, title = title?.trim()?.takeIf { it.isNotEmpty() }),
+                    )
+                }
+                cloneMessage = "Match cloned successfully"
+                loadMatchOps()
+                loadTournaments()
+            } catch (e: ApiException) {
+                android.util.Log.e("AdminViewModel", "Clone ApiException", e)
+                cloneError = e.message
+            } catch (e: Exception) {
+                android.util.Log.e("AdminViewModel", "Clone Exception", e)
+                cloneError = e.message ?: "Clone failed"
+            } finally {
+                cloneBusyMatchId = null
+            }
+        }
+    }
+
+    fun clearCloneFeedback() {
+        cloneMessage = null
+        cloneError = null
+    }
+
+    fun clearOpsFeedback() {
+        opsMessage = null
+        opsError = null
+    }
+
+    // ─── Phase 6: Runtime settings (UPI / WhatsApp / min deposit) ────────
+    var settingsUi by mutableStateOf<AdminUi<TenantSettings>>(AdminUi.Idle)
+        private set
+
+    var settingsSaving by mutableStateOf(false)
+        private set
+
+    var settingsMessage by mutableStateOf<String?>(null)
+        private set
+
+    var settingsError by mutableStateOf<String?>(null)
+        private set
+
+    fun loadSettings() {
+        settingsUi = AdminUi.Loading
+        viewModelScope.launch {
+            settingsUi = try {
+                AdminUi.Success(apiCall { api.adminTenantSettings() })
+            } catch (e: ApiException) {
+                AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                AdminUi.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    fun saveSettings(upiId: String, upiName: String, supportWhatsapp: String, minDeposit: Int) {
+        if (settingsSaving) return
+        settingsSaving = true
+        settingsMessage = null
+        settingsError = null
+        viewModelScope.launch {
+            try {
+                val saved = apiCall {
+                    api.updateTenantSettings(
+                        UpdateTenantSettingsRequest(
+                            upiId = upiId.trim(),
+                            upiName = upiName.trim(),
+                            supportWhatsapp = supportWhatsapp.trim(),
+                            minDeposit = minDeposit,
+                        )
+                    )
+                }
+                settingsUi = AdminUi.Success(saved)
+                settingsMessage = "Saved — the Player app QR & support link update instantly."
+            } catch (e: ApiException) {
+                settingsError = e.message
+            } catch (e: Exception) {
+                settingsError = "Save failed — network error"
+            } finally {
+                settingsSaving = false
+            }
+        }
+    }
+
+    fun clearSettingsFeedback() {
+        settingsMessage = null
+        settingsError = null
+    }
+
+    // ─── Appearance (shared Light / Dark preference) ─────────────────────
+    val themeModeFlow: Flow<ThemeMode> = session.themeMode
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { session.saveThemeMode(mode) }
+    }
 
     /** Dashboard pull-to-refresh: re-sync the match list + wallet queues. */
     fun refreshDashboard() {
@@ -377,6 +777,7 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                 loadTournaments()
                 loadWithdrawals("PENDING")
                 loadDeposits("PENDING")
+                loadMatchOps()
             } finally {
                 isDashboardRefreshing = false
             }
@@ -393,4 +794,5 @@ data class ScorerPlayer(
     val verifiedKills: Int,
     val rank: Int,
     val disqualified: Boolean,
+    val disqualifyReason: String = "Hacking / teaming",
 )

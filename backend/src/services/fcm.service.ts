@@ -1,32 +1,13 @@
-import { applicationDefault, cert, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
-import { env } from '../config/env.js';
+import { getFirebaseApp } from './firebase.service.js';
 import { prisma } from '../config/prisma.js';
 
 /**
  * FCM push engine — lazy singleton so the backend boots fine without Firebase
  * credentials (push simply no-ops with a warning; the API stays fully usable).
- *
- * Credentials come from `FCM_CREDENTIALS_JSON` (the full service-account JSON
- * as a string) or the standard GOOGLE_APPLICATION_CREDENTIALS file.
  */
-let initialized = false;
-
-function ensureInitialized(): void {
-  if (initialized) return;
-
-  try {
-    if (env.FCM_CREDENTIALS_JSON) {
-      const serviceAccount = JSON.parse(env.FCM_CREDENTIALS_JSON);
-      initializeApp({ credential: cert(serviceAccount) });
-    } else {
-      initializeApp({ credential: applicationDefault() });
-    }
-    initialized = true;
-    console.log('[fcm] Firebase initialized — push notifications ENABLED');
-  } catch (err) {
-    console.warn('[fcm] Firebase not configured, push notifications disabled:', (err as Error).message);
-  }
+function ensureInitialized(): boolean {
+  return getFirebaseApp() !== null;
 }
 
 export interface PushPayload {
@@ -86,7 +67,7 @@ export async function sendPush(
   tokens: Array<string | null | undefined>,
   payload: PushPayload,
 ): Promise<void> {
-  ensureInitialized();
+  const initialized = ensureInitialized();
   if (!initialized) return;
 
   const uniqueTokens = [...new Set(tokens.filter((t): t is string => Boolean(t)))];

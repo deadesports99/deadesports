@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Fire Tournament Arena - Full Screen Master Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              gold: '#FFD000',
+              cyan: '#00C2FF',
+              void: '#081326'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="m-0 p-0 font-sans antialiased select-none bg-[#081326]">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    // --- Lucide SVG Icons ---
+    const AlertTriangle = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3.2 21.35 19.55a1.4 1.4 0 0 1-1.2 2.1H3.85a1.4 1.4 0 0 1-1.2-2.1L12 3.2Z" fill="currentColor" fillOpacity=".22"/> <path d="M12 9v4.7"/><circle cx="12" cy="17.4" r="1.25" fill="currentColor"/></svg>
+    );
+    const ArrowDownLeft = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.4 6.6 6.6 17.4M15.3 17.4H6.6V8.7"/></svg>
+    );
+    const ArrowLeft = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12H4.8M10.8 5.8 4.6 12l6.2 6.2"/></svg>
+    );
+    const ArrowUpRight = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.6 17.4 17.4 6.6M8.7 6.6h8.7v8.7"/></svg>
+    );
+    const Bell = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3.1a6.2 6.2 0 0 1 6.2 6.2v3.3l1.55 2.65a1.15 1.15 0 0 1-1 1.75H5.25a1.15 1.15 0 0 1-1-1.75L5.8 12.6V9.3A6.2 6.2 0 0 1 12 3.1Z" fill="currentColor" fillOpacity=".22"/> <path d="M9.4 20.1a2.7 2.7 0 0 0 5.2 0Z" fill="currentColor"/></svg>
+    );
+    const Check = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.6 12.7 9.4 17.5 19.4 6.9" strokeWidth="2.6"/></svg>
+    );
+    const CheckCircle2 = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.6" fill="currentColor" fillOpacity=".22"/> <path d="M7.9 12.2l2.7 2.7 5.5-5.7" strokeWidth="2.6"/></svg>
+    );
+    const ChevronRight = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.2 5.4 15.8 12l-6.6 6.6" strokeWidth="2.6"/></svg>
+    );
+    const Clock3 = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.6" fill="currentColor" fillOpacity=".22"/><path d="M12 12h4.5M12 12l-2.7 2.7"/></svg>
+    );
+    const Copy = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="8.3" y="8.3" width="12.4" height="12.4" rx="3.2" fill="currentColor" fillOpacity=".22"/> <path d="M15.6 5.4a2.7 2.7 0 0 0-2.7-2.7H6A2.7 2.7 0 0 0 3.3 5.4v6.9a2.7 2.7 0 0 0 2.7 2.7"/></svg>
+    );
+    const Crosshair = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="6.7" fill="currentColor" fillOpacity=".22"/> <path d="M12 2.4v3.2M12 18.4v3.2M2.4 12h3.2M18.4 12h3.2"/> <circle cx="12" cy="12" r="1.7" fill="currentColor"/></svg>
+    );
+    const Flame = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.9c4.3 4.7 7 7.3 7 11.4a7 7 0 0 1-14 0c0-4.1 2.7-6.7 7-11.4Z" fill="currentColor" fillOpacity=".22"/> <path d="M12 12.2c1.9 2.2 2.9 3.4 2.9 5.2a2.9 2.9 0 0 1-5.8 0c0-1.8 1-3 2.9-5.2Z" fill="currentColor"/></svg>
+    );
+    const Gamepad2 = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.4 7.5h9.2a4.4 4.4 0 0 1 4.25 3.45l.95 4.7a2.6 2.6 0 0 1-4.6 2.2l-1.2-1.55H8l-1.2 1.55a2.6 2.6 0 0 1-4.6-2.2l.95-4.7A4.4 4.4 0 0 1 7.4 7.5Z" fill="currentColor" fillOpacity=".22"/> <path d="M8.1 11.1v2.8M6.7 12.5h2.8"/> <circle cx="15.7" cy="11.9" r="1.2" fill="currentColor"/><circle cx="18" cy="14.1" r="1.2" fill="currentColor"/></svg>
+    );
+    const Headphones = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.4 15.6v-2.4a7.6 7.6 0 0 1 15.2 0v2.4"/> <rect x="2.6" y="14.1" width="4.1" height="6.5" rx="2.05" fill="currentColor" fillOpacity=".22"/> <rect x="17.3" y="14.1" width="4.1" height="6.5" rx="2.05" fill="currentColor" fillOpacity=".22"/></svg>
+    );
+    const KeyRound = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8.2" cy="15.7" r="4" fill="currentColor" fillOpacity=".22"/> <path d="M11 12.9 20.2 3.7M17.4 6.5l2.2 2.2M15.2 8.7l2.2 2.2"/></svg>
+    );
+    const Lock = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="4.7" y="10.3" width="14.6" height="10.5" rx="3.2" fill="currentColor" fillOpacity=".22"/> <path d="M8.1 10.3V7.5a3.9 3.9 0 0 1 7.8 0v2.8"/> <circle cx="12" cy="15.5" r="1.6" fill="currentColor"/></svg>
+    );
+    const LogOut = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.7 3.7H6.2A2.6 2.6 0 0 0 3.6 6.3v11.4a2.6 2.6 0 0 0 2.6 2.6h3.5"/><path d="M15.4 7.4 20 12l-4.6 4.6M20 12H9.3"/></svg>
+    );
+    const MapPin = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21.2s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z" fill="currentColor" fillOpacity=".22"/> <circle cx="12" cy="9.9" r="2.4" fill="currentColor"/></svg>
+    );
+    const MessageSquare = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 5.5h15a2 2 0 0 1 2 2v7.4a2 2 0 0 1-2 2H9.4l-4.2 3.3a.8.8 0 0 1-1.3-.63V7.5a2 2 0 0 1 2-2Z" fill="currentColor" fillOpacity=".22"/> <circle cx="8.7" cy="11.2" r="1.15" fill="currentColor"/><circle cx="12" cy="11.2" r="1.15" fill="currentColor"/><circle cx="15.3" cy="11.2" r="1.15" fill="currentColor"/></svg>
+    );
+    const Moon = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.3 15.1A8.7 8.7 0 0 1 9 3.9 8.7 8.7 0 1 0 20.3 15.1Z" fill="currentColor" fillOpacity=".22"/> <path d="M16.2 4.2l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8Z" fill="currentColor"/></svg>
+    );
+    const Pencil = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.2 19.8l1-4.6 11-11a2.2 2.2 0 0 1 3.1 0l.5.5a2.2 2.2 0 0 1 0 3.1l-11 11-4.6 1Z" fill="currentColor" fillOpacity=".22"/> <path d="M14.6 5.4l4 4"/></svg>
+    );
+    const Phone = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.7 3.5 10.3 8a1.7 1.7 0 0 1-.3 2.1L8.3 11.6a12.7 12.7 0 0 0 4.1 4.1l1.5-1.7a1.7 1.7 0 0 1 2.1-.3l4.5 2.6a1.7 1.7 0 0 1 .75 2l-.8 2a2.7 2.7 0 0 1-3 1.75C10.3 20.4 3.6 13.7 2.55 5.9A2.7 2.7 0 0 1 4.3 2.9l2-.8a1.7 1.7 0 0 1 1.9.35Z" fill="currentColor" fillOpacity=".22"/></svg>
+    );
+    const Plus = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4.9v14.2M4.9 12h14.2"/></svg>
+    );
+    const RefreshCw = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.4 12a8.4 8.4 0 1 1-2.65-6.15"/><path d="M20.4 3.5v4.9h-4.9"/></svg>
+    );
+    const Settings = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="6.7" fill="currentColor" fillOpacity=".22"/> <circle cx="12" cy="12" r="2.9"/> <path d="M12 2.3v2.6M12 19.1v2.6M2.3 12h2.6M19.1 12h2.6M5.1 5.1l1.85 1.85M17.05 17.05l1.85 1.85M18.9 5.1l-1.85 1.85M6.95 17.05 5.1 18.9"/></svg>
+    );
+    const Shield = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.6 20 5.7v6c0 4.9-3.4 8.5-8 10.1-4.6-1.6-8-5.2-8-10.1v-6L12 2.6Z" fill="currentColor" fillOpacity=".22"/></svg>
+    );
+    const ShieldCheck = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.6 20 5.7v6c0 4.9-3.4 8.5-8 10.1-4.6-1.6-8-5.2-8-10.1v-6L12 2.6Z" fill="currentColor" fillOpacity=".22"/> <path d="M8.5 11.9l2.4 2.4 4.6-4.8" strokeWidth="2.6"/></svg>
+    );
+    const Sparkles = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.4 3.4l1.7 4.2 4.2 1.7-4.2 1.7-1.7 4.2-1.7-4.2L5.5 9.3l4.2-1.7Z" fill="currentColor"/> <path d="M18.1 13.6l.95 2.3 2.3.95-2.3.95-.95 2.3-.95-2.3-2.3-.95 2.3-.95Z" fill="currentColor"/> <path d="M5.6 15.4l.65 1.6 1.6.65-1.6.65-.65 1.6-.65-1.6L3.35 17.65l1.6-.65Z" fill="currentColor" fillOpacity=".55"/></svg>
+    );
+    const Sun = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.1" fill="currentColor" fillOpacity=".22"/> <path d="M12 2.2v2.2M12 19.6v2.2M2.2 12h2.2M19.6 12h2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M19.1 4.9l-1.6 1.6M6.5 17.5l-1.6 1.6"/></svg>
+    );
+    const Trophy = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3.7h10v4.2a5 5 0 0 1-10 0V3.7Z" fill="currentColor" fillOpacity=".22"/> <path d="M7 5.4H4.9a2.1 2.1 0 0 0 0 4.2h.9M17 5.4h2.1a2.1 2.1 0 0 1 0 4.2h-.9M12 12.9v4.3"/> <rect x="8.6" y="17.2" width="6.8" height="3" rx="1.4" fill="currentColor" fillOpacity=".22"/></svg>
+    );
+    const User = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.8" fill="currentColor" fillOpacity=".22"/> <path d="M4.5 20.4c0-4 3.4-6.9 7.5-6.9s7.5 2.9 7.5 6.9"/></svg>
+    );
+    const Users = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9.1" cy="8" r="3.2" fill="currentColor" fillOpacity=".22"/> <path d="M2.7 20.2c0-3.4 2.9-5.8 6.4-5.8s6.4 2.4 6.4 5.8"/> <circle cx="16.7" cy="8.7" r="2.6"/> <path d="M17.6 14.8c2.1.5 3.7 2.2 3.7 4.4"/></svg>
+    );
+    const Wallet = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.7" y="6" width="18.6" height="13.6" rx="3.6" fill="currentColor" fillOpacity=".22"/> <path d="M2.7 10.4h18.6"/> <rect x="14.6" y="13.1" width="4.9" height="3.4" rx="1.7"/> <circle cx="17" cy="14.8" r="1.15" fill="currentColor"/></svg>
+    );
+    const X = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.3 6.3 17.7 17.7M17.7 6.3 6.3 17.7" strokeWidth="2.6"/></svg>
+    );
+    const Zap = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.1 2.8 6.2 12.5h4.4l-1.1 8.7 7.4-10.4h-4.4l.6-8Z" fill="currentColor" fillOpacity=".22"/> <path d="M13.1 2.8 9.9 7.6h4.4Z" fill="currentColor" fillOpacity=".55"/></svg>
+    );
+
+    // --- Mock Data ---
+    const HERO_MATCH = {
+      id: 'ff-hero-104',
+      title: 'BERMUDA GRAND CUP #104',
+      map: 'Bermuda',
+      category: 'Squad',
+      modeBadge: 'SQUAD GRAND FINALE',
+      time: 'Starts in 01:24:10',
+      prizePool: 5000,
+      perKill: 25,
+      entryFee: 50,
+      filledSlots: 46,
+      totalSlots: 48,
+    };
+
+    const INITIAL_MATCHES = [
+      {
+        id: 'ff-m1',
+        title: 'Bermuda Pro Scrims #42',
+        map: 'Bermuda',
+        category: 'Squad',
+        modeBadge: 'SQUAD 4v4',
+        time: 'Today, 09:30 PM',
+        prizePool: 1200,
+        perKill: 20,
+        entryFee: 30,
+        filledSlots: 38,
+        totalSlots: 48,
+      },
+      {
+        id: 'ff-m2',
+        title: 'Purgatory Lone Wolf Cup',
+        map: 'Purgatory',
+        category: 'Solo',
+        modeBadge: 'SOLO',
+        time: 'Today, 10:15 PM',
+        prizePool: 800,
+        perKill: 15,
+        entryFee: 20,
+        filledSlots: 44,
+        totalSlots: 48,
+      },
+      {
+        id: 'ff-m3',
+        title: 'Clash Squad Headshot Only',
+        map: 'Kalahari',
+        category: 'Clash Squad (CS)',
+        modeBadge: 'CS 4v4 CUSTOM',
+        time: 'Today, 11:00 PM',
+        prizePool: 600,
+        perKill: 0,
+        entryFee: 50,
+        filledSlots: 6,
+        totalSlots: 8,
+      },
+      {
+        id: 'ff-m4',
+        title: 'Bermuda Duo Rush Series',
+        map: 'Bermuda',
+        category: 'Duo',
+        modeBadge: 'DUO 2v2',
+        time: 'Tomorrow, 06:00 PM',
+        prizePool: 1000,
+        perKill: 18,
+        entryFee: 25,
+        filledSlots: 29,
+        totalSlots: 48,
+      },
+    ];
+
+    const INITIAL_TRANSACTIONS = [
+      {
+        id: 'tx-101',
+        title: 'Booyah 1st Place: Purgatory Cup #38',
+        amount: 350,
+        isCredit: true,
+        category: 'Winnings',
+        badgeText: 'Winnings Won',
+        badgeTone: 'emerald',
+        time: 'Yesterday, 10:20 PM',
+        reference: 'WIN-9920418',
+      },
+      {
+        id: 'tx-102',
+        title: 'UPI Deposit via PhonePe',
+        amount: 200,
+        isCredit: true,
+        category: 'Deposits',
+        badgeText: 'Deposit',
+        badgeTone: 'cyan',
+        time: 'Yesterday, 06:12 PM',
+        reference: 'UTR-431900821412',
+      },
+      {
+        id: 'tx-103',
+        title: 'UPI Withdrawal to 9876543210@paytm',
+        amount: 250,
+        isCredit: false,
+        category: 'Withdrawals',
+        badgeText: 'Transfer Success',
+        badgeTone: 'emerald',
+        time: '01 Nov, 04:05 PM',
+        reference: 'UTR-431788510924',
+      },
+    ];
+
+    const FILTERS = ['All Matches', 'Solo', 'Duo', 'Squad', 'Clash Squad (CS)'];
+    const QUICK_ADD_AMOUNTS = [50, 100, 200, 500];
+    const TX_FILTERS = ['All', 'Deposits', 'Winnings', 'Withdrawals', 'Entries'];
+
+    const cx = (...classes) => classes.filter(Boolean).join(' ');
+
+    function formatINR(amount) {
+      return `₹${amount.toLocaleString('en-IN')}`;
+    }
+
+    function Crest({ small = false }) {
+      return (
+        <div className={cx('relative flex shrink-0 items-center justify-center', small ? 'h-9 w-9' : 'h-14 w-14')}>
+          <div className="absolute -inset-1 rounded-full bg-sky-400/20 blur-lg" />
+          <svg viewBox="0 0 64 68" fill="none" className="relative h-full w-full drop-shadow-[0_4px_12px_rgba(0,194,255,0.3)]">
+            <path d="M32 3L57 13.5V33.5C57 49.5 46.2 60.8 32 65C17.8 60.8 7 49.5 7 33.5V13.5L32 3Z" fill="#0B192E" stroke="#38BDF8" strokeWidth="2.5" />
+            <path d="M32 14C25.5 14 21 18.8 21 25.5V33L26.5 36.5L28.5 30.5H35.5L37.5 36.5L43 33V25.5C43 18.8 38.5 14 32 14Z" fill="#E2E8F0" />
+            <path d="M24.5 25.5L30 27.5L29 29.5L24 27.5Z" fill="#00D2FF" />
+            <path d="M39.5 25.5L34 27.5L35 29.5L40 27.5Z" fill="#00D2FF" />
+            <rect x="10" y="39" width="44" height="12" rx="2.5" fill="#091326" stroke="#FFD000" strokeWidth="1.5" />
+            <text x="32" y="47.5" textAnchor="middle" fill="#FFFFFF" fontSize="6.5" fontWeight="900" letterSpacing="0.06em">EGA</text>
+          </svg>
+        </div>
+      );
+    }
+
+    function Ambient({ theme }) {
+      const isDark = theme === 'dark';
+      return (
+        <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+          <div className={cx('absolute -left-48 -top-48 h-[560px] w-[560px] rounded-full blur-[140px]', isDark ? 'bg-sky-500/20' : 'bg-sky-400/30')} />
+          <div className={cx('absolute -bottom-48 -right-48 h-[560px] w-[560px] rounded-full blur-[150px]', isDark ? 'bg-amber-500/15' : 'bg-amber-400/25')} />
+          <div className={cx('absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:36px_36px]', isDark ? 'opacity-60' : 'opacity-30')} />
+          <div className="absolute left-[12%] top-[18%] h-1 w-1 rounded-full bg-sky-300 shadow-[0_0_12px_#38BDF8]" />
+          <div className="absolute right-[17%] top-[28%] h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_12px_#FFD000]" />
+          <div className="absolute bottom-[20%] left-[22%] h-1 w-1 rounded-full bg-sky-300 shadow-[0_0_12px_#38BDF8]" />
+        </div>
+      );
+    }
+
+    function ThemeButton({ theme, onToggle }) {
+      const isDark = theme === 'dark';
+      return (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="Toggle color theme"
+          className={cx('group fixed right-4 top-3.5 z-[70] inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold tracking-wide backdrop-blur-xl transition-all active:scale-95', isDark ? 'border border-white/15 bg-slate-900/85 text-slate-100 shadow-lg shadow-black/40 hover:border-amber-400/50' : 'border border-slate-900/10 bg-white/90 text-slate-800 shadow-lg shadow-slate-900/10 hover:border-sky-500/40')}
+        >
+          {isDark ? <Sun className="h-3.5 w-3.5 text-amber-400 transition-transform group-hover:rotate-45" /> : <Moon className="h-3.5 w-3.5 text-sky-600 transition-transform group-hover:-rotate-12" />}
+          <span>{isDark ? 'Light' : 'Dark'}</span>
+        </button>
+      );
+    }
+
+    function GlassCard({ theme, className, children }) {
+      return (
+        <div className={cx('border shadow-2xl', theme === 'dark' ? 'border-white/10 bg-slate-900/50 backdrop-blur-xl shadow-black/40' : 'border-slate-900/10 bg-white/75 backdrop-blur-md shadow-slate-900/10', className)}>
+          {children}
+        </div>
+      );
+    }
+
+    function LoginScreen({ theme, onThemeToggle, identifier, setIdentifier, password, setPassword, onContinue }) {
+      const isDark = theme === 'dark';
+      const [mode, setMode] = useState('register');
+      const [showPassword, setShowPassword] = useState(false);
+
+      return (
+        <div className="relative flex min-h-screen w-full flex-col justify-center overflow-y-auto px-4 py-8 sm:px-6">
+          <Ambient theme={theme} />
+          <ThemeButton theme={theme} onToggle={onThemeToggle} />
+          <div className="relative z-10 mx-auto w-full max-w-md">
+            <GlassCard theme={theme} className="w-full overflow-hidden rounded-3xl">
+              <div className={cx('absolute inset-x-0 top-0 h-48', isDark ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(14,165,233,0.28),rgba(15,23,42,0.88)_70%,transparent)]' : 'bg-[radial-gradient(ellipse_at_top_right,rgba(56,189,248,0.3),rgba(241,245,249,0.75)_70%,transparent)]')} />
+              <div className="relative z-10 p-6 sm:p-8">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Crest />
+                    <p className={cx('mt-4 text-[10px] font-bold uppercase tracking-[0.22em]', isDark ? 'text-sky-300' : 'text-sky-700')}>Free Fire Tournament</p>
+                    <h1 className={cx('mt-1 text-2xl font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>Enter the Arena</h1>
+                    <p className={cx('mt-1 text-xs', isDark ? 'text-slate-400' : 'text-slate-600')}>Compete hard. Booyah. Earn instantly.</p>
+                  </div>
+                  <div className={cx('inline-flex rounded-lg border p-0.5 text-[10px] font-bold', isDark ? 'border-white/10 bg-slate-950/60 text-slate-400' : 'border-slate-300 bg-slate-100 text-slate-500')}>
+                    <button type="button" onClick={() => setMode('register')} className={cx('rounded-md px-2 py-1', mode === 'register' && (isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900 shadow-sm'))}>Register</button>
+                    <button type="button" onClick={() => setMode('login')} className={cx('rounded-md px-2 py-1', mode === 'login' && (isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900 shadow-sm'))}>Log in</button>
+                  </div>
+                </div>
+
+                <div className="mt-7 space-y-2.5">
+                  <button type="button" onClick={() => onContinue('google')} className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-300/20 bg-white py-2.5 text-[13px] font-extrabold text-slate-900 shadow-lg shadow-sky-500/10 transition-all hover:bg-slate-50 active:scale-[0.96]">
+                    <span className="text-base font-black text-[#4285F4]">G</span> Continue with Google
+                  </button>
+                  <button type="button" onClick={() => onContinue('phone')} className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#00C2FF] py-2.5 text-[13px] font-extrabold text-slate-950 shadow-lg shadow-sky-500/25 transition-all hover:bg-[#19C9FF] active:scale-[0.96]">
+                    <Phone className="h-4 w-4" /> Continue with phone
+                  </button>
+                </div>
+
+                <div className="my-5 flex items-center gap-3">
+                  <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-300')} />
+                  <span className={cx('text-[10px] font-bold uppercase tracking-widest', isDark ? 'text-slate-500' : 'text-slate-500')}>or use OTP</span>
+                  <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-300')} />
+                </div>
+
+                <form onSubmit={(event) => { event.preventDefault(); onContinue(); }} className="space-y-4">
+                  <div>
+                    <label htmlFor="master-identifier" className={cx('mb-1.5 block text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-700')}>Email / Phone / Free Fire UID<span className="text-amber-400"> *</span></label>
+                    <input id="master-identifier" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Enter email, phone or UID" className={cx('w-full rounded-xl border px-3.5 py-2.5 text-[13px] font-medium outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30', isDark ? 'border-amber-400/70 bg-[#0B1526]/90 text-white placeholder-slate-500' : 'border-amber-500/70 bg-white text-slate-900 placeholder-slate-400')} />
+                  </div>
+                  <div>
+                    <label htmlFor="master-password" className={cx('mb-1.5 block text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-700')}>Password<span className="text-amber-400"> *</span></label>
+                    <div className="relative">
+                      <input id="master-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Create a password" className={cx('w-full rounded-xl border px-3.5 py-2.5 pr-10 text-[13px] outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30', isDark ? 'border-white/10 bg-[#0B1526]/90 text-white placeholder-slate-500' : 'border-slate-300 bg-white text-slate-900 placeholder-slate-400')} />
+                      <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword((value) => !value)} className={cx('absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1', isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}>
+                        {showPassword ? <X className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-3 text-[10px]">
+                      <span className={cx('flex items-center gap-1', password.length >= 8 ? 'text-emerald-400' : isDark ? 'text-slate-500' : 'text-slate-500')}><Check className="h-3 w-3" /> 8+ characters</span>
+                      <span className={cx('flex items-center gap-1', /[^A-Za-z0-9]/.test(password) ? 'text-emerald-400' : isDark ? 'text-slate-500' : 'text-slate-500')}><Check className="h-3 w-3" /> Special character</span>
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full rounded-xl bg-[#FFD000] px-4 py-2.5 text-[13px] font-black text-slate-950 shadow-lg shadow-amber-400/25 transition-all hover:bg-[#FFDA29] active:scale-[0.96]">
+                    {mode === 'register' ? 'Create an account' : 'Sign In'}
+                  </button>
+                </form>
+
+                <div className={cx('mt-5 flex items-center justify-center gap-1.5 text-[10px]', isDark ? 'text-slate-500' : 'text-slate-500')}>
+                  <Shield className="h-3 w-3 text-emerald-400" /> Secure demo authentication • OTP verification next
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+      );
+    }
+
+    function OtpScreen({ theme, onThemeToggle, identifier, setIdentifier, onBack, onVerified }) {
+      const isDark = theme === 'dark';
+      const [otp, setOtp] = useState(['', '', '', '', '', '']);
+      const [editing, setEditing] = useState(false);
+      const [tempIdentifier, setTempIdentifier] = useState(identifier);
+      const [timeLeft, setTimeLeft] = useState(60);
+      const [error, setError] = useState('');
+      const [verifying, setVerifying] = useState(false);
+      const refs = useRef([]);
+
+      useEffect(() => {
+        if (!timeLeft) return undefined;
+        const timer = window.setInterval(() => setTimeLeft((value) => Math.max(0, value - 1)), 1000);
+        return () => window.clearInterval(timer);
+      }, [timeLeft]);
+
+      const updateDigit = (index, value) => {
+        setError('');
+        const digits = value.replace(/\D/g, '');
+        const next = [...otp];
+        if (digits.length > 1) {
+          digits.slice(0, 6).split('').forEach((digit, offset) => { if (index + offset < 6) next[index + offset] = digit; });
+          setOtp(next);
+          refs.current[Math.min(index + digits.length, 5)]?.focus();
+          return;
+        }
+        next[index] = digits;
+        setOtp(next);
+        if (digits && index < 5) refs.current[index + 1]?.focus();
+      };
+
+      const verify = (event) => {
+        event.preventDefault();
+        if (otp.join('').length !== 6) { setError('Please enter all 6 digits of your verification code.'); return; }
+        setVerifying(true);
+        window.setTimeout(() => { setVerifying(false); onVerified(); }, 650);
+      };
+
+      const saveIdentifier = () => {
+        if (tempIdentifier.trim().length < 4) return;
+        setIdentifier(tempIdentifier.trim());
+        setOtp(['', '', '', '', '', '']);
+        setTimeLeft(60);
+        setEditing(false);
+        refs.current[0]?.focus();
+      };
+
+      return (
+        <div className="relative flex min-h-screen w-full flex-col justify-center overflow-y-auto px-4 py-8 sm:px-6">
+          <Ambient theme={theme} />
+          <ThemeButton theme={theme} onToggle={onThemeToggle} />
+          <div className="relative z-10 mx-auto w-full max-w-md">
+            <GlassCard theme={theme} className="w-full overflow-hidden rounded-3xl">
+              <div className={cx('absolute inset-x-0 top-0 h-48', isDark ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(14,165,233,0.28),rgba(15,23,42,0.88)_70%,transparent)]' : 'bg-[radial-gradient(ellipse_at_top_right,rgba(56,189,248,0.3),rgba(241,245,249,0.75)_70%,transparent)]')} />
+              <div className="relative z-10 p-6 sm:p-8">
+                <button type="button" onClick={onBack} className={cx('group inline-flex items-center gap-2 text-xs font-bold', isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-950')}><ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" /> Back to Login</button>
+                <div className="mt-7 flex items-start justify-between gap-3"><div><Crest /><p className={cx('mt-4 text-[10px] font-bold uppercase tracking-[0.22em]', isDark ? 'text-sky-300' : 'text-sky-700')}>Step 2 of 2 • 2FA</p></div><span className={cx('mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold', isDark ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700')}><ShieldCheck className="h-3 w-3" /> Protected</span></div>
+                <h1 className={cx('mt-5 text-2xl font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>Verification Code</h1>
+                <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>Enter the 6-digit code sent to your registered email or phone.</p>
+
+                <div className="mt-4">
+                  {editing ? (
+                    <div className="flex items-center gap-2 rounded-xl border-2 border-amber-400 bg-[#0B1526] p-1.5 ring-2 ring-amber-400/25"><input autoFocus value={tempIdentifier} onChange={(event) => setTempIdentifier(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveIdentifier(); if (event.key === 'Escape') setEditing(false); }} className="min-w-0 flex-1 bg-transparent px-2 text-[13px] text-white outline-none" /><button type="button" onClick={saveIdentifier} className="rounded-lg bg-amber-400 px-2.5 py-1.5 text-[11px] font-black text-slate-950"><Check className="h-3.5 w-3.5" /></button><button type="button" onClick={() => setEditing(false)} className="rounded-lg p-1.5 text-slate-400"><X className="h-4 w-4" /></button></div>
+                  ) : (
+                    <div className={cx('flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5', isDark ? 'border-white/10 bg-[#0B1526]/85' : 'border-slate-300 bg-slate-100')}><div className="flex min-w-0 items-center gap-2.5"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" /><span className={cx('truncate text-[13px] font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}>{identifier || 'demo@arena.gg'}</span></div><button type="button" onClick={() => { setTempIdentifier(identifier); setEditing(true); }} className={cx('inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold', isDark ? 'border-amber-400/25 bg-slate-800 text-amber-400' : 'border-amber-500/30 bg-white text-amber-700')}><Pencil className="h-3 w-3" /> Change</button></div>
+                  )}
+                </div>
+
+                <form onSubmit={verify} className="mt-6 space-y-5">
+                  <div><div className="mb-2.5 flex items-center justify-between"><label htmlFor="otp-0" className={cx('text-xs font-bold', isDark ? 'text-slate-300' : 'text-slate-700')}>6-digit security code<span className="text-amber-400"> *</span></label><button type="button" onClick={() => { setOtp(['4', '8', '2', '9', '1', '6']); setError(''); refs.current[5]?.focus(); }} className="text-[11px] font-bold text-sky-400 hover:text-sky-300">Auto-fill demo code</button></div><div className="flex justify-between gap-1.5 sm:gap-2.5">{otp.map((digit, index) => <input key={index} id={`otp-${index}`} ref={(element) => { refs.current[index] = element; }} value={digit} maxLength={6} inputMode="numeric" aria-label={`Digit ${index + 1} of 6`} onChange={(event) => updateDigit(index, event.target.value)} onKeyDown={(event) => { if (event.key === 'Backspace' && !otp[index] && index > 0) { const next = [...otp]; next[index - 1] = ''; setOtp(next); refs.current[index - 1]?.focus(); } if (event.key === 'ArrowLeft' && index > 0) refs.current[index - 1]?.focus(); if (event.key === 'ArrowRight' && index < 5) refs.current[index + 1]?.focus(); }} className={cx('h-14 w-11 rounded-xl border text-center text-xl font-black outline-none transition-all sm:w-12', digit ? 'border-amber-400/60 bg-[#111E34]/95 text-amber-300' : isDark ? 'border-white/10 bg-[#0B1526]/90 text-white' : 'border-slate-300 bg-white text-slate-900', 'focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30')} />)}</div>{error && <p className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-rose-400"><AlertTriangle className="h-3.5 w-3.5" />{error}</p>}</div>
+                  <div className={cx('flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs', isDark ? 'border-white/5 bg-[#0B1526]/60' : 'border-slate-200 bg-slate-100/75')}><div className="flex items-center gap-2"><Clock3 className={cx('h-3.5 w-3.5', timeLeft ? 'text-amber-400' : 'text-slate-500')} />{timeLeft ? <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>Resend in <strong className="font-mono text-amber-400">00:{String(timeLeft).padStart(2, '0')}</strong></span> : <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Didn&apos;t receive the code?</span>}</div>{timeLeft ? <button type="button" onClick={() => setTimeLeft(0)} className="text-[11px] font-bold text-slate-500 hover:text-slate-300">Skip wait</button> : <button type="button" onClick={() => { setTimeLeft(60); setOtp(['', '', '', '', '', '']); refs.current[0]?.focus(); }} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-sky-400"><RefreshCw className="h-3.5 w-3.5" /> Resend</button>}</div>
+                  <button type="submit" disabled={verifying} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-2.5 text-[13px] font-black text-slate-950 shadow-lg shadow-amber-400/25 transition-all hover:bg-[#FFDA29] active:scale-[0.96] disabled:opacity-70">{verifying ? <><RefreshCw className="h-4 w-4 animate-spin" /> Verifying...</> : 'Verify OTP & Continue'}</button>
+                </form>
+                <div className={cx('mt-5 flex items-center justify-center gap-1.5 border-t pt-4 text-[10px]', isDark ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-500')}><Headphones className="h-3.5 w-3.5 text-amber-400" /> Tournament Support is online</div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+      );
+    }
+
+    function BottomNav({ theme, activeTab, onChange }) {
+      const isDark = theme === 'dark';
+      const tabs = [
+        { id: 'tournaments', label: 'Tournaments', icon: Gamepad2 },
+        { id: 'wallet', label: 'Wallet', icon: Wallet },
+        { id: 'profile', label: 'Profile', icon: User }
+      ];
+      return (
+        <nav aria-label="Bottom Navigation" className={cx('fixed bottom-0 inset-x-0 z-30 border-t px-4 pb-3 pt-2 backdrop-blur-2xl', isDark ? 'border-white/10 bg-slate-950/90 shadow-2xl shadow-black' : 'border-slate-900/10 bg-white/90 shadow-xl')}>
+          <div className="mx-auto grid max-w-lg grid-cols-3 gap-2">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onChange(id)}
+                className={cx(
+                  'relative flex flex-col items-center justify-center gap-1 rounded-xl py-1 text-[11px] font-bold transition-all active:scale-95',
+                  activeTab === id ? (isDark ? 'text-[#FFD000]' : 'text-slate-950 font-black') : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
+                )}
+              >
+                <Icon className={cx('h-5 w-5 shrink-0 transition-transform', activeTab === id && 'scale-110')} />
+                <span>{label}</span>
+                {activeTab === id && <span className="absolute bottom-0 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-[#FFD000] shadow-[0_0_8px_#FFD000]" />}
+              </button>
+            ))}
+          </div>
+        </nav>
+      );
+    }
+
+    function AppHeader({ theme, title, subtitle, balance, onAddFunds, onNotify, onSettings }) {
+      const isDark = theme === 'dark';
+      return (
+        <header className={cx('sticky top-0 z-20 flex items-center justify-between border-b px-4 pb-3 pt-3.5 backdrop-blur-xl', isDark ? 'border-white/10 bg-slate-950/80' : 'border-slate-900/10 bg-white/85')}>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Crest small />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h1 className={cx('truncate text-[13px] font-black uppercase tracking-wider', isDark ? 'text-white' : 'text-slate-900')}>{title}</h1>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
+              </div>
+              <p className={cx('truncate text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>{subtitle}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {onSettings && (
+              <button type="button" aria-label="Open Settings" onClick={onSettings} className={cx('flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:border-amber-400/50 hover:text-white' : 'border-slate-300 bg-white text-slate-700')}>
+                <Settings className="h-3.5 w-3.5 text-amber-400" />
+              </button>
+            )}
+            <button type="button" aria-label="Notifications" onClick={onNotify} className={cx('relative flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:text-white' : 'border-slate-300 bg-white text-slate-700')}>
+              <Bell className="h-3.5 w-3.5" />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_6px_#FFD000]" />
+            </button>
+            <div className={cx('flex items-center gap-1.5 rounded-lg border pl-2.5 pr-1 py-1', isDark ? 'border-amber-400/30 bg-[#0B1526]/90 text-white' : 'border-amber-500/40 bg-slate-900 text-white')}>
+              <Wallet className="h-3 w-3 text-amber-400" />
+              <span className="text-xs font-black text-amber-300">{formatINR(balance)}</span>
+              <button type="button" onClick={onAddFunds} aria-label="Add funds" className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-md bg-[#FFD000] text-slate-950 transition-all hover:bg-[#FFDA29] active:scale-90">
+                <Plus className="h-3 w-3 stroke-[3]" />
+              </button>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    function MatchCard({ theme, match, joined, onOpen }) {
+      const isDark = theme === 'dark';
+      const fillPercent = Math.round((match.filledSlots / match.totalSlots) * 100);
+      return (
+        <article role="button" tabIndex={0} onClick={onOpen} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onOpen(); }} className={cx('cursor-pointer rounded-2xl border p-3.5 transition-all hover:-translate-y-0.5 hover:border-sky-400/40', isDark ? 'border-white/10 bg-[#0B1526]/85' : 'border-slate-300/85 bg-white/90 shadow-sm')}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className={cx('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold', isDark ? 'border-white/10 bg-slate-800/90 text-sky-300' : 'border-sky-200 bg-sky-50 text-sky-800')}><MapPin className="h-2.5 w-2.5 text-[#00C2FF]" />{match.map}</span>
+              <span className={cx('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-black tracking-wider', isDark ? 'border-amber-400/30 bg-amber-400/10 text-amber-300' : 'border-amber-500/30 bg-amber-50 text-amber-800')}><Gamepad2 className="h-2.5 w-2.5" />{match.modeBadge}</span>
+            </div>
+            <span className={cx('shrink-0 text-[10px] font-bold', isDark ? 'text-slate-400' : 'text-slate-600')}>{match.time}</span>
+          </div>
+          <p className={cx('mt-2 text-[13px] font-black tracking-tight', isDark ? 'text-white' : 'text-slate-900')}>{match.title}</p>
+          <div className={cx('mt-2.5 grid grid-cols-3 gap-2 rounded-xl border px-3 py-2', isDark ? 'border-white/5 bg-slate-900/75' : 'border-slate-200 bg-slate-100/90')}>
+            <div><span className={cx('block text-[9px] font-bold uppercase', isDark ? 'text-slate-400' : 'text-slate-500')}>Prize Pool</span><span className="text-xs font-black text-amber-400">{formatINR(match.prizePool)}</span></div>
+            <div className="border-x border-white/10 px-2"><span className={cx('block text-[9px] font-bold uppercase', isDark ? 'text-slate-400' : 'text-slate-500')}>Per Kill</span><span className={cx('inline-flex items-center gap-1 text-xs font-black', isDark ? 'text-sky-300' : 'text-sky-700')}><Crosshair className="h-3 w-3 text-[#00C2FF]" />{match.perKill ? formatINR(match.perKill) : 'Win Only'}</span></div>
+            <div className="text-right"><span className={cx('block text-[9px] font-bold uppercase', isDark ? 'text-slate-400' : 'text-slate-500')}>Entry Fee</span><span className={cx('text-xs font-black', isDark ? 'text-white' : 'text-slate-900')}>{formatINR(match.entryFee)}</span></div>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
+                <span className={cx('inline-flex items-center gap-1', isDark ? 'text-slate-300' : 'text-slate-700')}><Users className="h-3 w-3 text-[#00C2FF]" /> {match.filledSlots}/{match.totalSlots} Slots</span>
+                <span className={fillPercent >= 80 ? 'text-amber-400' : 'text-sky-400'}>{match.totalSlots - match.filledSlots} left</span>
+              </div>
+              <div className={cx('h-1.5 overflow-hidden rounded-full', isDark ? 'bg-slate-800' : 'bg-slate-200')}>
+                <div style={{ width: `${fillPercent}%` }} className="h-full rounded-full bg-[#00C2FF] shadow-[0_0_8px_rgba(0,194,255,0.65)] transition-all" />
+              </div>
+            </div>
+            <span className={cx('shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-black transition-all active:scale-[0.96]', joined ? 'bg-emerald-400 text-slate-950' : 'bg-[#FFD000] text-slate-950 hover:bg-[#FFDA29]')}>{joined ? 'Joined ✓' : `Join • ${formatINR(match.entryFee)}`}</span>
+          </div>
+        </article>
+      );
+    }
+
+    function TournamentsView({ theme, matches, joinedIds, onOpenMatch, selectedFilter, onFilter, onLockedGame, heroJoined, onHeroJoin }) {
+      const isDark = theme === 'dark';
+      const filtered = useMemo(() => selectedFilter === 'All Matches' ? matches : matches.filter((match) => match.category === selectedFilter), [matches, selectedFilter]);
+      const games = [
+        { name: 'FREE FIRE MAX', tag: 'LIVE', active: true },
+        { name: 'BGMI', tag: 'SOON', active: false },
+        { name: 'COD MOBILE', tag: 'SOON', active: false },
+        { name: 'VALORANT M', tag: 'LOCKED', active: false }
+      ];
+      return (
+        <div className="space-y-4">
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className={cx('text-[10px] font-black uppercase tracking-wider', isDark ? 'text-slate-400' : 'text-slate-500')}>Esports Titles</span>
+              <span className="text-[10px] font-bold text-sky-400">1 Live • 3 Locked</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {games.map((game) => game.active ? (
+                <button key={game.name} type="button" className="relative rounded-xl border-2 border-amber-400 bg-gradient-to-br from-sky-500/30 via-amber-400/20 to-slate-900/90 p-2 text-left shadow-[0_0_15px_rgba(0,194,255,0.22)]">
+                  <span className="inline-flex items-center gap-1 rounded border border-emerald-400/40 bg-emerald-400/20 px-1.5 py-0.5 text-[8px] font-black text-emerald-300">
+                    <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-400" />{game.tag}
+                  </span>
+                  <p className="mt-2 text-[10px] font-black leading-tight text-white">{game.name}</p>
+                </button>
+              ) : (
+                <button key={game.name} type="button" onClick={() => onLockedGame(game.name)} className={cx('relative rounded-xl border p-2 text-left opacity-40 transition-opacity hover:opacity-60', isDark ? 'border-white/10 bg-[#0B1526]/70 text-slate-300' : 'border-slate-300 bg-slate-200/80 text-slate-700')}>
+                  <div className="flex items-center justify-between"><span className="rounded border border-white/10 bg-slate-800 px-1 py-0.5 text-[7px] font-bold">{game.tag}</span><Lock className="h-3 w-3" /></div>
+                  <p className="mt-2 truncate text-[10px] font-bold">{game.name}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {FILTERS.map((filter) => (
+              <button key={filter} type="button" onClick={() => onFilter(filter)} className={cx('shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-black transition-all active:scale-95', selectedFilter === filter ? isDark ? 'border-[#FFD000] bg-amber-400/15 text-[#FFD000]' : 'border-[#FFD000] bg-slate-900 text-[#FFD000]' : isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-400 hover:text-slate-200' : 'border-slate-300 bg-white/80 text-slate-600')}>{filter}</button>
+            ))}
+          </div>
+          <section className="relative overflow-hidden rounded-2xl border border-sky-400/30 bg-gradient-to-r from-[#0B192E] via-[#102644] to-[#0B1526] p-3.5 shadow-lg shadow-sky-950/40">
+            <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[#00C2FF]/20 blur-2xl" />
+            <div className="relative z-10 flex items-center justify-between gap-2">
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded border border-[#00C2FF]/40 bg-[#00C2FF]/20 px-1.5 py-0.5 text-[9px] font-black text-[#00C2FF]"><Sparkles className="h-2.5 w-2.5" /> Featured</span>
+                  <span className="inline-flex items-center gap-1 rounded border border-white/10 bg-slate-950/70 px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-300"><Clock3 className="h-2.5 w-2.5" /> 01:24:10</span>
+                </div>
+                <h2 className="truncate text-sm font-black text-white">BERMUDA GRAND CUP #104</h2>
+                <div className="flex items-center gap-3 text-[11px]">
+                  <span className="inline-flex items-center gap-1 font-bold text-[#FFD000]"><Trophy className="h-3 w-3" /> ₹5,000</span>
+                  <span className="text-slate-400">•</span>
+                  <span className="text-sky-300">Entry: ₹50</span>
+                </div>
+              </div>
+              <button type="button" onClick={onHeroJoin} className={cx('shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-black shadow-md transition-all active:scale-[0.96]', heroJoined ? 'bg-emerald-400 text-slate-950' : 'bg-[#FFD000] text-slate-950 hover:bg-[#FFDA29]')}>{heroJoined ? 'Joined ✓' : 'Join Now'}</button>
+            </div>
+          </section>
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h3 className={cx('text-xs font-black uppercase tracking-wider', isDark ? 'text-slate-200' : 'text-slate-800')}>Upcoming Matches ({filtered.length})</h3>
+              <span className={cx('text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>Instant Room ID • Auto Payout</span>
+            </div>
+            {filtered.map((match) => (
+              <MatchCard key={match.id} theme={theme} match={match} joined={joinedIds.includes(match.id)} onOpen={() => onOpenMatch(match)} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function WalletView({ theme, depositCash, winningsCash, walletMode, setWalletMode, addAmount, setAddAmount, upiId, setUpiId, withdrawAmount, setWithdrawAmount, transactions, txFilter, setTxFilter, onDeposit, onWithdraw, copiedReference, onCopy }) {
+      const isDark = theme === 'dark';
+      const total = depositCash + winningsCash;
+      const filtered = txFilter === 'All' ? transactions : transactions.filter((tx) => tx.category === txFilter);
+      return (
+        <div className="space-y-4">
+          <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0D1B32] via-[#0B1526] to-[#091220] p-4 shadow-xl shadow-black/40">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#FFD000]/15 blur-2xl" />
+            <div className="relative z-10 flex items-start justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Arena Balance</span>
+                <div className="mt-0.5 flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-[#FFD000]">₹</span>
+                  <span className="text-2xl font-black text-white">{total.toLocaleString('en-IN')}</span>
+                  <span className="ml-1.5 rounded border border-emerald-400/30 bg-emerald-400/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-300">LIVE SYNC</span>
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <button type="button" onClick={() => setWalletMode('add')} className={cx('inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-black transition-all active:scale-95', walletMode === 'add' ? 'bg-[#FFD000] text-slate-950' : 'bg-[#FFD000]/80 text-slate-950')}><Plus className="h-3.5 w-3.5" /> Add Cash</button>
+                <button type="button" onClick={() => setWalletMode('withdraw')} className={cx('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-black transition-all active:scale-95', walletMode === 'withdraw' ? 'border-[#00C2FF] bg-[#00C2FF]/20 text-[#00C2FF]' : 'border-white/15 bg-slate-800/80 text-slate-200')}><ArrowUpRight className="h-3.5 w-3.5" /> Withdraw</button>
+              </div>
+            </div>
+            <div className="relative z-10 mt-3.5 grid grid-cols-2 gap-2.5">
+              <div className="rounded-xl border border-white/10 bg-slate-950/60 p-2.5">
+                <div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-wider text-sky-300">Deposit Cash</span><span className="h-1.5 w-1.5 rounded-full bg-[#00C2FF]" /></div>
+                <p className="mt-1 text-base font-black text-white">{formatINR(depositCash)}</p>
+                <p className="mt-0.5 text-[10px] text-slate-400">For tournament entry</p>
+              </div>
+              <div className="rounded-xl border border-emerald-400/25 bg-slate-950/60 p-2.5">
+                <div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Winnings Cash</span><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /></div>
+                <p className="mt-1 text-base font-black text-emerald-300">{formatINR(winningsCash)}</p>
+                <p className="mt-0.5 text-[10px] text-slate-300">100% withdrawable to UPI</p>
+              </div>
+            </div>
+          </section>
+
+          <section className={cx('rounded-2xl border p-3.5', isDark ? 'border-white/10 bg-[#0B1526]/90' : 'border-slate-300 bg-white/90')}>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">{walletMode === 'add' ? <Zap className="h-3.5 w-3.5 text-amber-400" /> : <ArrowUpRight className="h-3.5 w-3.5 text-sky-400" />}<h2 className={cx('text-xs font-black uppercase tracking-wider', isDark ? 'text-white' : 'text-slate-900')}>{walletMode === 'add' ? 'Instant Deposit • Zero Fee' : 'Instant UPI Payout'}</h2></div>
+              <div className={cx('inline-flex rounded-lg border p-0.5 text-[10px] font-bold', isDark ? 'border-white/10 bg-slate-950/70 text-slate-400' : 'border-slate-300 bg-slate-100')}>
+                <button type="button" onClick={() => setWalletMode('add')} className={cx('rounded-md px-2 py-0.5', walletMode === 'add' && 'bg-[#FFD000] text-slate-950')}>+ Add Cash</button>
+                <button type="button" onClick={() => setWalletMode('withdraw')} className={cx('rounded-md px-2 py-0.5', walletMode === 'withdraw' && 'bg-[#00C2FF] text-slate-950')}>Withdraw</button>
+              </div>
+            </div>
+            {walletMode === 'add' ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-4 gap-1.5">{QUICK_ADD_AMOUNTS.map((amount) => (
+                  <button key={amount} type="button" onClick={() => setAddAmount(String(amount))} className={cx('rounded-lg border px-2 py-1.5 text-xs font-black', Number(addAmount) === amount ? 'border-[#FFD000] bg-amber-400/15 text-[#FFD000]' : isDark ? 'border-white/10 bg-slate-900/90 text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-700')}>+₹{amount}</button>
+                ))}</div>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-amber-400">₹</span>
+                  <input type="number" min={10} value={addAmount} onChange={(event) => setAddAmount(event.target.value)} aria-label="Deposit Amount" className={cx('w-full rounded-lg border px-7 py-2 text-xs font-black outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30', isDark ? 'border-amber-400/70 bg-[#081120] text-white' : 'border-amber-500/70 bg-slate-900 text-white')} />
+                </div>
+                <button type="button" onClick={onDeposit} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#FFD000] px-3 py-2 text-xs font-black text-slate-950 shadow-md shadow-amber-400/25 transition-all active:scale-[0.96]"><Zap className="h-3.5 w-3.5 fill-slate-950" /> Pay {formatINR(Number(addAmount) || 0)} via UPI</button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div>
+                  <label htmlFor="wallet-upi" className={cx('mb-1 block text-[10px] font-black uppercase tracking-wider', isDark ? 'text-slate-300' : 'text-slate-700')}>Verified UPI ID<span className="text-amber-400"> *</span></label>
+                  <input id="wallet-upi" value={upiId} onChange={(event) => setUpiId(event.target.value)} placeholder="player@oksbi" className={cx('w-full rounded-lg border px-3 py-2 text-xs font-semibold outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30', isDark ? 'border-amber-400/70 bg-[#081120] text-white' : 'border-amber-500/70 bg-slate-900 text-white')} />
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between"><label htmlFor="withdraw-amount" className={cx('text-[10px] font-black uppercase tracking-wider', isDark ? 'text-slate-300' : 'text-slate-700')}>Withdrawal Amount</label><span className="text-[10px] font-bold text-emerald-400">Available: {formatINR(winningsCash)}</span></div>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-amber-400">₹</span>
+                    <input id="withdraw-amount" type="number" min={50} max={winningsCash} value={withdrawAmount} onChange={(event) => setWithdrawAmount(event.target.value)} className={cx('w-full rounded-lg border px-7 py-2 pr-14 text-xs font-black outline-none focus:border-amber-400', isDark ? 'border-white/15 bg-[#081120] text-white' : 'border-slate-300 bg-slate-900 text-white')} />
+                    <button type="button" onClick={() => setWithdrawAmount(String(winningsCash))} className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md border border-amber-400/50 bg-amber-400/20 px-2 py-0.5 text-[10px] font-black text-amber-300">Max</button>
+                  </div>
+                </div>
+                <p className={cx('flex items-center gap-1 text-[10px]', isDark ? 'text-slate-400' : 'text-slate-600')}><Clock3 className="h-3 w-3 text-sky-400" /> Min. withdrawal ₹50 • Zero fee • Instant 2-min transfer</p>
+                <button type="button" onClick={onWithdraw} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#FFD000] px-3 py-2 text-xs font-black text-slate-950 shadow-md transition-all active:scale-[0.96]"><ArrowUpRight className="h-3.5 w-3.5" /> Transfer to UPI Now</button>
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2.5">
+            <div className="flex items-center justify-between"><h3 className={cx('text-xs font-black uppercase tracking-wider', isDark ? 'text-slate-200' : 'text-slate-800')}>Recent Transactions</h3><span className={cx('text-[10px] font-bold', isDark ? 'text-slate-400' : 'text-slate-500')}>{filtered.length} Records</span></div>
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">{TX_FILTERS.map((filter) => <button key={filter} type="button" onClick={() => setTxFilter(filter)} className={cx('shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-black', txFilter === filter ? 'border-[#FFD000] bg-amber-400/15 text-[#FFD000]' : isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-400' : 'border-slate-300 bg-white text-slate-600')}>{filter}</button>)}</div>
+            <div className="space-y-2">
+              {filtered.map((tx) => (
+                <div key={tx.id} className={cx('rounded-xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]/85' : 'border-slate-300 bg-white/90')}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <div className={cx('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border', tx.isCredit ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-400' : 'border-white/10 bg-slate-800 text-slate-300')}>{tx.category === 'Winnings' ? <Trophy className="h-3.5 w-3.5 text-amber-400" /> : tx.isCredit ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}</div>
+                      <div className="min-w-0">
+                        <p className={cx('truncate text-xs font-bold', isDark ? 'text-white' : 'text-slate-900')}>{tx.title}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className={cx('rounded border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider', tx.badgeTone === 'cyan' ? 'border-sky-400/30 bg-sky-500/15 text-sky-300' : tx.badgeTone === 'emerald' ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300' : 'border-white/10 bg-slate-800 text-slate-300')}>{tx.badgeText}</span>
+                          <span className={cx('text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>{tx.time}</span>
+                          <span className="text-slate-600">•</span>
+                          <button type="button" onClick={() => onCopy(tx.reference)} className="inline-flex items-center gap-1 font-mono text-[10px] text-slate-400 hover:text-sky-300">{tx.reference}{copiedReference === tx.reference ? <Check className="h-2.5 w-2.5 text-emerald-400" /> : <Copy className="h-2.5 w-2.5" />}</button>
+                        </div>
+                      </div>
+                    </div>
+                    <span className={cx('shrink-0 text-xs font-black', tx.isCredit ? 'text-emerald-400' : isDark ? 'text-slate-200' : 'text-slate-900')}>{tx.isCredit ? '+' : '-'}{formatINR(tx.amount)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    function ProfileView({ theme, user, provider, setProvider, joinedCount, onOpenSettings, onSecurity, onSignOut }) {
+      const isDark = theme === 'dark';
+      return (
+        <div className="space-y-4">
+          <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0D1B32] via-[#0B1526] to-[#091220] p-4 shadow-xl shadow-black/50">
+            <div className="pointer-events-none absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-[#FFD000]/15 blur-2xl" />
+            <div className="relative z-10 mb-3 flex items-center justify-between border-b border-white/10 pb-3">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Auth Identity Mode</span>
+              <div className="inline-flex rounded-lg border border-white/10 bg-slate-950/80 p-0.5 text-[10px] font-bold">
+                <button type="button" onClick={() => setProvider('google')} className={cx('rounded-md px-2.5 py-1', provider === 'google' ? 'bg-[#00C2FF] text-slate-950' : 'text-slate-400')}>Google Login</button>
+                <button type="button" onClick={() => setProvider('phone')} className={cx('rounded-md px-2.5 py-1', provider === 'phone' ? 'bg-[#FFD000] text-slate-950' : 'text-slate-400')}>Phone Login</button>
+              </div>
+            </div>
+            <div className="relative z-10 flex items-center gap-3.5">
+              <div className={cx('flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2', provider === 'google' ? 'border-[#00C2FF] bg-gradient-to-br from-sky-500 to-slate-950' : 'border-amber-400 bg-gradient-to-br from-amber-400 to-sky-500')}>
+                <span className={cx('text-lg font-black', provider === 'google' ? 'text-white' : 'text-slate-950')}>{provider === 'google' ? 'G' : 'EP'}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5"><h2 className="truncate text-base font-black text-white">{user?.name || 'Erik Padamans'}</h2><span className="inline-flex items-center gap-1 rounded-md border border-amber-400/40 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-black text-[#FFD000]"><Sparkles className="h-2.5 w-2.5" /> Booyah Verified</span></div>
+                <p className="mt-1 truncate text-xs font-medium text-sky-300">{provider === 'google' ? `Google: ${user?.identifier || 'erik.padamans@gmail.co'}` : `Logged in via Phone: ${user?.identifier || '+91 99999 00001'}`}</p>
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400"><span className="inline-flex items-center gap-1 font-bold text-emerald-400"><ShieldCheck className="h-3 w-3" /> Anti-Cheat Clear</span><span>•</span><span>Tier: Grandmaster IV</span></div>
+              </div>
+            </div>
+            <div className="relative z-10 mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={onSecurity} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#FFD000] px-3 py-1.5 text-xs font-black text-slate-950 transition-all active:scale-[0.96]"><KeyRound className="h-3.5 w-3.5" /> Account Security</button>
+              <button type="button" onClick={onSignOut} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-slate-800/90 px-3 py-1.5 text-xs font-bold text-slate-200 transition-all active:scale-[0.96]"><LogOut className="h-3.5 w-3.5 text-rose-400" /> Sign Out</button>
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-2 flex items-center justify-between"><h3 className={cx('text-xs font-black uppercase tracking-wider', isDark ? 'text-slate-200' : 'text-slate-800')}>Esports Career Stats</h3><span className="text-[10px] font-bold text-sky-400">Free Fire Max • Official Scrims</span></div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {[
+                ['Matches Played', '48', '100% Lobby Completion', Trophy],
+                ['Total Kills', '142', '2.96 K/D', Crosshair],
+                ['Booyah / Win Rate', '28%', '14 Wins', Flame],
+                ['Total Earnings', '₹3,450', 'Instant UPI Credited', Wallet]
+              ].map(([label, value, meta, Icon], index) => (
+                <div key={String(label)} className={cx('rounded-2xl border p-3.5', index === 3 ? 'border-amber-400/35 bg-gradient-to-br from-[#0B1526] to-[#13233F]' : isDark ? 'border-white/10 bg-[#0B1526]/85' : 'border-slate-300 bg-white/90')}>
+                  <div className="flex items-center justify-between">
+                    <span className={cx('text-[10px] font-bold uppercase tracking-wider', index === 3 ? 'text-amber-300' : isDark ? 'text-slate-400' : 'text-slate-500')}>{String(label)}</span>
+                    <div className={cx('flex h-7 w-7 items-center justify-center rounded-lg border', index === 3 ? 'border-amber-400/40 bg-amber-400/20 text-[#FFD000]' : 'border-sky-400/30 bg-sky-500/15 text-[#00C2FF]')}><Icon className="h-3.5 w-3.5" /></div>
+                  </div>
+                  <p className={cx('mt-1.5 text-xl font-black', index === 3 ? 'text-[#FFD000]' : isDark ? 'text-white' : 'text-slate-900')}>{String(value)}</p>
+                  <p className={cx('mt-0.5 text-[10px] font-medium', index === 3 ? 'text-emerald-300' : isDark ? 'text-slate-400' : 'text-slate-500')}>{String(meta)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className={cx('flex items-center justify-between gap-2 rounded-2xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]/80' : 'border-slate-300 bg-white/90')}>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-500/15 text-emerald-400"><MessageSquare className="h-4 w-4" /></div>
+              <div className="min-w-0">
+                <p className={cx('truncate text-xs font-bold', isDark ? 'text-white' : 'text-slate-900')}>Fair Play & WhatsApp Helpdesk</p>
+                <p className={cx('truncate text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>{joinedCount} matches joined • host support online</p>
+              </div>
+            </div>
+            <button type="button" onClick={onOpenSettings} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-sky-400/30 bg-sky-400/15 px-3 py-1.5 text-xs font-bold text-sky-400">Open <ChevronRight className="h-3.5 w-3.5" /></button>
+          </section>
+        </div>
+      );
+    }
+
+    function MatchSheet({ theme, match, balance, joined, onClose, onJoin, onTopUp }) {
+      const isDark = theme === 'dark';
+      return (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/65 backdrop-blur-sm">
+          <div className={cx('max-h-[88%] overflow-y-auto rounded-t-[28px] border-t p-4 shadow-2xl max-w-lg mx-auto w-full', isDark ? 'border-white/15 bg-slate-900/95 text-white' : 'border-slate-300 bg-white/95 text-slate-900')}>
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-sky-400">Quick Join • {match.modeBadge}</span>
+                <h2 className="mt-1 text-xl font-black">{match.title}</h2>
+                <p className={cx('mt-1 text-xs', isDark ? 'text-slate-400' : 'text-slate-600')}>Review your entry before securing a slot.</p>
+              </div>
+              <button type="button" onClick={onClose} aria-label="Close quick join" className={cx('rounded-lg p-1.5', isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700')}><X className="h-4 w-4" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className={cx('rounded-xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]' : 'border-slate-200 bg-slate-50')}>
+                <span className="text-[10px] font-bold uppercase text-slate-400">Map & Mode</span>
+                <p className="mt-1 text-sm font-black"><MapPin className="mr-1 inline h-3.5 w-3.5 text-sky-400" />{match.map}</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">{match.modeBadge}</p>
+              </div>
+              <div className={cx('rounded-xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]' : 'border-slate-200 bg-slate-50')}>
+                <span className="text-[10px] font-bold uppercase text-slate-400">Match Time</span>
+                <p className="mt-1 text-sm font-black"><Clock3 className="mr-1 inline h-3.5 w-3.5 text-amber-400" />{match.time}</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">Room ID 15 min before start</p>
+              </div>
+            </div>
+            <div className={cx('mt-2 grid grid-cols-2 gap-2 rounded-xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]' : 'border-slate-200 bg-slate-50')}>
+              <div><span className="text-[10px] font-bold uppercase text-slate-400">Prize Pool</span><p className="mt-1 text-lg font-black text-amber-400">{formatINR(match.prizePool)}</p></div>
+              <div className="text-right"><span className="text-[10px] font-bold uppercase text-slate-400">Per Kill</span><p className="mt-1 text-lg font-black text-sky-400">{match.perKill ? formatINR(match.perKill) : 'Win Only'}</p></div>
+            </div>
+            <div className={cx('mt-4 rounded-xl border p-3', isDark ? 'border-amber-400/20 bg-amber-400/10' : 'border-amber-300 bg-amber-50')}>
+              <div className="flex items-center justify-between"><span className="text-xs font-bold">Entry Fee</span><span className="text-base font-black text-amber-400">{formatINR(match.entryFee)}</span></div>
+              <div className="mt-2 flex items-center justify-between border-t border-current/10 pt-2"><span className="text-xs font-bold">Your Available Balance</span><span className={cx('text-base font-black', balance >= match.entryFee ? 'text-emerald-400' : 'text-rose-400')}>{formatINR(balance)}</span></div>
+              {balance < match.entryFee && <button type="button" onClick={onTopUp} className="mt-2 text-[11px] font-black text-sky-400 hover:text-sky-300">+ Top up wallet to continue</button>}
+            </div>
+            <button type="button" disabled={joined || balance < match.entryFee} onClick={onJoin} className={cx('mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-black shadow-lg transition-all active:scale-[0.96]', joined ? 'bg-emerald-400 text-slate-950' : balance >= match.entryFee ? 'bg-[#FFD000] text-slate-950 shadow-amber-400/25 hover:bg-[#FFDA29]' : 'cursor-not-allowed bg-slate-500/40 text-slate-300')}>
+              {joined ? <><CheckCircle2 className="h-4 w-4" /> Slot Already Secured</> : balance >= match.entryFee ? 'Confirm & Join Slot' : 'Add Cash to Join'}
+            </button>
+            <p className={cx('mt-2 text-center text-[10px]', isDark ? 'text-slate-500' : 'text-slate-500')}>By joining, you agree to the Arena fair-play rules.</p>
+          </div>
+        </div>
+      );
+    }
+
+    function SettingsSheet({ theme, onTheme, onClose, onWhatsApp }) {
+      const isDark = theme === 'dark';
+      return (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/65 backdrop-blur-sm">
+          <div className={cx('max-h-[86%] overflow-y-auto rounded-t-[28px] border-t p-4 shadow-2xl max-w-lg mx-auto w-full', isDark ? 'border-white/15 bg-slate-900/95 text-white' : 'border-slate-300 bg-white/95 text-slate-900')}>
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2"><Settings className="h-4 w-4 text-amber-400" /><h2 className="text-sm font-black">Arena Settings & Fair Play</h2></div>
+              <button type="button" onClick={onClose} className={cx('rounded-lg p-1.5', isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700')}><X className="h-4 w-4" /></button>
+            </div>
+            <div className="mt-3.5 space-y-3">
+              <div className={cx('flex items-center justify-between rounded-xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]/90' : 'border-slate-300 bg-slate-100')}>
+                <div className="flex items-center gap-2.5">{isDark ? <Moon className="h-4 w-4 text-sky-400" /> : <Sun className="h-4 w-4 text-amber-500" />}<div><p className="text-xs font-bold">Theme Preference</p><p className={cx('text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>{isDark ? 'Dark Frosted • 50% glass' : 'Light Frosted • 25% glass'}</p></div></div>
+                <div className="inline-flex rounded-lg border border-white/10 bg-slate-950/80 p-0.5 text-[10px] font-bold">
+                  <button type="button" onClick={() => onTheme('dark')} className={cx('rounded-md px-2.5 py-1', isDark ? 'bg-[#00C2FF] text-slate-950' : 'text-slate-400')}>Dark</button>
+                  <button type="button" onClick={() => onTheme('light')} className={cx('rounded-md px-2.5 py-1', !isDark ? 'bg-[#FFD000] text-slate-950' : 'text-slate-400')}>Light</button>
+                </div>
+              </div>
+              <div className={cx('rounded-xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]/90' : 'border-slate-300 bg-slate-100')}>
+                <div className="flex items-start gap-2.5">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                  <div>
+                    <p className="text-xs font-bold">Fair Play Anti-Cheat Guidelines</p>
+                    <ul className={cx('mt-2 space-y-1 text-[11px]', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                      <li>• Emulators and modded APKs are banned.</li>
+                      <li>• Gun props and third-party scripts must stay OFF.</li>
+                      <li>• Room ID and password unlock 15 minutes before a match.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <button type="button" onClick={onWhatsApp} className="flex w-full items-center justify-between rounded-xl border border-emerald-400/35 bg-emerald-500/15 p-3 text-left transition-all hover:bg-emerald-500/25">
+                <div className="flex items-center gap-2.5">
+                  <MessageSquare className="h-4 w-4 text-emerald-400" />
+                  <div>
+                    <p className="text-xs font-black text-emerald-300">Contact Organiser on WhatsApp</p>
+                    <p className="text-[10px] text-emerald-200/80">Direct support for match and payout help</p>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-emerald-300" />
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function SecurityModal({ theme, onClose, onSave }) {
+      const isDark = theme === 'dark';
+      const [pin, setPin] = useState('4829');
+      return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className={cx('w-full max-w-sm rounded-2xl border p-4 shadow-2xl', isDark ? 'border-white/15 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-900')}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-amber-400" /><h3 className="text-xs font-black uppercase tracking-wider">Account Security & 4-Digit PIN</h3></div>
+              <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label htmlFor="security-pin" className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-400">Withdrawal Security PIN</label>
+                <input id="security-pin" maxLength={4} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))} className="w-full rounded-lg border border-amber-400 bg-[#081120] px-3 py-2 text-xs font-mono font-black tracking-widest text-white outline-none" />
+              </div>
+              <p className="text-[10px] text-slate-400">Use a private 4-digit PIN to protect UPI withdrawals.</p>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-bold text-slate-400">Cancel</button>
+                <button type="button" disabled={pin.length !== 4} onClick={onSave} className="rounded-lg bg-[#FFD000] px-3 py-1.5 text-xs font-black text-slate-950 disabled:opacity-50">Save Security Settings</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function SignOutModal({ theme, onClose, onConfirm }) {
+      const isDark = theme === 'dark';
+      return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className={cx('w-full max-w-sm rounded-2xl border p-4 shadow-2xl', isDark ? 'border-white/15 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-900')}>
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/30 bg-rose-500/15 text-rose-400"><AlertTriangle className="h-4 w-4" /></div>
+              <div><h3 className="text-xs font-black uppercase tracking-wider">Confirm Sign Out</h3><p className="text-[11px] text-slate-400">Return to the Arena login screen?</p></div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-bold text-slate-400">Stay Logged In</button>
+              <button type="button" onClick={onConfirm} className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-black text-white">Yes, Sign Out</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Toast({ toast }) {
+      return (
+        <div className="fixed inset-x-0 top-14 z-[90] flex justify-center px-4">
+          <div className={cx('flex max-w-[390px] items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-bold shadow-lg backdrop-blur-md', toast.type === 'error' ? 'border-rose-400/40 bg-rose-950/95 text-rose-200' : 'border-emerald-400/35 bg-slate-950/95 text-emerald-300')}>
+            <span className={cx('flex h-4 w-4 items-center justify-center rounded-full', toast.type === 'error' ? 'bg-rose-400/20' : 'bg-emerald-400/20')}>
+              {toast.type === 'error' ? <AlertTriangle className="h-3 w-3 text-rose-400" /> : <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+            </span>
+            <span>{toast.text}</span>
+          </div>
+        </div>
+      );
+    }
+
+    function FreeFireMasterApp() {
+      const [step, setStep] = useState('APP');
+      const [theme, setTheme] = useState('dark');
+      const [user, setUser] = useState({ name: 'Erik Padamans', identifier: 'erik.padamans@gmail.co', provider: 'google' });
+      const [identifier, setIdentifier] = useState('erik.padamans@gmail.co');
+      const [password, setPassword] = useState('');
+      const [provider, setProvider] = useState('google');
+      const [activeTab, setActiveTab] = useState('tournaments');
+      const [selectedFilter, setSelectedFilter] = useState('All Matches');
+      const [matches, setMatches] = useState(INITIAL_MATCHES);
+      const [joinedIds, setJoinedIds] = useState([]);
+      const [heroJoined, setHeroJoined] = useState(false);
+      const [depositCash, setDepositCash] = useState(120);
+      const [winningsCash, setWinningsCash] = useState(300);
+      const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
+      const [walletMode, setWalletMode] = useState('add');
+      const [addAmount, setAddAmount] = useState('100');
+      const [upiId, setUpiId] = useState('9876543210@paytm');
+      const [withdrawAmount, setWithdrawAmount] = useState('150');
+      const [txFilter, setTxFilter] = useState('All');
+      const [selectedMatch, setSelectedMatch] = useState(null);
+      const [settingsOpen, setSettingsOpen] = useState(false);
+      const [securityOpen, setSecurityOpen] = useState(false);
+      const [signOutOpen, setSignOutOpen] = useState(false);
+      const [toast, setToast] = useState(null);
+      const [copiedReference, setCopiedReference] = useState(null);
+
+      const balance = depositCash + winningsCash;
+      const isDark = theme === 'dark';
+
+      const showToast = (text, type = 'success') => {
+        setToast({ text, type });
+        window.setTimeout(() => setToast(null), 2800);
+      };
+
+      const addTransaction = (transaction) => setTransactions((items) => [transaction, ...items]);
+
+      const handleLogin = (nextProvider) => {
+        if (nextProvider) setProvider(nextProvider);
+        if (identifier.trim().length < 4) { showToast('Enter a valid email, phone or Free Fire UID.', 'error'); return; }
+        setStep('OTP');
+      };
+
+      const joinMatch = (match) => {
+        if (joinedIds.includes(match.id)) { showToast(`Already registered in ${match.title}`); return; }
+        if (balance < match.entryFee) { showToast('Insufficient balance. Top up your wallet to join.', 'error'); return; }
+        const fromDeposit = Math.min(depositCash, match.entryFee);
+        setDepositCash((value) => value - fromDeposit);
+        setWinningsCash((value) => value - (match.entryFee - fromDeposit));
+        setJoinedIds((ids) => [...ids, match.id]);
+        if (match.id === HERO_MATCH.id) setHeroJoined(true);
+        setMatches((items) => items.map((item) => item.id === match.id ? { ...item, filledSlots: Math.min(item.totalSlots, item.filledSlots + 1) } : item));
+        addTransaction({ id: `tx-${Date.now()}`, title: `Tournament Entry: ${match.title}`, amount: match.entryFee, isCredit: false, category: 'Entries', badgeText: 'Entry Fee', badgeTone: 'slate', time: 'Just now', reference: `EGA-${Math.floor(1000000 + Math.random() * 9000000)}` });
+        setSelectedMatch(null);
+        showToast(`Slot confirmed for ${match.title} • -${formatINR(match.entryFee)}`);
+      };
+
+      const deposit = () => {
+        const amount = Number(addAmount);
+        if (!amount || amount < 10) { showToast('Minimum UPI deposit amount is ₹10.', 'error'); return; }
+        setDepositCash((value) => value + amount);
+        addTransaction({ id: `tx-${Date.now()}`, title: 'UPI Deposit via GPay / PhonePe', amount, isCredit: true, category: 'Deposits', badgeText: 'Deposit', badgeTone: 'cyan', time: 'Just now', reference: `UTR-${Math.floor(100000000000 + Math.random() * 900000000000)}` });
+        showToast(`${formatINR(amount)} added to Deposit Cash via UPI!`);
+      };
+
+      const withdraw = () => {
+        const amount = Number(withdrawAmount);
+        if (!upiId.includes('@') || upiId.trim().length < 5) { showToast('Please enter a valid UPI ID.', 'error'); return; }
+        if (!amount || amount < 50) { showToast('Minimum UPI withdrawal amount is ₹50.', 'error'); return; }
+        if (amount > winningsCash) { showToast(`Amount exceeds withdrawable Winnings Cash (${formatINR(winningsCash)}).`, 'error'); return; }
+        setWinningsCash((value) => value - amount);
+        addTransaction({ id: `tx-${Date.now()}`, title: `UPI Withdrawal to ${upiId.trim()}`, amount, isCredit: false, category: 'Withdrawals', badgeText: 'Transfer Success', badgeTone: 'emerald', time: 'Just now', reference: `UTR-${Math.floor(100000000000 + Math.random() * 900000000000)}` });
+        showToast(`${formatINR(amount)} transferred to ${upiId.trim()}!`);
+      };
+
+      const copyReference = (reference) => {
+        navigator.clipboard?.writeText(reference);
+        setCopiedReference(reference);
+        window.setTimeout(() => setCopiedReference(null), 1500);
+      };
+
+      const signOut = () => {
+        setSignOutOpen(false);
+        setStep('LOGIN');
+        setPassword('');
+        setActiveTab('tournaments');
+        setSelectedMatch(null);
+        showToast('Signed out safely. Welcome back to the Arena.');
+      };
+
+      if (step === 'LOGIN') {
+        return (
+          <main className={cx('min-h-screen w-full', isDark ? 'bg-[#081326] text-white' : 'bg-[#DCE4EE] text-slate-900')}>
+            <LoginScreen theme={theme} onThemeToggle={() => setTheme(isDark ? 'light' : 'dark')} identifier={identifier} setIdentifier={setIdentifier} password={password} setPassword={setPassword} onContinue={handleLogin} />
+            {toast && <Toast toast={toast} />}
+          </main>
+        );
+      }
+
+      if (step === 'OTP') {
+        return (
+          <main className={cx('min-h-screen w-full', isDark ? 'bg-[#081326] text-white' : 'bg-[#DCE4EE] text-slate-900')}>
+            <OtpScreen theme={theme} onThemeToggle={() => setTheme(isDark ? 'light' : 'dark')} identifier={identifier} setIdentifier={(value) => { setIdentifier(value); setUser((current) => ({ ...current, identifier: value })); }} onBack={() => setStep('LOGIN')} onVerified={() => { setUser((current) => ({ ...current, identifier })); setStep('APP'); showToast('OTP verified. Welcome to the Arena!'); }} />
+            {toast && <Toast toast={toast} />}
+          </main>
+        );
+      }
+
+      return (
+        <main className={cx('relative min-h-screen w-full overflow-x-hidden', isDark ? 'bg-[#081326] text-white' : 'bg-[#DCE4EE] text-slate-900')}>
+          <Ambient theme={theme} />
+          <ThemeButton theme={theme} onToggle={() => setTheme(isDark ? 'light' : 'dark')} />
+          <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-lg flex-col">
+            <div className={cx('pointer-events-none fixed inset-x-0 top-0 h-56 z-0', isDark ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(0,194,255,0.22),rgba(15,23,42,0.85)_65%,transparent)]' : 'bg-[radial-gradient(ellipse_at_top_right,rgba(56,189,248,0.25),rgba(241,245,249,0.7)_65%,transparent)]')} />
+            <AppHeader
+              theme={theme}
+              title={activeTab === 'tournaments' ? 'Free Fire Arena' : activeTab === 'wallet' ? 'Arena Wallet' : 'Player Profile'}
+              subtitle={activeTab === 'tournaments' ? 'Verified esports organiser' : activeTab === 'wallet' ? 'Instant prize & entry ledger' : 'Season 6 • Verified competitor'}
+              balance={balance}
+              onAddFunds={() => { setActiveTab('wallet'); setWalletMode('add'); }}
+              onNotify={() => showToast('Room ID & password will be shared 15 minutes before a match.')}
+              onSettings={activeTab === 'profile' ? () => setSettingsOpen(true) : undefined}
+            />
+            <div className="relative z-10 flex-1 px-4 pb-28 pt-4">
+              {activeTab === 'tournaments' && (
+                <TournamentsView
+                  theme={theme}
+                  matches={matches}
+                  joinedIds={joinedIds}
+                  onOpenMatch={setSelectedMatch}
+                  selectedFilter={selectedFilter}
+                  onFilter={setSelectedFilter}
+                  onLockedGame={(name) => showToast(`${name} tournaments are launching soon!`)}
+                  heroJoined={heroJoined}
+                  onHeroJoin={() => setSelectedMatch(HERO_MATCH)}
+                />
+              )}
+              {activeTab === 'wallet' && (
+                <WalletView
+                  theme={theme}
+                  depositCash={depositCash}
+                  winningsCash={winningsCash}
+                  walletMode={walletMode}
+                  setWalletMode={setWalletMode}
+                  addAmount={addAmount}
+                  setAddAmount={setAddAmount}
+                  upiId={upiId}
+                  setUpiId={setUpiId}
+                  withdrawAmount={withdrawAmount}
+                  setWithdrawAmount={setWithdrawAmount}
+                  transactions={transactions}
+                  txFilter={txFilter}
+                  setTxFilter={setTxFilter}
+                  onDeposit={deposit}
+                  onWithdraw={withdraw}
+                  copiedReference={copiedReference}
+                  onCopy={copyReference}
+                />
+              )}
+              {activeTab === 'profile' && (
+                <ProfileView
+                  theme={theme}
+                  user={user}
+                  provider={provider}
+                  setProvider={(nextProvider) => { setProvider(nextProvider); setUser((current) => ({ ...current, provider: nextProvider })); }}
+                  joinedCount={joinedIds.length}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                  onSecurity={() => setSecurityOpen(true)}
+                  onSignOut={() => setSignOutOpen(true)}
+                />
+              )}
+            </div>
+            <BottomNav theme={theme} activeTab={activeTab} onChange={setActiveTab} />
+            {selectedMatch && (
+              <MatchSheet
+                theme={theme}
+                match={selectedMatch}
+                balance={balance}
+                joined={joinedIds.includes(selectedMatch.id)}
+                onClose={() => setSelectedMatch(null)}
+                onJoin={() => joinMatch(selectedMatch)}
+                onTopUp={() => { setSelectedMatch(null); setActiveTab('wallet'); setWalletMode('add'); }}
+              />
+            )}
+            {settingsOpen && (
+              <SettingsSheet
+                theme={theme}
+                onTheme={setTheme}
+                onClose={() => setSettingsOpen(false)}
+                onWhatsApp={() => { setSettingsOpen(false); showToast('Organizer WhatsApp helpdesk opened.'); }}
+              />
+            )}
+            {securityOpen && (
+              <SecurityModal
+                theme={theme}
+                onClose={() => setSecurityOpen(false)}
+                onSave={() => { setSecurityOpen(false); showToast('Account security settings updated.'); }}
+              />
+            )}
+            {signOutOpen && (
+              <SignOutModal
+                theme={theme}
+                onClose={() => setSignOutOpen(false)}
+                onConfirm={signOut}
+              />
+            )}
+            {toast && <Toast toast={toast} />}
+          </div>
+        </main>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<FreeFireMasterApp />);
+  </script>
+</body>
+</html>

@@ -16,6 +16,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,7 +70,7 @@ fun WalletScreen(
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshWallet()
+                viewModel.refreshWallet(silent = true)
                 viewModel.loadMyDeposits()
             }
         }
@@ -97,6 +100,7 @@ fun WalletScreen(
                     is UiState.Success -> WalletContent(
                         wallet = state.data,
                         deposits = deposits,
+                        supportWhatsapp = viewModel.liveSettings.supportWhatsapp,
                         onAddMoney = {
                             viewModel.clearDeposit()
                             showDeposit = true
@@ -117,9 +121,9 @@ fun WalletScreen(
     if (showDeposit) {
         DepositModal(
             viewModel = viewModel,
-            upiId = viewModel.config.upiId,
-            upiName = viewModel.config.upiName,
-            minDeposit = viewModel.config.minDeposit,
+            upiId = viewModel.liveSettings.upiId.ifBlank { viewModel.config.upiId },
+            upiName = viewModel.liveSettings.payeeName,
+            minDeposit = viewModel.liveSettings.minDeposit,
             onDismiss = { showDeposit = false },
         )
     }
@@ -155,9 +159,11 @@ fun WalletScreen(
 private fun WalletContent(
     wallet: WalletSummary,
     deposits: PlayerDepositsResponse?,
+    supportWhatsapp: String,
     onAddMoney: () -> Unit,
     onWithdraw: () -> Unit,
 ) {
+    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -220,6 +226,34 @@ private fun WalletContent(
                     onClick = onWithdraw,
                     modifier = Modifier.weight(1f),
                 )
+            }
+        }
+
+        if (supportWhatsapp.isNotBlank()) {
+            item {
+                GlassCard(cornerRadius = 12.dp, modifier = Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("💬", fontSize = 16.sp)
+                        Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                            Text(
+                                "Need help with a deposit or withdrawal?",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "Chat with support on WhatsApp",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(onClick = {
+                            val url = "https://wa.me/${supportWhatsapp.filter { it.isDigit() }}"
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                        }) { Text("Chat") }
+                    }
+                }
             }
         }
 

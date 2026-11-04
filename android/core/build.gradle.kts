@@ -57,12 +57,16 @@ dependencies {
     implementation(libs.retrofit.converter.moshi)
     implementation(libs.moshi)
     ksp(libs.moshi.codegen)
-    implementation(libs.okhttp)
+    // Exposed because TourneyApi's CSV export returns okhttp3.ResponseBody.
+    api(libs.okhttp)
     implementation(libs.okhttp.logging)
 
     // FCM: high-priority push (room reveal / prize won / match cancelled)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    // Auth types are used by the app login screens through the shared core API.
+    api(libs.firebase.auth)
+    api("com.google.android.gms:play-services-auth:21.3.0")
 
     // UPI deposit QR rendering (dynamic amount QR for Add Cash)
     implementation(libs.zxing.core)

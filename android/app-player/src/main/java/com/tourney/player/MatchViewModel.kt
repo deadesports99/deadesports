@@ -102,7 +102,14 @@ class MatchViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun join(tournamentId: String, slotNumber: Int, teamCode: String?) {
+    fun join(
+        tournamentId: String,
+        slotNumber: Int,
+        teamCode: String?,
+        inGameName: String? = null,
+        inGameUid: String? = null,
+        saveAsDefault: Boolean? = true,
+    ) {
         if (joining) return
         joining = true
         actionError = null
@@ -140,7 +147,13 @@ class MatchViewModel(app: Application) : AndroidViewModel(app) {
                 lastJoinResult = apiCall {
                     api.joinTournament(
                         tournamentId,
-                        JoinRequest(slotNumber = slotNumber, teamCode = teamCode?.takeIf { it.isNotBlank() }),
+                        JoinRequest(
+                            slotNumber = slotNumber,
+                            teamCode = teamCode?.takeIf { it.isNotBlank() },
+                            inGameName = inGameName?.takeIf { it.isNotBlank() },
+                            inGameUid = inGameUid?.takeIf { it.isNotBlank() },
+                            saveAsDefault = saveAsDefault,
+                        ),
                     )
                 }
                 silentRefreshSlots(tournamentId)

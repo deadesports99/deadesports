@@ -16,6 +16,7 @@ import {
   reserveSlot,
 } from './slotLock.service.js';
 import { pushToTournamentParticipants } from './fcm.service.js';
+import { realtimeService } from './realtime.service.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -122,7 +123,11 @@ export function clearFeedCache() {
 
 // ─── 2. LIST TOURNAMENTS ─────────────────────────────────────────────────
 
-export async function listTournaments(tenantId: string, query: ListTournamentsQuery) {
+export async function listTournaments(
+  tenantId: string,
+  query: ListTournamentsQuery,
+  viewer?: AuthUser,
+) {
   const page = Math.max(1, query.page ?? 1);
   const limit = Math.min(50, Math.max(1, query.limit ?? 10));
 
@@ -136,14 +141,33 @@ export async function listTournaments(tenantId: string, query: ListTournamentsQu
     prisma.tournament.findMany({
       where,
       include: { _count: { select: { slots: true } } },
-      orderBy: { matchTime: 'desc' },
+      orderBy: { matchTime: 'asc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
   ]);
 
+  const mySlotByTournamentId = new Map<string, number>();
+  if (viewer?.userId) {
+    const mySlots = await prisma.tournamentSlot.findMany({
+      where: {
+        tournamentId: { in: items.map((t) => t.id) },
+        userId: viewer.userId,
+      },
+      select: { tournamentId: true, slotNumber: true },
+    });
+    for (const slot of mySlots) {
+      mySlotByTournamentId.set(slot.tournamentId, slot.slotNumber);
+    }
+  }
+
+  const isStaff = Boolean(viewer && (viewer.role === 'ADMIN' || viewer.role === 'SUB_ADMIN'));
+
   return {
-    items: items.map((t) => sanitizeTournament(t, false)),
+    items: items.map((t) => ({
+      ...sanitizeTournament(t, isStaff),
+      mySlotNumber: mySlotByTournamentId.get(t.id) ?? null,
+    })),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   };
 }
@@ -162,7 +186,7 @@ export async function getTournamentDetails(
   if (!tournament) throw ApiError.notFound('Tournament not found');
 
   // Room credentials only for staff; players see them post-reveal (Phase 4).
-  const isStaff = viewer && (viewer.role === 'ADMIN' || viewer.role === 'SUB_ADMIN');
+  const isStaff = Boolean(viewer && (viewer.role === 'ADMIN' || viewer.role === 'SUB_ADMIN'));
   const visibleCredentials = isStaff || tournament.status === 'ROOM_REVEALED' || tournament.status === 'LIVE';
 
   let mySlot: { slotNumber: number; teamId: string | null } | null = null;
@@ -235,8 +259,11 @@ export interface JoinTournamentResult {
 export async function joinTournament(
   user: AuthUser,
   tournamentId: string,
-  slotNumber: number,
+  slotNumber?: number,
   teamCode?: string,
+  inGameName?: string,
+  inGameUid?: string,
+  saveAsDefault: boolean = true,
 ): Promise<JoinTournamentResult> {
   const tournament = await prisma.tournament.findFirst({
     where: { id: tournamentId, tenantId: user.tenantId },
@@ -245,7 +272,40 @@ export async function joinTournament(
   if (!(JOINABLE_STATUSES as readonly string[]).includes(tournament.status)) {
     throw ApiError.conflict(`Tournament is not accepting entries (status: ${tournament.status})`);
   }
-  if (slotNumber < 1 || slotNumber > tournament.totalSlots) {
+
+  if ((inGameName || inGameUid) && saveAsDefault) {
+    try {
+      await prisma.user.update({
+        where: { id: user.userId },
+        data: {
+          ...(inGameName ? { inGameName: inGameName.trim() } : {}),
+          ...(inGameUid ? { inGameUid: inGameUid.trim() } : {}),
+        },
+      });
+    } catch {
+      // Non-fatal if profile sync fails
+    }
+  }
+
+  let targetSlot = slotNumber;
+  if (!targetSlot || targetSlot < 1) {
+    const booked = await prisma.tournamentSlot.findMany({
+      where: { tournamentId },
+      select: { slotNumber: true },
+    });
+    const bookedSet = new Set(booked.map((s) => s.slotNumber));
+    for (let i = 1; i <= tournament.totalSlots; i++) {
+      if (!bookedSet.has(i)) {
+        targetSlot = i;
+        break;
+      }
+    }
+    if (!targetSlot) {
+      throw ApiError.conflict('Tournament is full');
+    }
+  }
+
+  if (targetSlot < 1 || targetSlot > tournament.totalSlots) {
     throw ApiError.badRequest(`slotNumber must be between 1 and ${tournament.totalSlots}`);
   }
 
@@ -285,7 +345,7 @@ export async function joinTournament(
   }
 
   // ── Redis atomic seat reservation ──────────────────────────────────
-  const reserved = await reserveSlot(tournamentId, slotNumber, user.userId, maxSlots);
+  const reserved = await reserveSlot(tournamentId, targetSlot!, user.userId, maxSlots);
   if (!reserved.ok) {
     if (isTeamLeader && leaderTeamCode) {
       await deleteTeam(tournamentId, leaderTeamCode);
@@ -294,7 +354,7 @@ export async function joinTournament(
     }
     const message =
       reserved.code === 'SLOT_TAKEN'
-        ? `Slot ${slotNumber} is already booked`
+        ? `Slot ${targetSlot} is already booked`
         : reserved.code === 'ALREADY_JOINED'
           ? 'You have already joined this tournament'
           : 'Tournament is full';
@@ -302,7 +362,7 @@ export async function joinTournament(
   }
 
   const rollbackRedis = async (rawError: unknown): Promise<never> => {
-    await releaseSlot(tournamentId, slotNumber, user.userId);
+    await releaseSlot(tournamentId, targetSlot, user.userId);
     if (isTeamLeader && leaderTeamCode) {
       // Leader's team never made it into the DB — remove the dangling code.
       await deleteTeam(tournamentId, leaderTeamCode);
@@ -375,7 +435,7 @@ export async function joinTournament(
           data: {
             tournamentId,
             userId: user.userId,
-            slotNumber,
+            slotNumber: targetSlot!,
             teamId: teamId ?? null,
           },
         });
@@ -401,6 +461,29 @@ export async function joinTournament(
     );
 
     clearFeedCache();
+
+    // ⚡ Realtime broadcast: slot booked & live wallet update
+    try {
+      const bookedCount = await prisma.tournamentSlot.count({ where: { tournamentId } });
+      realtimeService.broadcastToTenant(user.tenantId, 'SLOT_BOOKED', {
+        tournamentId,
+        slotsBooked: bookedCount,
+        totalSlots: maxSlots,
+        remainingSlots: Math.max(0, maxSlots - bookedCount),
+        fillFraction: Math.min(1, bookedCount / maxSlots),
+        isFull: bookedCount >= maxSlots,
+        status: result.status,
+      });
+
+      realtimeService.sendToUser(user.userId, 'WALLET_UPDATED', {
+        userId: user.userId,
+        depositBalance: String(Number(result.freshUser.depositBalance)),
+        winningBalance: String(Number(result.freshUser.winningBalance)),
+        totalBalance: String(Number(result.freshUser.depositBalance) + Number(result.freshUser.winningBalance)),
+      });
+    } catch (rtErr) {
+      console.warn('[Realtime Join Broadcast Error]:', rtErr);
+    }
     return {
       slotNumber: result.slot.slotNumber,
       teamId: result.slot.teamId,
@@ -489,6 +572,7 @@ export async function cancelTournamentAndRefundAll(
       }
 
       clearFeedCache();
+
     return { refundedPlayers: slots.length, totalRefunded };
     },
     {
@@ -510,4 +594,43 @@ export async function cancelTournamentAndRefundAll(
   });
 
   return { tournamentId, status: 'CANCELLED', ...result };
+}
+// ─── 6b. 1-TAP TOURNAMENT CLONING ────────────────────────────────────────
+
+export interface CloneTournamentInput {
+  matchTime: Date;
+  title?: string;
+}
+
+export async function cloneTournament(
+  creator: AuthUser,
+  tournamentId: string,
+  input: CloneTournamentInput,
+) {
+  const original = await prisma.tournament.findFirst({
+    where: { id: tournamentId, tenantId: creator.tenantId },
+  });
+  if (!original) throw ApiError.notFound('Original tournament not found');
+
+  const newTitle = input.title?.trim() || `${original.title} (Next)`;
+
+  const cloned = await prisma.tournament.create({
+    data: {
+      tenantId: creator.tenantId,
+      title: newTitle,
+      gameMode: original.gameMode,
+      matchType: original.matchType,
+      mapType: original.mapType,
+      entryFee: original.entryFee,
+      prizePool: original.prizePool,
+      perKillPrize: original.perKillPrize,
+      totalSlots: original.totalSlots,
+      matchTime: input.matchTime,
+      status: 'OPEN',
+    },
+    include: { _count: { select: { slots: true } } },
+  });
+
+  clearFeedCache();
+  return sanitizeTournament(cloned, true);
 }

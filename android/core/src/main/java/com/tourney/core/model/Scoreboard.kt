@@ -21,6 +21,10 @@ data class ScoreboardHeader(
     val id: String,
     val title: String,
     val status: TournamentStatus,
+    @Json(name = "gameMode") val gameMode: GameMode? = null,
+    @Json(name = "matchType") val matchType: MatchType? = null,
+    @Json(name = "mapType") val mapType: MapType? = null,
+    @Json(name = "matchTime") val matchTime: String? = null,
     @Json(name = "prizePool") val prizePool: String,
     @Json(name = "perKillPrize") val perKillPrize: String,
 )

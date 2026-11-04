@@ -98,11 +98,14 @@ data class SlotEntry(
     )
 }
 
-/** POST /tournaments/:id/join request — slotNumber required, teamCode for squads. */
+/** POST /tournaments/:id/join request — slotNumber optional (auto-assigned by backend if omitted). */
 @JsonClass(generateAdapter = true)
 data class JoinRequest(
-    @Json(name = "slotNumber") val slotNumber: Int,
+    @Json(name = "slotNumber") val slotNumber: Int? = null,
     @Json(name = "teamCode") val teamCode: String? = null,
+    @Json(name = "inGameName") val inGameName: String? = null,
+    @Json(name = "inGameUid") val inGameUid: String? = null,
+    @Json(name = "saveAsDefault") val saveAsDefault: Boolean? = true,
 )
 
 /** POST /tournaments/:id/join response. teamCode only returned to squad leader. */
@@ -133,8 +136,8 @@ data class CreateTournamentRequest(
 /** Room credentials payload (GET /tournaments/:id/room success; staff-only on details). */
 @JsonClass(generateAdapter = true)
 data class RoomCredentials(
-    @Json(name = "roomId") val roomId: String,
-    @Json(name = "roomPassword") val roomPassword: String,
+    @Json(name = "roomId") val roomId: String? = null,
+    @Json(name = "roomPassword") val roomPassword: String? = null,
     @Json(name = "roomRevealedAt") val roomRevealedAt: String? = null,
     @Json(name = "matchTime") val matchTime: String? = null,
     @Json(name = "secondsUntilReveal") val secondsUntilReveal: Long = 0,

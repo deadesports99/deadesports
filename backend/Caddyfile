@@ -1,0 +1,15 @@
+{
+    email {$ACME_EMAIL}
+}
+
+# Caddy automatically obtains and renews the HTTPS certificate for API_DOMAIN.
+{$API_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy api:5000
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+    }
+}

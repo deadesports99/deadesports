@@ -14,5 +14,6 @@
   "tenant_id": "a3c11cd0-324e-4886-b27c-9667fd7f59dc",
   "upi_id": "thunderesports@okaxis",
   "upi_name": "Thunder eSports",
-  "min_deposit": 10
+  "min_deposit": 10,
+  "support_whatsapp": "919999900001"
 }

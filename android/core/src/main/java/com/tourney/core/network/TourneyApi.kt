@@ -4,27 +4,41 @@ import com.tourney.core.model.ApiEnvelope
 import com.tourney.core.model.AckRequest
 import com.tourney.core.model.AdminDepositsResponse
 import com.tourney.core.model.ApproveWithdrawalRequest
+import com.tourney.core.model.DailySettlement
 import com.tourney.core.model.DepositActionResponse
 import com.tourney.core.model.DepositSubmitResponse
 import com.tourney.core.model.PlayerDepositsResponse
 import com.tourney.core.model.SubmitDepositRequest
 import com.tourney.core.model.AuthResponse
+import com.tourney.core.model.CancelMatchRequest
+import com.tourney.core.model.CancelMatchResult
+import com.tourney.core.model.CreateStaffRequest
 import com.tourney.core.model.CreateTournamentRequest
+import com.tourney.core.model.CloneTournamentRequest
 import com.tourney.core.model.FcmTokenRequest
 import com.tourney.core.model.FcmTokenResponse
 import com.tourney.core.model.JoinRequest
 import com.tourney.core.model.JoinResult
 import com.tourney.core.model.LoginRequest
+import com.tourney.core.model.GoogleAuthRequest
 import com.tourney.core.model.PayoutRequest
 import com.tourney.core.model.PayoutResponse
+import com.tourney.core.model.PlayerStats
 import com.tourney.core.model.PublishRoomRequest
 import com.tourney.core.model.RegisterRequest
 import com.tourney.core.model.RejectWithdrawalRequest
 import com.tourney.core.model.RoomCredentials
 import com.tourney.core.model.ScoreboardResponse
 import com.tourney.core.model.SlotsResponse
+import com.tourney.core.model.StaffActionResponse
+import com.tourney.core.model.StaffListResponse
+import com.tourney.core.model.SweepResult
+import com.tourney.core.model.TenantSettings
 import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentListResponse
+import com.tourney.core.model.UpdateTenantSettingsRequest
+import com.tourney.core.model.UpdateStaffRequest
+import com.tourney.core.model.UpdateGameProfileRequest
 import com.tourney.core.model.User
 import com.tourney.core.model.WalletActionResponse
 import com.tourney.core.model.WalletSummary
@@ -32,11 +46,14 @@ import com.tourney.core.model.WithdrawRequest
 import com.tourney.core.model.WithdrawResponse
 import com.tourney.core.model.WithdrawalsResponse
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
+import okhttp3.ResponseBody
+import retrofit2.http.Streaming
 
 /**
  * Retrofit contract — mirrors the Node/TS backend 1:1.
@@ -52,11 +69,30 @@ interface TourneyApi {
     @POST("auth/player/login")
     suspend fun login(@Body request: LoginRequest): ApiEnvelope<AuthResponse>
 
+    @POST("auth/player/google")
+    suspend fun googleLogin(@Body request: GoogleAuthRequest): ApiEnvelope<AuthResponse>
+
     @GET("auth/me")
     suspend fun me(): ApiEnvelope<User>
 
     @POST("auth/fcm-token")
     suspend fun registerFcmToken(@Body request: FcmTokenRequest): ApiEnvelope<FcmTokenResponse>
+
+    // ─── Staff / Sub-Admin management (ADMIN only) ───────────────────────
+    @GET("auth/admin/staff")
+    suspend fun staffList(): ApiEnvelope<StaffListResponse>
+
+    @POST("auth/admin/staff")
+    suspend fun createStaff(@Body request: CreateStaffRequest): ApiEnvelope<AuthResponse>
+
+    @PATCH("auth/admin/staff/{id}")
+    suspend fun updateStaff(
+        @Path("id") id: String,
+        @Body request: UpdateStaffRequest,
+    ): ApiEnvelope<StaffActionResponse>
+
+    @DELETE("auth/admin/staff/{id}")
+    suspend fun removeStaff(@Path("id") id: String): ApiEnvelope<StaffActionResponse>
 
     // ─── Tournaments ─────────────────────────────────────────────────────
     @POST("tournaments")
@@ -81,6 +117,13 @@ interface TourneyApi {
         @Body request: JoinRequest,
     ): ApiEnvelope<JoinResult>
 
+    /** Phase 7: 1-Tap Tournament Clone (re-schedule proven match in seconds). */
+    @POST("tournaments/{id}/clone")
+    suspend fun cloneTournament(
+        @Path("id") id: String,
+        @Body request: CloneTournamentRequest,
+    ): ApiEnvelope<Tournament>
+
     // ─── Room (timed release) ────────────────────────────────────────────
     @GET("tournaments/{id}/room")
     suspend fun roomCredentials(@Path("id") id: String): ApiEnvelope<RoomCredentials>
@@ -100,6 +143,41 @@ interface TourneyApi {
         @Path("id") id: String,
         @Body request: PayoutRequest,
     ): ApiEnvelope<PayoutResponse>
+
+    // ─── Phase 6: admin match operations (lifecycle ops) ────────────────
+    /** Advance every match's lifecycle now (T-15 reveal -> LIVE). */
+    @POST("tournaments/sweep/states")
+    suspend fun sweepMatchStates(): ApiEnvelope<SweepResult>
+
+    /** Cancel a match and atomically refund every booked seat. */
+    @POST("tournaments/{id}/cancel")
+    suspend fun cancelTournament(
+        @Path("id") id: String,
+        @Body request: CancelMatchRequest,
+    ): ApiEnvelope<CancelMatchResult>
+
+    // ─── Phase 6: runtime tenant settings + player career stats ─────────
+    /** Any logged-in user: live UPI / payee / WhatsApp / min deposit. */
+    @GET("tenant/settings")
+    suspend fun tenantSettings(): ApiEnvelope<TenantSettings>
+
+    /** Owner console read (same payload, ADMIN guarded). */
+    @GET("admin/tenant/settings")
+    suspend fun adminTenantSettings(): ApiEnvelope<TenantSettings>
+
+    /** Owner-only runtime update — no APK rebuild needed. */
+    @PATCH("admin/tenant/settings")
+    suspend fun updateTenantSettings(
+        @Body request: UpdateTenantSettingsRequest,
+    ): ApiEnvelope<TenantSettings>
+
+    /** Profile tab: matches joined/played, Booyahs, kills, total winnings. */
+    @GET("players/me/stats")
+    suspend fun playerStats(): ApiEnvelope<PlayerStats>
+
+    /** Profile tab: update player's Free Fire IGN and UID. */
+    @PATCH("players/me/game-profile")
+    suspend fun updateGameProfile(@Body request: UpdateGameProfileRequest): ApiEnvelope<User>
 
     // ─── Wallet ──────────────────────────────────────────────────────────
     @GET("wallet")
@@ -156,4 +234,16 @@ interface TourneyApi {
         @Path("id") id: String,
         @Body request: RejectWithdrawalRequest,
     ): ApiEnvelope<DepositActionResponse>
+
+    // ─── Phase 7: Daily settlement reports (ADMIN only) ──────────────────
+    @GET("admin/wallet/settlement")
+    suspend fun dailySettlement(
+        @Query("date") date: String? = null,
+    ): ApiEnvelope<DailySettlement>
+
+    @Streaming
+    @GET("admin/wallet/settlement/export.csv")
+    suspend fun exportSettlementCsv(
+        @Query("date") date: String? = null,
+    ): ResponseBody
 }

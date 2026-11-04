@@ -12,6 +12,7 @@ import { sendResponse } from '../utils/ApiResponse.js';
  *   - /api/v1/health     (namespaced alias)
  * which yields:
  *   GET /health                -> server health
+ *   GET /health/ready          -> database readiness + Redis status
  *   GET /health/db             -> PostgreSQL liveness + latency
  *   GET /health/redis          -> Redis liveness + latency
  */
@@ -56,6 +57,28 @@ healthRouter.get('/health', (_req, res) => {
   });
 });
 
+/**
+ * Load-balancer readiness. Redis is reported as degraded instead of failing
+ * readiness because the API has a database uniqueness backstop for slots.
+ */
+healthRouter.get('/health/ready', async (_req, res) => {
+  const start = Date.now();
+  try {
+    await withTimeout(prisma.$queryRaw`SELECT 1`, 4000, 'database readiness check');
+    sendResponse(res, 200, 'Service is ready', {
+      latencyMs: Date.now() - start,
+      database: 'ready',
+      redis: redis.status === 'ready' ? 'ready' : 'degraded',
+    });
+  } catch {
+    sendResponse(res, 503, 'Service is not ready', {
+      latencyMs: Date.now() - start,
+      database: 'unavailable',
+      redis: redis.status === 'ready' ? 'ready' : 'degraded',
+    });
+  }
+});
+
 healthRouter.get('/health/db', async (_req, res, next) => {
   const start = Date.now();
   try {
@@ -69,7 +92,7 @@ healthRouter.get('/health/db', async (_req, res, next) => {
   }
 });
 
-healthRouter.get('/health/redis', async (_req, res, next) => {
+healthRouter.get('/health/redis', async (_req, res) => {
   const start = Date.now();
   try {
     const pong: string = await withTimeout(redis.ping(), 3000, 'redis check');
@@ -79,7 +102,10 @@ healthRouter.get('/health/redis', async (_req, res, next) => {
     sendResponse(res, 200, 'Redis is healthy', {
       latencyMs: Date.now() - start,
     });
-  } catch (err) {
-    next(ApiError.internal('Redis health check failed'));
+  } catch {
+    sendResponse(res, 503, 'Redis is unavailable', {
+      latencyMs: Date.now() - start,
+      status: redis.status,
+    });
   }
 });

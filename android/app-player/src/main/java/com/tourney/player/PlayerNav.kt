@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.Icon
@@ -24,16 +24,20 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tourney.core.model.MatchType
+import com.tourney.core.theme.ThemeMode
 
-/** Bottom tabs — Matches and Wallet. Detail screens push on top (back arrow). */
+/** Bottom tabs — Matches, Wallet and Profile. Push screens hide the bar. */
 private enum class PlayerTab(val route: String, val label: String, val icon: ImageVector) {
     MATCHES("feed", "Matches", Icons.Filled.SportsEsports),
     WALLET("wallet", "Wallet", Icons.Filled.Wallet),
+    PROFILE("profile", "Profile", Icons.Filled.Person),
 }
 
 @Composable
 fun PlayerNavHost(
     playerViewModel: PlayerViewModel,
+    themeMode: ThemeMode,
+    onSetThemeMode: (ThemeMode) -> Unit,
     pushTarget: Pair<String, String>? = null,
     onPushHandled: () -> Unit = {},
 ) {
@@ -55,7 +59,7 @@ fun PlayerNavHost(
     val currentRoute = backStackEntry?.destination?.route
 
     // Bottom bar only on top-level tabs; push screens (slots/room/scoreboard) hide it.
-    val showBottomBar = currentRoute == PlayerTab.MATCHES.route || currentRoute == PlayerTab.WALLET.route
+    val showBottomBar = currentRoute in PlayerTab.entries.map { it.route }
 
     Scaffold(
         bottomBar = {
@@ -84,9 +88,9 @@ fun PlayerNavHost(
                 composable(PlayerTab.MATCHES.route) {
                     TournamentFeedScreen(
                         viewModel = playerViewModel,
-                        onOpenSlots = { id, type, fee -> navController.navigate("slots/$id/$type/$fee") },
                         onOpenRoom = { id -> navController.navigate("room/$id") },
                         onOpenScoreboard = { id -> navController.navigate("scoreboard/$id") },
+                        onNavigateToWallet = { navController.navigate(PlayerTab.WALLET.route) },
                         onLogout = {
                             playerViewModel.logout()
                             matchViewModel.resetSession()
@@ -95,6 +99,17 @@ fun PlayerNavHost(
                 }
                 composable(PlayerTab.WALLET.route) {
                     WalletScreen(viewModel = playerViewModel, onBack = { navController.popBackStack() })
+                }
+                composable(PlayerTab.PROFILE.route) {
+                    ProfileScreen(
+                        viewModel = playerViewModel,
+                        themeMode = themeMode,
+                        onSetThemeMode = onSetThemeMode,
+                        onLogout = {
+                            playerViewModel.logout()
+                            matchViewModel.resetSession()
+                        },
+                    )
                 }
                 composable("slots/{id}/{type}/{fee}") { entry ->
                     val id = entry.arguments?.getString("id") ?: return@composable

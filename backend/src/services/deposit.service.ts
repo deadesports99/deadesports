@@ -1,6 +1,9 @@
 import { Prisma } from '../generated/prisma/client.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { resolveMinDeposit } from './tenant.service.js';
+import { withSerializableRetry } from '../utils/transaction.js';
+import { realtimeService } from './realtime.service.js';
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────
 
@@ -83,8 +86,10 @@ export async function submitDeposit(
   if (!Number.isFinite(amount) || amount <= 0) {
     throw ApiError.badRequest('A valid deposit amount is required');
   }
-  if (amount < MIN_DEPOSIT) {
-    throw ApiError.badRequest(`Minimum deposit is ₹${MIN_DEPOSIT}`);
+  // The client can raise/lower their own floor from the Admin app (default ₹10).
+  const minDeposit = await resolveMinDeposit(tenantId);
+  if (amount < minDeposit) {
+    throw ApiError.badRequest(`Minimum deposit is ₹${minDeposit}`);
   }
   if (amount > MAX_DEPOSIT) {
     throw ApiError.badRequest(`Maximum deposit is ₹${MAX_DEPOSIT}`);
@@ -189,45 +194,76 @@ export async function approveDeposit(
     throw ApiError.conflict(`Deposit is already ${existing.status}`);
   }
 
-  const result = await prisma.$transaction(
-    async (tx) => {
-      // Conditional flip: only one caller can move PENDING -> APPROVED.
-      const claimed = await tx.depositRequest.updateMany({
-        where: { id: depositId, tenantId, status: 'PENDING' },
-        data: { status: 'APPROVED', reviewedBy: adminId, reviewedAt: new Date() },
-      });
-      if (claimed.count !== 1) {
-        throw ApiError.conflict('Deposit request was already processed');
-      }
+  const result = await withSerializableRetry(() =>
+    prisma.$transaction(
+      async (tx) => {
+        // Conditional flip: only one caller can move PENDING -> APPROVED.
+        const claimed = await tx.depositRequest.updateMany({
+          where: { id: depositId, tenantId, status: 'PENDING' },
+          data: { status: 'APPROVED', reviewedBy: adminId, reviewedAt: new Date() },
+        });
+        if (claimed.count !== 1) {
+          throw ApiError.conflict('Deposit request was already processed');
+        }
 
-      const creditedUser = await tx.user.update({
-        where: { id: existing.userId },
-        data: { depositBalance: { increment: existing.amount } },
-      });
+        const creditedUser = await tx.user.update({
+          where: { id: existing.userId },
+          data: { depositBalance: { increment: existing.amount } },
+        });
 
-      await tx.walletLedger.create({
-        data: {
-          tenantId,
-          userId: existing.userId,
-          amount: existing.amount,
-          balanceType: 'DEPOSIT',
-          type: 'CREDIT',
-          category: 'ADD_MONEY',
-          balanceAfter: creditedUser.depositBalance,
-          referenceId: depositId,
-          notes: `Add cash approved (UTR ${existing.utrNumber})`,
-        },
-      });
+        await tx.walletLedger.create({
+          data: {
+            tenantId,
+            userId: existing.userId,
+            amount: existing.amount,
+            balanceType: 'DEPOSIT',
+            type: 'CREDIT',
+            category: 'ADD_MONEY',
+            balanceAfter: creditedUser.depositBalance,
+            referenceId: depositId,
+            notes: `Add cash approved (UTR ${existing.utrNumber})`,
+          },
+        });
 
-      const updated = await tx.depositRequest.findUniqueOrThrow({ where: { id: depositId } });
-      return { updated, depositBalance: creditedUser.depositBalance };
-    },
-    {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      maxWait: 5000,
-      timeout: 20000,
-    },
+        const updated = await tx.depositRequest.findUniqueOrThrow({ where: { id: depositId } });
+        return { updated, depositBalance: creditedUser.depositBalance };
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5000,
+        timeout: 20000,
+      },
+    ),
   );
+
+  
+  // Realtime balance update to player
+  (async () => {
+    try {
+      const u = await prisma.user.findUnique({
+        where: { id: existing.userId },
+        select: { depositBalance: true, winningBalance: true },
+      });
+      if (u) {
+        const dep = round2(Number(u.depositBalance));
+        const win = round2(Number(u.winningBalance));
+        realtimeService.sendToUser(existing.userId, 'WALLET_UPDATED', {
+          userId: existing.userId,
+          depositBalance: dep,
+          winningBalance: win,
+          totalBalance: round2(dep + win),
+        });
+        realtimeService.sendToUser(existing.userId, 'DEPOSIT_APPROVED', {
+          depositId: existing.id,
+          amount: round2(Number(existing.amount)),
+          utrNumber: existing.utrNumber,
+          depositBalance: dep,
+        });
+      }
+    } catch (e) {
+      console.error('[realtime] deposit notification error:', e);
+    }
+  })();
 
   return {
     deposit: toPlayerView(result.updated),

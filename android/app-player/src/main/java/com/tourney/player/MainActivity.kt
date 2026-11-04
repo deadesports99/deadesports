@@ -13,12 +13,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tourney.core.datastore.SessionState
 import com.tourney.core.fcm.TourneyMessagingService
 import com.tourney.core.theme.ClientConfig
 import com.tourney.core.theme.ClientTheme
+import com.tourney.core.theme.ThemeMode
 
 /**
  * Player app entry — routes Login/Register vs the main tabbed experience
@@ -38,7 +40,12 @@ class MainActivity : ComponentActivity() {
         val config = ClientConfig.load(applicationContext)
 
         setContent {
-            ClientTheme(config = config) {
+            // Boss demand: in-app Light / Dark switcher (persisted, instant).
+            val themeMode by com.tourney.core.network.ApiClient.sessionManager.themeMode
+                .collectAsState(initial = ThemeMode.DARK)
+            val systemDark = isSystemInDarkTheme()
+
+            ClientTheme(config = config, darkTheme = themeMode.isDark(systemDark)) {
                 // Android 13+ notification permission (high-priority FCM alerts).
                 val notifLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
@@ -64,6 +71,8 @@ class MainActivity : ComponentActivity() {
                 if (session.isLoggedIn) {
                     PlayerNavHost(
                         playerViewModel = playerViewModel,
+                        themeMode = themeMode,
+                        onSetThemeMode = { playerViewModel.setThemeMode(it) },
                         pushTarget = pendingPush,
                         onPushHandled = { pendingPush = null },
                     )

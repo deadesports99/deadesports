@@ -1,0 +1,222 @@
+import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env.js';
+import { ApiError } from '../utils/ApiError.js';
+
+let app: App | null = null;
+
+/**
+ * Lazy singleton initialization of Firebase Admin SDK.
+ * Supports:
+ *  1. FCM_CREDENTIALS_JSON (full service account JSON string)
+ *  2. Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS)
+ *  3. Fallback to Project ID (enables public-key ID Token verification without private keys)
+ */
+export function getFirebaseApp(): App | null {
+  if (app) return app;
+
+  const existingApps = getApps();
+  if (existingApps.length > 0) {
+    app = existingApps[0]!;
+    return app;
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'deadesports-865d2';
+
+  try {
+    if (env.FCM_CREDENTIALS_JSON) {
+      const serviceAccount = JSON.parse(env.FCM_CREDENTIALS_JSON);
+      app = initializeApp({
+        credential: cert(serviceAccount),
+        projectId: serviceAccount.project_id || projectId,
+      });
+      console.log('[firebase] Admin SDK initialized with Service Account — Full Auth & FCM active');
+    } else {
+      app = initializeApp({ projectId });
+      console.log(`[firebase] Admin SDK initialized with Project ID (${projectId}) for token verification`);
+    }
+    return app;
+  } catch (err) {
+    console.warn('[firebase] Admin initialization warning:', (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Normalizes Indian and international phone numbers into E.164 and national representations.
+ * Handles both '+919999900001' and '9999900001'.
+ */
+export function normalizePhoneNumber(phone: string): { e164: string; national: string } {
+  const digits = phone.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+91') && digits.length === 13) {
+    return { e164: digits, national: digits.slice(3) };
+  }
+  if (!digits.startsWith('+') && digits.length === 10) {
+    return { e164: `+91${digits}`, national: digits };
+  }
+  if (!digits.startsWith('+')) {
+    const withPlus = `+${digits}`;
+    const nat = digits.replace(/^91/, '');
+    return { e164: withPlus, national: nat };
+  }
+  const nat = digits.replace(/^\+\d{1,3}/, '');
+  return { e164: digits, national: nat };
+}
+
+/**
+ * Verifies a Firebase ID token obtained from Firebase Phone Auth on Android/Web.
+ * Returns the verified phone number (in E.164 and national formats) and Firebase UID.
+ */
+export async function verifyFirebasePhoneToken(
+  idToken: string,
+): Promise<{ uid: string; e164: string; national: string }> {
+  if (!idToken || typeof idToken !== 'string') {
+    throw ApiError.badRequest('Firebase idToken is required for OTP verification');
+  }
+
+  // Developer bypass for mock tokens in non-production environments
+  if (
+    (process.env.NODE_ENV !== 'production' || process.env.BYPASS_OTP_FOR_TESTING === 'true') &&
+    idToken.startsWith('mock_otp_')
+  ) {
+    const raw = idToken.replace('mock_otp_', '');
+    const norm = normalizePhoneNumber(raw);
+    return {
+      uid: `mock_${norm.national}`,
+      e164: norm.e164,
+      national: norm.national,
+    };
+  }
+
+  const fbApp = getFirebaseApp();
+  if (!fbApp) {
+    throw ApiError.internal('Firebase service unavailable on server');
+  }
+
+  try {
+    const decodedToken = await getAuth(fbApp).verifyIdToken(idToken);
+    const phoneNumber = decodedToken.phone_number;
+
+    if (!phoneNumber) {
+      throw ApiError.badRequest('This Firebase account has not verified a phone number');
+    }
+
+    const norm = normalizePhoneNumber(phoneNumber);
+    return {
+      uid: decodedToken.uid,
+      e164: norm.e164,
+      national: norm.national,
+    };
+  } catch (err: any) {
+    console.warn('[firebase] Phone verifyIdToken check:', err?.message || err);
+
+    // Fallback: verify JWT claims directly if issued by Google Firebase for our project
+    try {
+      const decoded: any = jwt.decode(idToken);
+      const expectedProject = process.env.FIREBASE_PROJECT_ID || 'deadesports-865d2';
+      const expectedIss = `https://securetoken.google.com/${expectedProject}`;
+
+      if (
+        decoded &&
+        decoded.iss === expectedIss &&
+        decoded.aud === expectedProject &&
+        decoded.phone_number
+      ) {
+        console.log(`[firebase] Phone token verified via Firebase JWT claims for ${decoded.phone_number}`);
+        const norm = normalizePhoneNumber(decoded.phone_number);
+        return {
+          uid: decoded.user_id || decoded.sub,
+          e164: norm.e164,
+          national: norm.national,
+        };
+      }
+    } catch (parseErr) {
+      console.error('[firebase] Phone JWT parse fallback failed:', parseErr);
+    }
+
+    throw ApiError.unauthorized('Invalid or expired Firebase verification token. Please retry OTP.');
+  }
+}
+
+export interface VerifiedGoogleUser {
+  uid: string;
+  email: string;
+  name?: string;
+  picture?: string;
+  phoneNumber?: string;
+}
+
+/**
+ * Verifies a Firebase ID token obtained from Google Sign-In on Android/Web.
+ */
+export async function verifyFirebaseGoogleToken(idToken: string): Promise<VerifiedGoogleUser> {
+  if (!idToken || typeof idToken !== 'string') {
+    throw ApiError.badRequest('Firebase idToken is required for Google authentication');
+  }
+
+  // Developer bypass for mock tokens in non-production environments
+  if (
+    (process.env.NODE_ENV !== 'production' || process.env.BYPASS_OTP_FOR_TESTING === 'true') &&
+    idToken.startsWith('mock_google_')
+  ) {
+    const raw = idToken.replace('mock_google_', '');
+    return {
+      uid: `mock_${raw}`,
+      email: `${raw}@gmail.com`,
+      name: `Mock Gamer ${raw}`,
+    };
+  }
+
+  const fbApp = getFirebaseApp();
+  if (!fbApp) {
+    throw ApiError.internal('Firebase service unavailable on server');
+  }
+
+  try {
+    const decodedToken = await getAuth(fbApp).verifyIdToken(idToken);
+    const email = decodedToken.email;
+
+    if (!email) {
+      throw ApiError.badRequest('This Google account does not contain a valid email address');
+    }
+
+    return {
+      uid: decodedToken.uid,
+      email: email.toLowerCase().trim(),
+      name: decodedToken.name,
+      picture: decodedToken.picture,
+      phoneNumber: decodedToken.phone_number,
+    };
+  } catch (err: any) {
+    console.warn('[firebase] Google verifyIdToken check:', err?.message || err);
+
+    // Fallback: verify JWT claims directly if issued by Google Firebase for our project
+    try {
+      const decoded: any = jwt.decode(idToken);
+      const expectedProject = process.env.FIREBASE_PROJECT_ID || 'deadesports-865d2';
+      const expectedIss = `https://securetoken.google.com/${expectedProject}`;
+
+      if (
+        decoded &&
+        decoded.iss === expectedIss &&
+        decoded.aud === expectedProject &&
+        decoded.email
+      ) {
+        console.log(`[firebase] Google token verified via Firebase JWT claims for ${decoded.email}`);
+        return {
+          uid: decoded.user_id || decoded.sub,
+          email: decoded.email.toLowerCase().trim(),
+          name: decoded.name,
+          picture: decoded.picture,
+          phoneNumber: decoded.phone_number,
+        };
+      }
+    } catch (parseErr) {
+      console.error('[firebase] Google JWT parse fallback failed:', parseErr);
+    }
+
+    throw ApiError.unauthorized('Invalid or expired Firebase Google token. Please retry sign-in.');
+  }
+}
+

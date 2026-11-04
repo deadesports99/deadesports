@@ -44,6 +44,19 @@
         "-y",
         "firebase-mcp-server"
       ]
+    },
+    "canva": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@latest",
+        "https://api.canva.com/connect/v1/mcp",
+        "8791",
+        "--static-oauth-client-info",
+        "{\"client_id\":\"${CANVA_CLIENT_ID}\",\"client_secret\":\"${CANVA_CLIENT_SECRET}\"}",
+        "--static-oauth-client-metadata",
+        "{\"token_endpoint_auth_method\":\"client_secret_basic\"}"
+      ]
     }
   }
 }

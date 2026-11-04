@@ -28,7 +28,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.KeyboardType
+import com.tourney.core.datastore.SessionState
+import com.tourney.core.network.ApiClient
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,10 +66,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.width
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.tourney.core.model.MatchType
 import com.tourney.core.model.SlotEntry
+import com.tourney.core.security.SecurityChecker
 import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.AppTopBar
 import com.tourney.core.ui.ErrorState
@@ -97,6 +107,50 @@ fun SlotPickerScreen(
     val result = viewModel.lastJoinResult
     var showTeamCodeDialog by remember { mutableStateOf(false) }
     var showSoloSuccessDialog by remember { mutableStateOf(false) }
+    var showEmulatorDialog by remember { mutableStateOf(false) }
+
+    val sessionState by ApiClient.sessionManager.session.collectAsState(initial = SessionState())
+    var inGameNameInput by remember { mutableStateOf("") }
+    var inGameUidInput by remember { mutableStateOf("") }
+    var isEditingGameId by remember { mutableStateOf(false) }
+    var saveAsDefault by remember { mutableStateOf(true) }
+
+    val hasSavedId = !sessionState.inGameUid.isNullOrBlank()
+    val canJoin = if (hasSavedId && !isEditingGameId) {
+        true
+    } else {
+        inGameNameInput.trim().length >= 2 && inGameUidInput.trim().length in 6..12
+    }
+
+    LaunchedEffect(selectedSlot) {
+        if (selectedSlot != null) {
+            isEditingGameId = sessionState.inGameUid.isNullOrBlank()
+            if (inGameNameInput.isBlank()) inGameNameInput = sessionState.inGameName.orEmpty()
+            if (inGameUidInput.isBlank()) inGameUidInput = sessionState.inGameUid.orEmpty()
+        }
+    }
+
+    // Competitive integrity: block joining from PC emulators before the
+    // request ever leaves the device (Phase 6B — Anti-Fraud Engine).
+    fun requestJoin(slotNumber: Int, code: String?) {
+        if (viewModel.joining || !canJoin) return
+        if (SecurityChecker.isEmulator()) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            showEmulatorDialog = true
+            return
+        }
+        val effectiveIgn = if (hasSavedId && !isEditingGameId) null else inGameNameInput.trim()
+        val effectiveUid = if (hasSavedId && !isEditingGameId) null else inGameUidInput.trim()
+
+        viewModel.join(
+            tournamentId = tournamentId,
+            slotNumber = slotNumber,
+            teamCode = code,
+            inGameName = effectiveIgn,
+            inGameUid = effectiveUid,
+            saveAsDefault = saveAsDefault,
+        )
+    }
 
     LaunchedEffect(tournamentId) { viewModel.loadSlots(tournamentId) }
     LaunchedEffect(result) {
@@ -255,6 +309,80 @@ fun SlotPickerScreen(
                             }
                         }
 
+                        // 🎮 In-Game ID (Just-In-Time setup or prefilled display)
+                        if (hasSavedId && !isEditingGameId) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Playing as:",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        "${sessionState.inGameName ?: inGameNameInput} (UID: ${sessionState.inGameUid ?: inGameUidInput})",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                TextButton(onClick = { isEditingGameId = true }) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Change", fontSize = 12.sp)
+                                }
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "🎮 Free Fire In-Game Identity:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                OutlinedTextField(
+                                    value = inGameNameInput,
+                                    onValueChange = { inGameNameInput = it.take(30) },
+                                    label = { Text("In-Game Name (IGN)") },
+                                    placeholder = { Text("e.g. RAISTAR_99") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                OutlinedTextField(
+                                    value = inGameUidInput,
+                                    onValueChange = { inGameUidInput = it.filter(Char::isDigit).take(12) },
+                                    label = { Text("Free Fire UID (6-12 digits)") },
+                                    placeholder = { Text("1928374612") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { saveAsDefault = !saveAsDefault },
+                                ) {
+                                    Checkbox(
+                                        checked = saveAsDefault,
+                                        onCheckedChange = { saveAsDefault = it },
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "Save as default Free Fire ID",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+
                         if (matchType != MatchType.SOLO) {
                             OutlinedTextField(
                                 value = teamCode,
@@ -275,29 +403,30 @@ fun SlotPickerScreen(
                             )
                         }
 
+                        if (!canJoin) {
+                            Text(
+                                "⚠️ Enter IGN & 6-12 digit Free Fire UID to enable join",
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+
                         SlideToJoinButton(
                             text = "Slide to Join ₹${formatMoney(entryFee.toDoubleOrNull() ?: 0.0)} >>",
-                            enabled = !viewModel.joining,
+                            enabled = !viewModel.joining && canJoin,
                             loading = viewModel.joining,
                             onConfirm = {
-                                viewModel.join(
-                                    tournamentId,
-                                    slot.slotNumber,
-                                    teamCode.ifBlank { null },
-                                )
+                                requestJoin(slot.slotNumber, teamCode.ifBlank { null })
                             },
                         )
 
                         TextButton(
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.join(
-                                    tournamentId,
-                                    slot.slotNumber,
-                                    teamCode.ifBlank { null },
-                                )
+                                requestJoin(slot.slotNumber, teamCode.ifBlank { null })
                             },
-                            enabled = !viewModel.joining,
+                            enabled = !viewModel.joining && canJoin,
                             modifier = Modifier.align(Alignment.CenterHorizontally),
                         ) {
                             Icon(
@@ -319,6 +448,33 @@ fun SlotPickerScreen(
         }
     }
 }
+
+    // ⛔ PC emulator join block (fair-play guard)
+    if (showEmulatorDialog) {
+        AlertDialog(
+            onDismissRequest = { showEmulatorDialog = false },
+            icon = {
+                Icon(
+                    Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+            title = { Text("⛔ PC Emulator Detected", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "To ensure fair competitive play for all mobile touch players, " +
+                        "tournaments can only be joined from physical Android phones.",
+                )
+            },
+            confirmButton = {
+                AppButton(
+                    text = "Got it",
+                    onClick = { showEmulatorDialog = false },
+                )
+            },
+        )
+    }
 
     // Leader team-code share dialog
     if (showTeamCodeDialog && result?.teamCode != null) {
@@ -488,5 +644,4 @@ private fun SeatCell(slot: SlotEntry, selected: Boolean, onClick: () -> Unit) {
         }
     }
 }
-
 

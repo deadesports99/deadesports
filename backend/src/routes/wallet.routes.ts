@@ -3,6 +3,7 @@ import * as walletController from '../controllers/wallet.controller.js';
 import * as depositController from '../controllers/deposit.controller.js';
 import * as withdrawalController from '../controllers/withdrawal.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
+import { depositRateLimiter, withdrawalRateLimiter } from '../middlewares/rateLimiter.js';
 
 /**
  * Wallet routes — mounted at /api/v1/wallet
@@ -16,8 +17,8 @@ export const walletRouter: Router = Router();
 
 walletRouter.get('/', authenticate, walletController.getWalletSummary);
 
-walletRouter.post('/deposit', authenticate, depositController.submitDeposit);
+walletRouter.post('/deposit', authenticate, depositRateLimiter, depositController.submitDeposit);
 
 walletRouter.get('/deposits', authenticate, depositController.listMyDeposits);
 
-walletRouter.post('/withdraw', authenticate, withdrawalController.requestWithdrawal);
+walletRouter.post('/withdraw', authenticate, withdrawalRateLimiter, withdrawalController.requestWithdrawal);

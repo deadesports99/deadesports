@@ -4,6 +4,7 @@ import { ApiError } from '../utils/ApiError.js';
 import type { AuthUser } from '../types/auth.js';
 import { clearTournamentRedis } from './slotLock.service.js';
 import { pushToTournamentParticipants, pushToUsers } from './fcm.service.js';
+import { realtimeService } from './realtime.service.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -48,6 +49,33 @@ export async function updateRoomCredentials(
   });
 
   // Push: alert every confirmed participant that the room is out (T-15 gate).
+  
+  // Realtime WebSocket broadcast
+  realtimeService.broadcastToTenant(staffUser.tenantId, 'MATCH_STATUS_CHANGED', {
+    tournamentId,
+    status: 'ROOM_REVEALED',
+    roomRevealedAt: updated.roomRevealedAt,
+  });
+
+  // Privately deliver credentials to confirmed slot participants
+  prisma.tournamentSlot.findMany({
+    where: { tournamentId },
+    select: { userId: true },
+  }).then((confirmedSlots) => {
+    if (confirmedSlots.length > 0) {
+      realtimeService.sendToUsers(
+        confirmedSlots.map((s) => s.userId),
+        'ROOM_CREDENTIALS_REVEALED',
+        {
+          tournamentId,
+          roomId: updated.roomId,
+          roomPassword: updated.roomPassword,
+          roomRevealedAt: updated.roomRevealedAt,
+        },
+      );
+    }
+  }).catch(() => {});
+
   void pushToTournamentParticipants(tournamentId, {
     type: 'ROOM_REVEALED',
     tournamentId,
@@ -127,7 +155,17 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
 export async function getTournamentResults(tenantId: string, tournamentId: string) {
   const tournament = await prisma.tournament.findFirst({
     where: { id: tournamentId, tenantId },
-    select: { id: true, title: true, status: true, prizePool: true, perKillPrize: true },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      gameMode: true,
+      matchType: true,
+      mapType: true,
+      matchTime: true,
+      prizePool: true,
+      perKillPrize: true,
+    },
   });
   if (!tournament) throw ApiError.notFound('Tournament not found');
 
@@ -324,9 +362,14 @@ export async function distributeTournamentPrizes(
       return breakdown;
     },
     {
+      // A 48-player tournament performs ~4 queries per player inside this
+      // single ACID payout (~192 queries). On a slow/remote Postgres that
+      // exceeds the default 20s interactive timeout, so we give it ample
+      // room (2 min). A timeout rolls the WHOLE batch back — no partial
+      // payouts — and the spectator simply retaps.
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      maxWait: 5000,
-      timeout: 20000,
+      maxWait: 10_000,
+      timeout: 120_000,
     },
   );
 

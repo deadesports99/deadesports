@@ -7,10 +7,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.tourney.core.datastore.SessionState
+import com.tourney.core.theme.ThemeMode
 
-/** Admin navigation — dashboard hub + three permission-gated consoles. */
+/** Admin navigation — dashboard hub + permission-gated consoles (+ owner-only staff console). */
 @Composable
-fun AdminNavHost(viewModel: AdminViewModel) {
+fun AdminNavHost(
+    viewModel: AdminViewModel,
+    themeMode: ThemeMode,
+    onSetThemeMode: (ThemeMode) -> Unit,
+) {
     val session: SessionState by viewModel.sessionFlow.collectAsState(initial = SessionState())
     val navController = rememberNavController()
 
@@ -43,6 +48,32 @@ fun AdminNavHost(viewModel: AdminViewModel) {
         }
         composable("wallet") {
             AdminWalletScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable("staff") {
+            AdminStaffScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable("matches") {
+            AdminMatchManagerScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable("settings") {
+            AdminSettingsScreen(
+                viewModel = viewModel,
+                themeMode = themeMode,
+                onSetThemeMode = onSetThemeMode,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable("settlement") {
+            AdminSettlementScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
             )

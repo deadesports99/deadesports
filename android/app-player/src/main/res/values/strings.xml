@@ -2,4 +2,6 @@
 <resources>
     <!-- Default name; overridden at build time by client_config.json via resValue. -->
     <string name="app_name">Thunder eSports</string>
+    <string name="play_store_disclaimer">This is a community esports tournament app. It is not affiliated with, endorsed by, or sponsored by Garena. Free Fire is a trademark of Garena International. All game assets belong to their respective owners.</string>
+    <string name="privacy_policy_url">https://example.com/privacy</string>
 </resources>

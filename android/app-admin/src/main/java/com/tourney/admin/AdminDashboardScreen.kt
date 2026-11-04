@@ -1,5 +1,6 @@
 package com.tourney.admin
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,8 +13,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.PeopleAlt
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -94,6 +99,15 @@ fun AdminDashboardScreen(
         )
         add(
             AdminFeature(
+                "Manage Matches",
+                "Sweep lifecycle now • cancel a match & auto-refund all seats",
+                Icons.Filled.FactCheck,
+                isAdmin || perms.canCreateMatch,
+                "matches",
+            )
+        )
+        add(
+            AdminFeature(
                 "Wallet Console",
                 "Deposits (Add Cash UTR) + withdrawals (UPI payouts) in one queue",
                 Icons.Filled.AccountBalanceWallet,
@@ -101,6 +115,37 @@ fun AdminDashboardScreen(
                 "wallet",
             )
         )
+        // Owner-only: hiring + granular permissions for sub-admins.
+        if (isAdmin) {
+            add(
+                AdminFeature(
+                    "Staff Management",
+                    "Hire sub-admins, edit permissions, remove staff (owner only)",
+                    Icons.Filled.PeopleAlt,
+                    true,
+                    "staff",
+                )
+            )
+            // Owner-only: runtime UPI / WhatsApp / min deposit (no APK rebuild).
+            add(
+                AdminFeature(
+                    "App Settings",
+                    "Change the collecting UPI ID, payee name, support number & min deposit (owner only)",
+                    Icons.Filled.Settings,
+                    true,
+                    "settings",
+                )
+            )
+            add(
+                AdminFeature(
+                    "Daily Settlement",
+                    "Collections, payouts, net margin and CSV export (owner only)",
+                    Icons.Filled.Assessment,
+                    true,
+                    "settlement",
+                )
+            )
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -148,7 +193,18 @@ fun AdminDashboardScreen(
             }
 
             features.forEach { feature ->
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Whole card is tappable (not just the tiny "Open" label).
+                        .then(
+                            if (feature.enabled) {
+                                Modifier.clickable { onOpenRoute(feature.route) }
+                            } else {
+                                Modifier
+                            }
+                        ),
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

@@ -105,26 +105,32 @@ export async function reserveSlot(
   if (redis.status !== 'ready') {
     return { ok: true };
   }
-  const result = (await redis.eval(
-    RESERVE_SCRIPT,
-    2,
-    slotKey(tournamentId),
-    joinedKey(tournamentId),
-    slotNumber,
-    userId,
-    maxSlots,
-    SEAT_TTL_MS,
-  )) as number;
+  try {
+    const result = (await redis.eval(
+      RESERVE_SCRIPT,
+      2,
+      slotKey(tournamentId),
+      joinedKey(tournamentId),
+      slotNumber,
+      userId,
+      maxSlots,
+      SEAT_TTL_MS,
+    )) as number;
 
-  switch (result) {
-    case 0:
-      return { ok: true };
-    case 1:
-      return { ok: false, code: 'SLOT_TAKEN' };
-    case 2:
-      return { ok: false, code: 'ALREADY_JOINED' };
-    default:
-      return { ok: false, code: 'TOURNAMENT_FULL' };
+    switch (result) {
+      case 0:
+        return { ok: true };
+      case 1:
+        return { ok: false, code: 'SLOT_TAKEN' };
+      case 2:
+        return { ok: false, code: 'ALREADY_JOINED' };
+      default:
+        return { ok: false, code: 'TOURNAMENT_FULL' };
+    }
+  } catch {
+    // If Redis drops after the status check, fall back to the DB transaction;
+    // its unique slot/user constraints remain the correctness backstop.
+    return { ok: true };
   }
 }
 
@@ -135,7 +141,11 @@ export async function releaseSlot(
   userId: string,
 ): Promise<void> {
   if (redis.status !== 'ready') return;
-  await redis.eval(RELEASE_SCRIPT, 2, slotKey(tournamentId), joinedKey(tournamentId), slotNumber, userId);
+  try {
+    await redis.eval(RELEASE_SCRIPT, 2, slotKey(tournamentId), joinedKey(tournamentId), slotNumber, userId);
+  } catch {
+    // Redis cleanup is best effort; the database transaction has already failed.
+  }
 }
 
 /**

@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { pushToTournamentParticipants } from './fcm.service.js';
+import { realtimeService } from './realtime.service.js';
 
 /**
  * 🕒 MATCH STATE-MACHINE SWEEP
@@ -70,6 +71,11 @@ export async function sweepMatchStates(
     if (flipped.count !== 1) continue; // someone else won the race — skip the push
 
     roomRevealed.push({ id: candidate.id, title: candidate.title, matchTime: candidate.matchTime });
+    realtimeService.broadcast('MATCH_STATUS_CHANGED', {
+      tournamentId: candidate.id,
+      status: 'ROOM_REVEALED',
+    });
+
 
     void pushToTournamentParticipants(candidate.id, {
       type: 'ROOM_REVEALED',
@@ -100,6 +106,11 @@ export async function sweepMatchStates(
     });
     if (flipped.count !== 1) continue;
     wentLive.push({ id: candidate.id, title: candidate.title, matchTime: candidate.matchTime });
+    realtimeService.broadcast('MATCH_STATUS_CHANGED', {
+      tournamentId: candidate.id,
+      status: 'LIVE',
+    });
+
   }
 
   return {

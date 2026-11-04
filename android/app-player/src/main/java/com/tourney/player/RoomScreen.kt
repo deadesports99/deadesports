@@ -98,6 +98,8 @@ fun RoomScreen(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                val roomId = state.credentials.roomId ?: "Unavailable"
+                val roomPassword = state.credentials.roomPassword ?: "Unavailable"
                 Text(
                     "Match Lobby Open ✅",
                     style = MaterialTheme.typography.headlineSmall,
@@ -112,19 +114,19 @@ fun RoomScreen(
 
                 CredentialCard(
                     label = "Room ID",
-                    value = state.credentials.roomId,
+                    value = roomId,
                     onCopy = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        clipboard.setText(AnnotatedString(state.credentials.roomId))
+                        clipboard.setText(AnnotatedString(roomId))
                         copiedLabel = "Room ID copied"
                     },
                 )
                 CredentialCard(
                     label = "Room Password",
-                    value = state.credentials.roomPassword,
+                    value = roomPassword,
                     onCopy = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        clipboard.setText(AnnotatedString(state.credentials.roomPassword))
+                        clipboard.setText(AnnotatedString(roomPassword))
                         copiedLabel = "Password copied"
                     },
                 )

@@ -28,6 +28,14 @@ function withoutSslMode(databaseUrl: string): string {
 const pool = new pg.Pool({
   connectionString: withoutSslMode(env.DATABASE_URL),
   ssl: { rejectUnauthorized: false },
+  // Keep the application-side pool bounded for Supabase's PgBouncer pooler.
+  max: env.DB_POOL_MAX,
+  idleTimeoutMillis: env.DB_POOL_IDLE_TIMEOUT_MS,
+  connectionTimeoutMillis: env.DB_POOL_CONNECTION_TIMEOUT_MS,
+});
+
+pool.on('error', (err) => {
+  console.warn('[pg.Pool idle client error (auto-reconnected)]:', err.message);
 });
 
 const adapter = new PrismaPg(pool);

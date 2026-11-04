@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as tournamentController from '../controllers/tournament.controller.js';
 import { authenticate, requirePermission, requireRole } from '../middlewares/auth.middleware.js';
+import { joinSlotRateLimiter } from '../middlewares/rateLimiter.js';
 
 /**
  * Tournament Engine routes — mounted at /api/v1/tournaments
@@ -33,6 +34,7 @@ tournamentRouter.post(
   '/:id/join',
   authenticate,
   requireRole('USER'),
+  joinSlotRateLimiter,
   tournamentController.joinTournament,
 );
 
@@ -48,4 +50,12 @@ tournamentRouter.post(
   authenticate,
   requirePermission('canCreateMatch'),
   tournamentController.cancelTournamentAndRefundAll,
+);
+
+// Phase 7 — 1-tap clone (admin/staff with canCreateMatch).
+tournamentRouter.post(
+  '/:id/clone',
+  authenticate,
+  requirePermission('canCreateMatch'),
+  tournamentController.cloneTournament,
 );

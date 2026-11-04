@@ -3,13 +3,13 @@ import type { Role, User } from '../generated/prisma/client.js';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { invalidateAuthCache } from '../middlewares/auth.middleware.js';
 import { PERMISSION_KEYS, type PermissionsInput, type TokenPayload } from '../types/auth.js';
+import { normalizePhoneNumber, verifyFirebaseGoogleToken, verifyFirebasePhoneToken } from './firebase.service.js';
 
 /** Sign a JWT for a given identity (role included for cheap client-side checks). */
 export function generateToken(payload: TokenPayload): string {
   return jwt.sign(payload, env.JWT_SECRET, {
-    // JWT_EXPIRES_IN is a free-form duration string like "7d"/"24h" —
-    // jsonwebtoken accepts it via the ms StringValue type.
     expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
     issuer: 'freefire-tournament-api',
     audience: 'freefire-tournament-apps',
@@ -76,38 +76,105 @@ async function assertTenantActive(tenantId: string): Promise<void> {
 }
 
 async function assertPhoneFree(tenantId: string, phoneNumber: string): Promise<void> {
-  const existing = await prisma.user.findUnique({
-    where: { tenantId_phoneNumber: { tenantId, phoneNumber } },
+  const norm = normalizePhoneNumber(phoneNumber);
+  const existing = await prisma.user.findFirst({
+    where: {
+      tenantId,
+      phoneNumber: { in: [norm.national, norm.e164] },
+    },
   });
   if (existing) throw ApiError.conflict('Phone number already registered');
 }
 
-interface RegisterPlayerInput {
+/**
+ * Developer Whitelisted Test Devices:
+ * Temporarily exempts developer testing phones from multi-accounting blocks during app development & testing.
+ * MUST be cleaned up / removed before final production cloud deployment.
+ * Tracked in: plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md
+ */
+const DEV_TEST_DEVICE_IDS = new Set<string>([
+  '1d24b2b7de7dafdb', // Jay's Realme test phone (:app-player scoped Android ID)
+  'd75a826d9b6319b1', // Jay's Realme test phone (system shell Android ID)
+  ...(process.env.DEV_ALLOWED_DEVICE_IDS ? process.env.DEV_ALLOWED_DEVICE_IDS.split(',').map((s) => s.trim()) : []),
+]);
+
+/**
+ * Anti-Multi-Accounting (Device Lock):
+ * General Rule: Maximum 2 accounts per physical mobile device (to prevent fraud while allowing family/dual accounts).
+ * Developer Exemption: Whitelisted testing phones or DEV_UNLIMITED_DEVICE_ACCOUNTS=true allow unlimited accounts.
+ */
+async function assertDeviceFree(tenantId: string, deviceId?: string): Promise<string | undefined> {
+  if (!deviceId) return undefined;
+
+  const trimmed = deviceId.trim();
+  if (!trimmed) return undefined;
+
+  console.log(`[auth] assertDeviceFree check deviceId="${trimmed}" (isWhitelisted=${DEV_TEST_DEVICE_IDS.has(trimmed)})`);
+
+  // Developer testing phone: allow unlimited accounts for test device
+  if (DEV_TEST_DEVICE_IDS.has(trimmed) || process.env.DEV_UNLIMITED_DEVICE_ACCOUNTS === 'true') {
+    console.log(`[auth] Developer device bypass granted for deviceId="${trimmed}"`);
+    return trimmed;
+  }
+
+  // General rule: Maximum 2 accounts allowed per physical device
+  const countOnDevice = await prisma.user.count({
+    where: { tenantId, deviceId: trimmed, isBanned: false },
+  });
+  if (countOnDevice >= 2) {
+    throw ApiError.forbidden(
+      'Tournament security: Maximum 2 accounts are allowed per physical mobile device.',
+    );
+  }
+  return trimmed;
+}
+
+export interface RegisterPlayerInput {
   tenantId: string;
-  phoneNumber: string;
-  inGameName: string;
-  inGameUid: string;
+  phoneNumber?: string;
+  idToken?: string;
+  name?: string;
+  inGameName?: string;
+  inGameUid?: string;
   deviceId?: string;
 }
 
 /** Register a new gamer (role USER) for a tenant. */
 export async function registerPlayer(data: RegisterPlayerInput): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
   await assertTenantActive(data.tenantId);
-  await assertPhoneFree(data.tenantId, data.phoneNumber);
+
+  let targetPhone = data.phoneNumber;
+  if (data.idToken) {
+    const verified = await verifyFirebasePhoneToken(data.idToken);
+    targetPhone = verified.national;
+  }
+
+  if (!targetPhone) {
+    throw ApiError.badRequest('Phone number or Firebase idToken is required');
+  }
+
+  const norm = normalizePhoneNumber(targetPhone);
+  await assertPhoneFree(data.tenantId, norm.national);
+
+  // Anti-Multi-Accounting: reject a 2nd active account on the same device.
+  const deviceId = await assertDeviceFree(data.tenantId, data.deviceId);
 
   // A Free Fire UID must not be usable by two accounts inside the same tenant.
-  const existingUid = await prisma.user.findFirst({
-    where: { tenantId: data.tenantId, inGameUid: data.inGameUid },
-  });
-  if (existingUid) throw ApiError.conflict('This Free Fire UID is already registered');
+  if (data.inGameUid && data.inGameUid.trim()) {
+    const existingUid = await prisma.user.findFirst({
+      where: { tenantId: data.tenantId, inGameUid: data.inGameUid.trim() },
+    });
+    if (existingUid) throw ApiError.conflict('This Free Fire UID is already registered');
+  }
 
   const user = await prisma.user.create({
     data: {
       tenantId: data.tenantId,
-      phoneNumber: data.phoneNumber,
-      inGameName: data.inGameName.trim(),
-      inGameUid: data.inGameUid.trim(),
-      deviceId: data.deviceId,
+      phoneNumber: norm.national,
+      name: data.name?.trim() || null,
+      inGameName: data.inGameName?.trim() || null,
+      inGameUid: data.inGameUid?.trim() || null,
+      deviceId,
       role: 'USER',
     },
   });
@@ -116,17 +183,84 @@ export async function registerPlayer(data: RegisterPlayerInput): Promise<{ user:
   return { user: sanitizeUser(user), token };
 }
 
-interface LoginWithPhoneInput {
+export interface GoogleAuthInput {
   tenantId: string;
-  phoneNumber: string;
+  idToken: string;
+  deviceId?: string;
+  name?: string;
 }
 
-/** Login with phone — verifies the account exists, returns fresh token. */
+/** 1-Tap Google Sign-In: registers new players or logs in existing players seamlessly. */
+export async function googleLoginOrRegister(
+  data: GoogleAuthInput,
+): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
+  await assertTenantActive(data.tenantId);
+
+  const verified = await verifyFirebaseGoogleToken(data.idToken);
+  const email = verified.email;
+
+  // Find user by email or by phone if phone matches
+  let user = await prisma.user.findFirst({
+    where: {
+      tenantId: data.tenantId,
+      email: email,
+    },
+  });
+
+  if (!user) {
+    // New player signing in with Google!
+    // Anti-Multi-Accounting: reject a 2nd active account on the same device.
+    const deviceId = await assertDeviceFree(data.tenantId, data.deviceId);
+
+    // Fallback phone number for DB uniqueness constraint:
+    const placeholderPhone = verified.phoneNumber
+      ? normalizePhoneNumber(verified.phoneNumber).national
+      : `G${verified.uid.slice(-9)}`;
+
+    user = await prisma.user.create({
+      data: {
+        tenantId: data.tenantId,
+        email: email,
+        phoneNumber: placeholderPhone,
+        name: data.name?.trim() || verified.name || 'Gamer',
+        deviceId,
+        role: 'USER',
+      },
+    });
+  } else {
+    if (user.isBanned) throw ApiError.forbidden('Your account has been banned');
+  }
+
+  const token = generateToken({ userId: user.id, tenantId: user.tenantId, role: user.role });
+  return { user: sanitizeUser(user), token };
+}
+
+export interface LoginWithPhoneInput {
+  tenantId: string;
+  phoneNumber?: string;
+  idToken?: string;
+}
+
+/** Login with phone or Firebase OTP — verifies account exists, returns fresh token. */
 export async function loginWithPhone(data: LoginWithPhoneInput): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
   await assertTenantActive(data.tenantId);
 
-  const user = await prisma.user.findUnique({
-    where: { tenantId_phoneNumber: { tenantId: data.tenantId, phoneNumber: data.phoneNumber } },
+  let targetPhone = data.phoneNumber;
+  if (data.idToken) {
+    const verified = await verifyFirebasePhoneToken(data.idToken);
+    targetPhone = verified.national;
+  }
+
+  if (!targetPhone) {
+    throw ApiError.badRequest('Phone number or Firebase idToken is required');
+  }
+
+  const norm = normalizePhoneNumber(targetPhone);
+  const user = await prisma.user.findFirst({
+    where: {
+      tenantId: data.tenantId,
+      phoneNumber: { in: [norm.national, norm.e164] },
+    },
   });
   if (!user) throw ApiError.unauthorized('User not registered — please register first');
   if (user.isBanned) throw ApiError.forbidden('Your account has been banned');
@@ -170,12 +304,13 @@ export async function createStaffMember(
   });
   if (emailTaken) throw ApiError.conflict('Email already in use by another account');
 
+  const norm = normalizePhoneNumber(data.phoneNumber);
   const staff = await prisma.user.create({
     data: {
       tenantId: adminUser.tenantId,
       name: data.name.trim(),
       email: data.email.toLowerCase().trim(),
-      phoneNumber: data.phoneNumber,
+      phoneNumber: norm.national,
       role: 'SUB_ADMIN',
       adminId: adminUser.id,
       ...normalizedPermissions,
@@ -203,4 +338,143 @@ export async function saveFcmToken(userId: string, token: string): Promise<{ reg
     data: { fcmToken: token.trim() },
   });
   return { registered: true };
+}
+
+// ─── ADMIN: STAFF (SUB_ADMIN) MANAGEMENT ─────────────────────────────────
+
+/** Public projection of a staff member (also used by the admin staff console). */
+export interface StaffMemberView {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phoneNumber: string;
+  role: Role;
+  permissions: Record<(typeof PERMISSION_KEYS)[number], boolean>;
+  isBanned: boolean;
+  adminId: string | null;
+  createdAt: Date;
+}
+
+function toStaffView(user: User): StaffMemberView {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phoneNumber: user.phoneNumber,
+    role: user.role,
+    permissions: {
+      canCreateMatch: user.canCreateMatch,
+      canUpdateRoomId: user.canUpdateRoomId,
+      canDistributePrize: user.canDistributePrize,
+      canManageWallet: user.canManageWallet,
+    },
+    isBanned: user.isBanned,
+    adminId: user.adminId,
+    createdAt: user.createdAt,
+  };
+}
+
+/** ADMIN-only guard shared by every staff-management action. */
+function assertAdmin(adminUser: AdminIdentity): void {
+  if (adminUser.role !== 'ADMIN') {
+    throw ApiError.forbidden('Only the admin can manage staff members');
+  }
+}
+
+/** Load a staff member that belongs to the admin's tenant (404 otherwise). */
+async function requireTenantStaff(adminUser: AdminIdentity, staffId: string) {
+  const staff = await prisma.user.findFirst({
+    where: { id: staffId, tenantId: adminUser.tenantId, role: 'SUB_ADMIN' },
+  });
+  if (!staff) throw ApiError.notFound('Staff member not found');
+  return staff;
+}
+
+/** ADMIN-only: every staff member hired by this tenant (active + deactivated). */
+export async function listStaffMembers(adminUser: AdminIdentity): Promise<{ staff: StaffMemberView[]; count: number }> {
+  assertAdmin(adminUser);
+
+  const rows = await prisma.user.findMany({
+    where: { tenantId: adminUser.tenantId, role: 'SUB_ADMIN' },
+    orderBy: { createdAt: 'desc' },
+  });
+  const staff = rows.map(toStaffView);
+  return { staff, count: staff.length };
+}
+
+export interface UpdateStaffInput {
+  name?: string;
+  email?: string;
+  permissions?: PermissionsInput;
+  isActive?: boolean;
+}
+
+/**
+ * ADMIN-only: update a staff member's granular permissions (and optionally
+ * name/email). Permissions are also refreshed in the auth cache so the change
+ * applies to the very next API call the staff member makes.
+ */
+export async function updateStaffMember(
+  adminUser: AdminIdentity,
+  staffId: string,
+  data: UpdateStaffInput,
+): Promise<StaffMemberView> {
+  assertAdmin(adminUser);
+
+  const staff = await requireTenantStaff(adminUser, staffId);
+
+  if (data.email) {
+    const email = data.email.toLowerCase().trim();
+    const taken = await prisma.user.findFirst({
+      where: { tenantId: adminUser.tenantId, email, NOT: { id: staff.id } },
+    });
+    if (taken) throw ApiError.conflict('Email already in use by another account');
+  }
+
+  const normalizedPermissions = data.permissions
+    ? (Object.fromEntries(
+        PERMISSION_KEYS.map((key) => [key, Boolean(data.permissions?.[key])]),
+      ) as Record<(typeof PERMISSION_KEYS)[number], boolean>)
+    : undefined;
+
+  const updated = await prisma.user.update({
+    where: { id: staff.id },
+    data: {
+      name: data.name?.trim() || undefined,
+      email: data.email ? data.email.toLowerCase().trim() : undefined,
+      isBanned: data.isActive === undefined ? undefined : !data.isActive,
+      ...(normalizedPermissions ?? {}),
+    },
+  });
+
+  invalidateAuthCache(updated.id);
+  return toStaffView(updated);
+}
+
+/**
+ * ADMIN-only: deactivate (soft delete) a staff member. The account can no
+ * longer log in or call any API, but the historic ledger/audit rows stay
+ * intact (a real DELETE would break `reviewedBy` trails).
+ */
+export async function removeStaffMember(
+  adminUser: AdminIdentity,
+  staffId: string,
+): Promise<StaffMemberView> {
+  assertAdmin(adminUser);
+
+  const staff = await requireTenantStaff(adminUser, staffId);
+
+  const updated = await prisma.user.update({
+    where: { id: staff.id },
+    data: {
+      isBanned: true,
+      canCreateMatch: false,
+      canUpdateRoomId: false,
+      canDistributePrize: false,
+      canManageWallet: false,
+    },
+  });
+
+  invalidateAuthCache(updated.id);
+  return toStaffView(updated);
 }

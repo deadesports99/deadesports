@@ -171,7 +171,8 @@ fun DepositModal(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(50, 100, 200, 500).forEach { quick ->
+                    // Chips follow the client's live minimum (set in Admin Settings).
+                    quickChips(minDeposit).forEach { quick ->
                         AssistChip(
                             onClick = { amountText = quick.toString(); localError = null },
                             label = { Text("+₹$quick", fontSize = 12.sp) },
@@ -373,4 +374,14 @@ fun DepositModal(
             }
         }
     }
+}
+
+/**
+ * Quick-add chips derived from the tenant's minimum deposit, so a client who
+ * raises the floor to ₹100 never sees a useless +₹50 button.
+ */
+private fun quickChips(minDeposit: Int): List<Int> {
+    val base = minDeposit.coerceAtLeast(10)
+    val steps = listOf(base, base * 2, base * 5, base * 10)
+    return steps.distinct().take(4)
 }

@@ -75,7 +75,11 @@ Live proof from Phase 1: changed only the player config → 19 s incremental reb
   `Missing classes ... com.tourney.core.*` ("Missing classes detected while running R8").
 - `minSdk 24` needs the plain-vector launcher icon fallback in `res/mipmap/` alongside
   `mipmap-anydpi-v26` adaptive icons.
-- Emulator → backend: use `10.0.2.2:5000`; real device → LAN IP + `CORS_ORIGIN` update.
+- Production APKs use the HTTPS API URL from `client_config.json`.
+- Override it without editing branding files:
+  `./gradlew :app-player:assembleDebug :app-admin:assembleDebug -PapiBaseUrl=https://api.example.com/api/v1`.
+- Local emulator development can use `10.0.2.2:5000` through a local/debug
+  override; production Android traffic remains HTTPS-only.
 
 ## Phase 2 (Done) — Full UI Flows + Retrofit API Layer
 

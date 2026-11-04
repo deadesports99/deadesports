@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "client": {
+    "name": "Alpha eSports",
+    "app_name": "Alpha eSports",
+    "admin_app_name": "Alpha eSports Admin",
+    "application_id": "com.alphaesports.ff",
+    "admin_application_id": "com.alphaesports.ff.admin",
+    "version_name": "1.0.0",
+    "version_code": 1
+  },
+  "theme": {
+    "primary_color": "#FF5722",
+    "button_color": "#FF7043",
+    "accent_color": "#FFB300",
+    "corner_radius_dp": 12,
+    "font_style": "default",
+    "enable_dark_mode": true
+  },
+  "backend": {
+    "api_base_url": "https://api.alphaesports.in/api/v1",
+    "supabase_url": "https://YOUR-PROJECT-REF.supabase.co",
+    "supabase_anon_key": "YOUR_SUPABASE_ANON_KEY",
+    "tenant_id": "00000000-0000-0000-0000-000000000000"
+  },
+  "payments": {
+    "upi_id": "alphaesports@okaxis",
+    "upi_name": "Alpha eSports",
+    "min_deposit": 10,
+    "support_whatsapp": "919876543210"
+  },
+  "assets": {
+    "app_icon": "icons/app_icon.png"
+  }
+}

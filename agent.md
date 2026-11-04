@@ -5,7 +5,6 @@
 > **Project Author:** Jay Kumar  
 > **Preferred Communication:** Hinglish (Hindi + English)
 
----
 
 ## 🏛️ 1. Core Business Model & Non-Negotiable Rules
 
@@ -142,11 +141,98 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/4_Deposit_S
 4. **Match Lifecycle Auto-Sweep & Auto-Refund** — done (`matchSweep.service.ts` + refund cancellation).
 5. **Pull-to-Refresh & Empty/Error States** — done (feed, wallet, admin dashboard).
 
-### Suggested next milestone (Phase 5 ideas)
-- Staff "Sweep now" + match-cancel buttons in the admin app (backend endpoints already exist).
-- Deposit/withdrawal CSV export + daily reconciliation totals for the admin.
-- Room-creds countdown push scheduling + WhatsApp/Telegram share of room ID.
-- Configurable tenant UPI ID from the admin app instead of `client_config.json`.
+## 🎯 4b. Milestone Status: Phase 5 ✅ COMPLETE
+
+Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/5_Scoreboard_and_WhiteLabel_Handover/PLAN.md)
+Manual: [HANDOVER_MANUAL.md](file:///C:/Free%20Fire%20turnament/HANDOVER_MANUAL.md)
+
+1. **Staff / Sub-Admin console** — backend `GET | POST | PATCH | DELETE /auth/admin/staff` (`requireRole('ADMIN')`),
+   permission changes call `invalidateAuthCache` (instant effect), removal is a **soft deactivate** so
+   `reviewedBy` / ledger audit rows survive. Android `AdminStaffScreen.kt` (cards, ACTIVE/REMOVED pills,
+   permission chips, Hire/Edit dialog with 4 toggles, re-activate), route `"staff"`, dashboard card for ADMIN only.
+2. **Spectator scorer polish** — rank clamped 1..48, mandatory disqualification reason field, typed reason sent
+   with `POST /tournaments/:id/payout`.
+3. **Official player scoreboard** — `ScoreboardScreen.kt` rewritten: map hero banner, prize pool / per-kill /
+   match time, golden **Booyah** banner, **Top Fragger** card, red DQ banner, medals, "prize voided" hacker rows.
+   Backend `getTournamentResults` now returns `gameMode / matchType / mapType / matchTime`.
+4. **1-click payout** — verified atomic: rank1 ₹50 + 3 kills ₹15 = ₹65 → `WINNING_PRIZE` ledger → `COMPLETED`.
+5. **10-minute white-label handover** — `clients/_template` + `clients/sample_client`, `package_client.bat` →
+   `tools/package_client.mjs` (config validation, branded config/colors/icon injection, APK build + `dist/<slug>/`
+   + `build-info.json` SHA-256, auto-restore), `HANDOVER_MANUAL.md` (Supabase/Firebase, Play compliance,
+   Garena disclaimer, zero-liability model).
+6. **Push auto-enable** — both app modules apply `com.google.gms.google-services` only when `google-services.json`
+   exists; `android/gradle/verification-metadata.xml` extended for the plugin **and** for the 26 lint/annotation artifacts
+   that `extractReleaseAnnotations` pulls in (release builds now verify clean). `google-services.json`, keystores and `dist/` are git-ignored.
+
+**Verification:** backend `npm run build` 0 errors · both APKs `assembleDebug` ✅ (28.34/28.29 MB) and `assembleRelease` (R8) ✅ (5.03/2.06 MB) ·
+`scripts_lifecycle.ts` **33/33 checks passed** (staff hire/permissions/deactivate, deposit→UTR→credit,
+match→join→room→payout→scoreboard, withdrawal→approval, ledger trail) with automatic cleanup.
+
+## 🎯 4c. Milestone Status: Phase 6 ✅ COMPLETE
+
+Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/6_Profile_ThemeSwitch_and_AdminSettings/PLAN.md)
+
+1. **Player Profile tab** — `ProfileScreen.kt`: identity card (IGN / FF UID / phone with copy buttons),
+   career stats grid (matches, played, Booyahs, kills, winnings, best rank) fed by the new
+   `GET /players/me/stats`, WhatsApp support, logout dialog + disk-cache wipe.
+2. **Dual theme switcher (Boss demand)** — `ThemeMode` (SYSTEM / DARK / LIGHT) persisted in `SessionManager`
+   (kept across logout + restart), applied in both apps' `MainActivity` via `ClientTheme(darkTheme = mode.isDark(systemDark))`.
+   Verified live on device: dark → light instant, survives force-stop.
+3. **Feed filters + history** — `[Active & Live | Completed]` tabs and `[All | Solo | Duo | Squad]` chips; completed cards
+   open the official scoreboard at any time (`GET /tournaments?status=COMPLETED`).
+4. **Admin Match Operations** — `AdminMatchManagerScreen.kt`: ⚡ Sweep Lifecycle Now + 🛑 Cancel & Refund with a
+   mandatory reason dialog (backend requires >= 5 chars). Verified end-to-end: cancel → ₹10 refunded, ledger `REFUND`,
+   badge CANCELLED, wallet back to ₹500.
+5. **Runtime Admin Settings** — `Tenant` gained `upiName / supportWhatsapp / minDeposit`; new
+   `GET /tenant/settings`, `GET|PATCH /admin/tenant/settings` (ADMIN). `AdminSettingsScreen.kt` edits them with
+   validation; the Player Add-Cash QR/payee/minimum and the support link now read from the database —
+   **no APK rebuild to change the UPI ID**. Deposit flow enforces the tenant minimum.
+
+**Verification:** backend `npm run build` 0 errors · `scripts_phase6.ts` **16/16** · debug ✅ (22.60/22.55 MB) ·
+release R8 ✅ (5.06/2.08 MB) · device walkthrough on a physical 1080×2400 phone with screenshots in `screenshots/`.
+
+## 🎯 4d. Milestone Status: Phase 7A (Phone-First Auth & Just-In-Time Game ID) ✅ COMPLETE
+
+1. **Phone-First Fast Registration (Zero-Friction Onboarding):**
+   - Registration now only requires phone number (+ optional display name).
+   - IGN and Free Fire UID are no longer mandatory at signup.
+   - Reduced onboarding friction by ~50%; users can explore the app immediately.
+2. **Just-In-Time In-Game ID Input on Match Join (`SlotPickerScreen.kt`):**
+   - When tapping an available slot, the confirmation bottom sheet dynamically checks whether the player has a Free Fire ID configured:
+     - If already configured: displays "Playing as: [IGN] (UID: [UID])" with an inline `[Change]` toggle.
+     - If not configured: smoothly presents In-Game Name & 6-12 digit UID input fields with a `[✔] Save as default Free Fire ID` checkbox.
+     - `SlideToJoinButton` & Quick Join buttons only activate when a valid IGN and UID are present.
+3. **Player Profile Game ID Editor (`ProfileScreen.kt`):**
+   - Added `[✏️ Edit Game Profile]` button on the Profile identity card.
+   - Opens a dialog allowing players to update their Free Fire IGN and UID anytime.
+   - Syncs seamlessly via new backend endpoint `PATCH /players/me/game-profile` and updates offline DataStore cache.
+4. **Backend Architecture Updates:**
+   - Auth: `registerPlayer` now treats `inGameName` and `inGameUid` as optional.
+   - Player Profile: added `PATCH /players/me/game-profile` with validation and tenant-wide UID conflict prevention.
+   - Tournament Join: `POST /tournaments/:id/join` accepts optional `inGameName`, `inGameUid`, and `saveAsDefault`.
+
+### Suggested next milestone (Phase 7B ideas)
+- Daily settlement report: CSV export of deposits, withdrawals, prizes and net profit (owner console).
+- Season leaderboard screen (aggregate kills/Booyahs across matches with a player rank card).
+- Admin "Create Match" template presets (clone last week's schedule in one tap).
+- Room-credential share sheet (WhatsApp/Telegram) + per-match reminder push at T-30.
+- Player profile edit (change IGN/FF UID) with staff approval queue.
+
+### 🔹 Milestone Status: Phase 7 ✅ COMPLETE
+
+- Daily settlement API + owner-only CSV export implemented and wired to `AdminSettlementScreen.kt`.
+- Admin dashboard now includes date-based KPI report and secure Android share flow for CSV.
+- Tournament clone API now creates a fresh `UPCOMING` match; Manage Matches has `+1 Hour`, `Tomorrow`, and clone actions.
+- `scripts_stress_test.ts` verified the complete 48-player money/tournament lifecycle: **24/24 passed** with automatic cleanup.
+- Play Store pre-flight strings, disclaimer placeholder and handover checklist added.
+- Verification: backend build clean; debug and R8 release APK builds clean.
+
+### Suggested next milestone (Phase 6 ideas)
+- Admin "Sweep now" + "Cancel & refund match" buttons on match cards (backend endpoints already exist).
+- Deposit/withdrawal CSV export + daily reconciliation totals.
+- Tenant UPI ID editable from the admin app (withdrawal + deposit QR follow it) instead of `client_config.json`.
+- Leaderboard/season ranking screen for players (aggregate kills + Booyahs across matches).
+- Light theme pass (Boss asked for light + dark mode in `boss demand/WP.txt`).
 
 ---
 
@@ -154,7 +240,7 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/4_Deposit_S
 
 When continuing from this file in a new chat:
 1. Greet the user in **Hinglish**.
-2. Acknowledge that Backend Phases 1-4 and Android Phases 1-2 are **100% completed & verified**.
-3. Backend + Android Phases 1-4 are complete; next work starts from the Phase 5 ideas above.
+2. Acknowledge that Backend + Android Phases 1-6 are **100% completed & verified**.
+3. Backend + Android Phases 1-6 are complete; next work starts from the Phase 7 ideas above.
 4. Always leverage the reference repos in `git demo repo\` when generating code or prompts.
 5. Keep all checklist files in `plan/` updated.

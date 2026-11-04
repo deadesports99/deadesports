@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "client": {
+    "name": "Thunder eSports",
+    "app_name": "Thunder eSports",
+    "admin_app_name": "Thunder eSports Admin",
+    "application_id": "com.thunderesports.player",
+    "admin_application_id": "com.thunderesports.admin",
+    "version_name": "1.0.0",
+    "version_code": 1
+  },
+  "theme": {
+    "primary_color": "#FF5722",
+    "button_color": "#FF7043",
+    "accent_color": "#FFB300",
+    "corner_radius_dp": 12,
+    "font_style": "default",
+    "enable_dark_mode": true
+  },
+  "backend": {
+    "api_base_url": "https://api.alphaesports.in/api/v1",
+    "supabase_url": "https://zupnlhdtfirufmlurkef.supabase.co",
+    "supabase_anon_key": "",
+    "tenant_id": "a3c11cd0-324e-4886-b27c-9667fd7f59dc"
+  },
+  "payments": {
+    "upi_id": "thunderesports@okaxis",
+    "upi_name": "Thunder eSports",
+    "min_deposit": 10,
+    "support_whatsapp": "919999900001"
+  },
+  "assets": {
+    "app_icon": "icons/app_icon.png"
+  }
+}

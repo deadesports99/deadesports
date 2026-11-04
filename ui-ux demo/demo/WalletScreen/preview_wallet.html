@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Fire Tournament Arena - Wallet Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              gold: '#FFD000',
+              cyan: '#00C2FF',
+              void: '#081326'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="m-0 p-0 font-sans antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    // --- Lucide SVG Icons ---
+    const ShieldCheck = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.6 20 5.7v6c0 4.9-3.4 8.5-8 10.1-4.6-1.6-8-5.2-8-10.1v-6L12 2.6Z" fill="currentColor" fillOpacity=".22"/> <path d="M8.5 11.9l2.4 2.4 4.6-4.8" strokeWidth="2.6"/></svg>
+    );
+    const Plus = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4.9v14.2M4.9 12h14.2"/></svg>
+    );
+    const ArrowUpRight = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.6 17.4 17.4 6.6M8.7 6.6h8.7v8.7"/></svg>
+    );
+    const ArrowDownLeft = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.4 6.6 6.6 17.4M15.3 17.4H6.6V8.7"/></svg>
+    );
+    const CheckCircle2 = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.6" fill="currentColor" fillOpacity=".22"/> <path d="M7.9 12.2l2.7 2.7 5.5-5.7" strokeWidth="2.6"/></svg>
+    );
+    const Wallet = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.7" y="6" width="18.6" height="13.6" rx="3.6" fill="currentColor" fillOpacity=".22"/> <path d="M2.7 10.4h18.6"/> <rect x="14.6" y="13.1" width="4.9" height="3.4" rx="1.7"/> <circle cx="17" cy="14.8" r="1.15" fill="currentColor"/></svg>
+    );
+    const Gamepad2 = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.4 7.5h9.2a4.4 4.4 0 0 1 4.25 3.45l.95 4.7a2.6 2.6 0 0 1-4.6 2.2l-1.2-1.55H8l-1.2 1.55a2.6 2.6 0 0 1-4.6-2.2l.95-4.7A4.4 4.4 0 0 1 7.4 7.5Z" fill="currentColor" fillOpacity=".22"/> <path d="M8.1 11.1v2.8M6.7 12.5h2.8"/> <circle cx="15.7" cy="11.9" r="1.2" fill="currentColor"/><circle cx="18" cy="14.1" r="1.2" fill="currentColor"/></svg>
+    );
+    const User = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.8" fill="currentColor" fillOpacity=".22"/> <path d="M4.5 20.4c0-4 3.4-6.9 7.5-6.9s7.5 2.9 7.5 6.9"/></svg>
+    );
+    const Sun = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.1" fill="currentColor" fillOpacity=".22"/> <path d="M12 2.2v2.2M12 19.6v2.2M2.2 12h2.2M19.6 12h2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M19.1 4.9l-1.6 1.6M6.5 17.5l-1.6 1.6"/></svg>
+    );
+    const Moon = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.3 15.1A8.7 8.7 0 0 1 9 3.9 8.7 8.7 0 1 0 20.3 15.1Z" fill="currentColor" fillOpacity=".22"/> <path d="M16.2 4.2l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8Z" fill="currentColor"/></svg>
+    );
+    const Trophy = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3.7h10v4.2a5 5 0 0 1-10 0V3.7Z" fill="currentColor" fillOpacity=".22"/> <path d="M7 5.4H4.9a2.1 2.1 0 0 0 0 4.2h.9M17 5.4h2.1a2.1 2.1 0 0 1 0 4.2h-.9M12 12.9v4.3"/> <rect x="8.6" y="17.2" width="6.8" height="3" rx="1.4" fill="currentColor" fillOpacity=".22"/></svg>
+    );
+    const Sparkles = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.4 3.4l1.7 4.2 4.2 1.7-4.2 1.7-1.7 4.2-1.7-4.2L5.5 9.3l4.2-1.7Z" fill="currentColor"/> <path d="M18.1 13.6l.95 2.3 2.3.95-2.3.95-.95 2.3-.95-2.3-2.3-.95 2.3-.95Z" fill="currentColor"/> <path d="M5.6 15.4l.65 1.6 1.6.65-1.6.65-.65 1.6-.65-1.6L3.35 17.65l1.6-.65Z" fill="currentColor" fillOpacity=".55"/></svg>
+    );
+    const Clock = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.6" fill="currentColor" fillOpacity=".22"/><path d="M12 7.3V12l3.4 2.2"/></svg>
+    );
+    const Copy = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="8.3" y="8.3" width="12.4" height="12.4" rx="3.2" fill="currentColor" fillOpacity=".22"/> <path d="M15.6 5.4a2.7 2.7 0 0 0-2.7-2.7H6A2.7 2.7 0 0 0 3.3 5.4v6.9a2.7 2.7 0 0 0 2.7 2.7"/></svg>
+    );
+    const Check = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.6 12.7 9.4 17.5 19.4 6.9" strokeWidth="2.6"/></svg>
+    );
+    const AlertCircle = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.6" fill="currentColor" fillOpacity=".22"/><path d="M12 7v5.6"/><circle cx="12" cy="16.5" r="1.25" fill="currentColor"/></svg>
+    );
+    const Zap = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.1 2.8 6.2 12.5h4.4l-1.1 8.7 7.4-10.4h-4.4l.6-8Z" fill="currentColor" fillOpacity=".22"/> <path d="M13.1 2.8 9.9 7.6h4.4Z" fill="currentColor" fillOpacity=".55"/></svg>
+    );
+    const RefreshCw = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.4 12a8.4 8.4 0 1 1-2.65-6.15"/><path d="M20.4 3.5v4.9h-4.9"/></svg>
+    );
+
+    const INITIAL_TRANSACTIONS = [
+      {
+        id: 'tx-101',
+        title: 'Tournament Entry: Bermuda Pro Scrims #42',
+        amount: 30,
+        isCredit: false,
+        category: 'Entry',
+        badgeText: 'Entry Fee',
+        badgeTone: 'slate',
+        time: 'Today, 08:45 PM',
+        utr: 'EGA-8841209',
+      },
+      {
+        id: 'tx-102',
+        title: 'Booyah 1st Place: Purgatory Cup #38',
+        amount: 350,
+        isCredit: true,
+        category: 'Winnings',
+        badgeText: 'Winnings Won',
+        badgeTone: 'emerald',
+        time: 'Yesterday, 10:20 PM',
+        utr: 'WIN-9920418',
+      },
+      {
+        id: 'tx-103',
+        title: 'UPI Deposit via PhonePe',
+        amount: 200,
+        isCredit: true,
+        category: 'Deposits',
+        badgeText: 'Deposit',
+        badgeTone: 'cyan',
+        time: 'Yesterday, 06:12 PM',
+        utr: 'UTR-431900821412',
+      },
+      {
+        id: 'tx-104',
+        title: 'UPI Withdrawal to 9876543210@paytm',
+        amount: 250,
+        isCredit: false,
+        category: 'Withdrawals',
+        badgeText: 'Transfer Success',
+        badgeTone: 'emerald',
+        time: '01 Nov, 04:05 PM',
+        utr: 'UTR-431788510924',
+      },
+    ];
+
+    const QUICK_ADD_AMOUNTS = [50, 100, 200, 500];
+    const TX_FILTERS = ['All', 'Deposits', 'Winnings', 'Withdrawals'];
+
+    function FreeFireWalletScreen() {
+      const [theme, setTheme] = useState('dark');
+      const [activeTab, setActiveTab] = useState('wallet');
+      const isDark = theme === 'dark';
+
+      const [depositCash, setDepositCash] = useState(120);
+      const [winningsCash, setWinningsCash] = useState(300);
+      const totalBalance = depositCash + winningsCash;
+
+      const [walletMode, setWalletMode] = useState('add');
+
+      const [addAmount, setAddAmount] = useState('100');
+      const [addFocused, setAddFocused] = useState(false);
+
+      const [upiId, setUpiId] = useState('9876543210@paytm');
+      const [withdrawAmount, setWithdrawAmount] = useState('150');
+      const [upiFocused, setUpiFocused] = useState(false);
+      const [withdrawAmtFocused, setWithdrawAmtFocused] = useState(false);
+
+      const [txFilter, setTxFilter] = useState('All');
+      const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
+      const [copiedId, setCopiedId] = useState(null);
+      const [isProcessing, setIsProcessing] = useState(false);
+      const [feedbackToast, setFeedbackToast] = useState(null);
+
+      const showToast = (text, type = 'success') => {
+        setFeedbackToast({ text, type });
+        setTimeout(() => setFeedbackToast(null), 2800);
+      };
+
+      const filteredTransactions = useMemo(() => {
+        if (txFilter === 'All') return transactions;
+        return transactions.filter((tx) => tx.category === txFilter);
+      }, [transactions, txFilter]);
+
+      const handleAddCashSubmit = (e) => {
+        e.preventDefault();
+        const numericAmount = Number(addAmount);
+        if (!numericAmount || numericAmount < 10) {
+          showToast('Minimum UPI deposit amount is ₹10', 'error');
+          return;
+        }
+
+        setIsProcessing(true);
+        setTimeout(() => {
+          setIsProcessing(false);
+          setDepositCash((prev) => prev + numericAmount);
+          const newTx = {
+            id: `tx-${Date.now()}`,
+            title: 'UPI Instant Deposit (Demo)',
+            amount: numericAmount,
+            isCredit: true,
+            category: 'Deposits',
+            badgeText: 'Deposit',
+            badgeTone: 'cyan',
+            time: 'Just now',
+            utr: `UTR-${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+          };
+          setTransactions((prev) => [newTx, ...prev]);
+          showToast(`₹${numericAmount} successfully added to Deposit Cash!`);
+        }, 1000);
+      };
+
+      const handleWithdrawSubmit = (e) => {
+        e.preventDefault();
+        const numericAmount = Number(withdrawAmount);
+
+        if (!upiId || !upiId.includes('@')) {
+          showToast('Please enter a valid UPI VPA (e.g. name@okhdfcbank)', 'error');
+          return;
+        }
+        if (!numericAmount || numericAmount < 50) {
+          showToast('Minimum withdrawal amount is ₹50', 'error');
+          return;
+        }
+        if (numericAmount > winningsCash) {
+          showToast(`Insufficient Winnings! Max withdrawable is ₹${winningsCash}`, 'error');
+          return;
+        }
+
+        setIsProcessing(true);
+        setTimeout(() => {
+          setIsProcessing(false);
+          setWinningsCash((prev) => prev - numericAmount);
+          const newTx = {
+            id: `tx-${Date.now()}`,
+            title: `UPI Payout to ${upiId}`,
+            amount: numericAmount,
+            isCredit: false,
+            category: 'Withdrawals',
+            badgeText: 'Transfer Success',
+            badgeTone: 'emerald',
+            time: 'Just now',
+            utr: `UTR-${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+          };
+          setTransactions((prev) => [newTx, ...prev]);
+          showToast(`₹${numericAmount} sent to ${upiId} successfully!`);
+        }, 1100);
+      };
+
+      const handleCopyUtr = (utr, id) => {
+        navigator.clipboard?.writeText(utr);
+        setCopiedId(id);
+        showToast(`Reference ${utr} copied to clipboard!`);
+        setTimeout(() => setCopiedId(null), 2000);
+      };
+
+      return (
+        <div
+          id="main-wallet-container"
+          className={`relative min-h-screen w-full flex items-center justify-center p-3 sm:p-6 transition-colors duration-500 overflow-hidden select-none ${
+            isDark ? 'bg-[#081326] text-white' : 'bg-[#DCE4EE] text-slate-900'
+          }`}
+        >
+          {/* Ambient Outer Background Mesh */}
+          <div className="pointer-events-none fixed inset-0 overflow-hidden">
+            <div
+              className={`absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full blur-[130px] transition-opacity duration-700 ${
+                isDark ? 'bg-sky-500/20 opacity-100' : 'bg-sky-400/30 opacity-80'
+              }`}
+            />
+            <div
+              className={`absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full blur-[140px] transition-opacity duration-700 ${
+                isDark ? 'bg-amber-500/15 opacity-100' : 'bg-amber-400/25 opacity-70'
+              }`}
+            />
+            <div
+              className={`absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:36px_36px] ${
+                isDark ? 'opacity-60' : 'opacity-30'
+              }`}
+            />
+          </div>
+
+          {/* Floating Theme Switcher */}
+          <div className="fixed top-4 right-4 z-50">
+            <button
+              id="theme-toggle-btn"
+              type="button"
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              className={`group flex items-center gap-2 rounded-full px-3.5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-300 active:scale-95 cursor-pointer ${
+                isDark
+                  ? 'bg-slate-900/75 text-slate-100 border border-white/15 shadow-lg shadow-black/40 hover:border-amber-400/50'
+                  : 'bg-white/85 text-slate-800 border border-slate-900/10 shadow-lg shadow-slate-900/10 hover:border-sky-500/40'
+              } backdrop-blur-xl`}
+            >
+              {isDark ? (
+                <>
+                  <Sun className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="h-3.5 w-3.5 text-sky-600" />
+                  <span>Dark Mode</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Main Mobile App Card with Strict 50% / 25% Glassmorphism */}
+          <main
+            id="wallet-card"
+            className={`relative w-full max-w-[430px] rounded-[26px] overflow-hidden transition-all duration-500 ${
+              isDark
+                ? 'bg-slate-900/50 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/75'
+                : 'bg-white/75 backdrop-blur-md border border-slate-900/10 shadow-xl shadow-slate-900/15'
+            }`}
+          >
+            {/* Header Ambient Glow */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-56 overflow-hidden">
+              <div
+                className={`absolute inset-0 ${
+                  isDark
+                    ? 'bg-[radial-gradient(ellipse_at_top_right,_rgba(255,208,0,0.18),_rgba(15,23,42,0.85)_65%,_transparent_100%)]'
+                    : 'bg-[radial-gradient(ellipse_at_top_right,_rgba(251,191,36,0.22),_rgba(241,245,249,0.7)_65%,_transparent_100%)]'
+                }`}
+              />
+            </div>
+
+            {/* Floating Toast */}
+            {feedbackToast && (
+              <div className="absolute top-16 inset-x-5 z-40 flex items-center justify-center">
+                <div
+                  className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-semibold shadow-lg backdrop-blur-md border ${
+                    feedbackToast.type === 'error'
+                      ? 'bg-rose-950/90 text-rose-200 border-rose-500/40'
+                      : isDark
+                      ? 'bg-slate-950/90 text-emerald-300 border-emerald-400/30'
+                      : 'bg-slate-900 text-emerald-300 border-emerald-400/40'
+                  }`}
+                >
+                  {feedbackToast.type === 'error' ? (
+                    <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  )}
+                  <span>{feedbackToast.text}</span>
+                </div>
+              </div>
+            )}
+
+            {/* TOP APP HEADER */}
+            <header
+              className={`relative z-10 flex items-center justify-between px-4 pt-4 pb-3 border-b ${
+                isDark ? 'border-white/10' : 'border-slate-900/10'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute -inset-1 rounded-full bg-amber-400/20 blur-xs" />
+                  <svg
+                    width="34"
+                    height="36"
+                    viewBox="0 0 64 68"
+                    fill="none"
+                    className="relative drop-shadow-[0_2px_8px_rgba(255,208,0,0.35)]"
+                  >
+                    <path d="M32 3L57 13.5V33.5C57 49.5 46.2 60.8 32 65C17.8 60.8 7 49.5 7 33.5V13.5L32 3Z" fill="#0B192E" stroke="#FFD000" strokeWidth="2.8" />
+                    <path d="M32 14C25.5 14 21 18.8 21 25.5V33L26.5 36.5L28.5 30.5H35.5L37.5 36.5L43 33V25.5C43 18.8 38.5 14 32 14Z" fill="#E2E8F0" />
+                    <rect x="10" y="39" width="44" height="12" rx="2.5" fill="#091326" stroke="#38BDF8" strokeWidth="1.2" />
+                    <text x="32" y="47.5" textAnchor="middle" fill="#FFD000" fontSize="6.5" fontWeight="900" letterSpacing="0.06em">EGA</text>
+                  </svg>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[13px] font-extrabold tracking-wider uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      ARENA WALLET
+                    </span>
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
+                  </div>
+                  <p className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Verified Double-Entry Ledger
+                  </p>
+                </div>
+              </div>
+
+              {/* Safety Badge */}
+              <div
+                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${
+                  isDark
+                    ? 'bg-emerald-400/10 border-emerald-400/25 text-emerald-300'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}
+              >
+                <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                <span>100% Safe UPI</span>
+              </div>
+            </header>
+
+            {/* Scrollable Viewport */}
+            <div className="relative z-10 px-4 pt-3.5 pb-24 space-y-4">
+              {/* DUAL-ENTRY BALANCE SHOWCASE (THE CORE HERO CARD) */}
+              <section
+                className={`relative overflow-hidden rounded-2xl p-4 border transition-all ${
+                  isDark
+                    ? 'bg-gradient-to-br from-[#0D1C34] via-[#0F2240] to-[#0A162A] border-amber-400/35 shadow-xl shadow-black/60'
+                    : 'bg-gradient-to-br from-white via-slate-50 to-slate-100 border-slate-300 shadow-md text-slate-900'
+                }`}
+              >
+                <div className="pointer-events-none absolute -right-6 -bottom-6 h-32 w-32 rounded-full bg-amber-400/15 blur-2xl" />
+
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Total Available Balance
+                    </span>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-2xl sm:text-3xl font-black tracking-tight text-[#FFD000]">
+                        ₹{totalBalance.toLocaleString('en-IN')}
+                      </span>
+                      <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        INR
+                      </span>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[9px] font-bold border ${
+                      isDark
+                        ? 'bg-sky-500/15 border-sky-400/30 text-sky-300'
+                        : 'bg-sky-50 border-sky-200 text-sky-800'
+                    }`}
+                  >
+                    <Zap className="h-2.5 w-2.5 text-[#00C2FF]" />
+                    Instant UPI Payouts
+                  </span>
+                </div>
+
+                {/* 2-Column Split Matrix: Deposit Cash vs Winnings Cash */}
+                <div
+                  className={`mt-3.5 grid grid-cols-2 gap-2.5 rounded-xl p-2.5 border ${
+                    isDark
+                      ? 'bg-slate-950/70 border-white/5'
+                      : 'bg-slate-100/90 border-slate-200/90'
+                  }`}
+                >
+                  <div className="border-r border-white/10 pr-2">
+                    <span className={`block text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Deposit Cash
+                    </span>
+                    <p className={`text-base font-extrabold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      ₹{depositCash}
+                    </p>
+                    <p className={`text-[9px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      For tournament entries
+                    </p>
+                  </div>
+
+                  <div className="pl-1">
+                    <div className="flex items-center gap-1">
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Winnings Cash
+                      </span>
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    </div>
+                    <p className="text-base font-extrabold mt-0.5 text-emerald-400">
+                      ₹{winningsCash}
+                    </p>
+                    <p className={`text-[9px] font-medium leading-tight mt-0.5 ${isDark ? 'text-emerald-300/80' : 'text-emerald-700'}`}>
+                      100% withdrawable to UPI
+                    </p>
+                  </div>
+                </div>
+
+                {/* Dual Compact Action Buttons: Add Cash vs Withdraw */}
+                <div className="mt-3.5 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWalletMode('add')}
+                    className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-extrabold transition-all active:scale-[0.96] cursor-pointer shadow-md ${
+                      walletMode === 'add'
+                        ? 'bg-[#FFD000] hover:bg-[#FFDA29] text-slate-950 shadow-amber-400/25 ring-2 ring-amber-400/40'
+                        : isDark
+                        ? 'bg-[#0B1526]/90 border border-white/10 text-white hover:border-white/20'
+                        : 'bg-white border border-slate-300 text-slate-800'
+                    }`}
+                  >
+                    <Plus className="h-3.5 w-3.5 stroke-[3]" />
+                    <span>+ Add Cash</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setWalletMode('withdraw')}
+                    className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-extrabold transition-all active:scale-[0.96] cursor-pointer shadow-md ${
+                      walletMode === 'withdraw'
+                        ? 'bg-[#00C2FF] hover:bg-[#19C9FF] text-slate-950 shadow-sky-500/25 ring-2 ring-sky-400/40'
+                        : isDark
+                        ? 'bg-[#0B1526]/90 border border-white/10 text-white hover:border-white/20'
+                        : 'bg-white border border-slate-300 text-slate-800'
+                    }`}
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5 stroke-[2.5]" />
+                    <span>Withdraw</span>
+                  </button>
+                </div>
+              </section>
+
+              {/* INTERACTIVE FORM TRAY: ADD CASH OR WITHDRAW */}
+              {walletMode === 'add' ? (
+                <section
+                  className={`rounded-2xl p-3.5 border transition-all ${
+                    isDark ? 'bg-[#0B1526]/85 border-white/10' : 'bg-white/90 border-slate-300/85 shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      Instant UPI Top-Up
+                    </h3>
+                    <span className={`text-[10px] font-semibold text-sky-400`}>
+                      Zero Processing Fee
+                    </span>
+                  </div>
+
+                  {/* Quick Preset Chips */}
+                  <div className="grid grid-cols-4 gap-1.5 mb-3">
+                    {QUICK_ADD_AMOUNTS.map((amt) => {
+                      const isSelected = addAmount === String(amt);
+                      return (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setAddAmount(String(amt))}
+                          className={`rounded-lg py-1 text-xs font-extrabold transition-all active:scale-95 cursor-pointer border ${
+                            isSelected
+                              ? 'bg-amber-400/20 border-[#FFD000] text-[#FFD000]'
+                              : isDark
+                              ? 'bg-slate-900/80 border-white/10 text-slate-300 hover:border-white/20'
+                              : 'bg-slate-100 border-slate-300 text-slate-700 hover:border-slate-400'
+                          }`}
+                        >
+                          +₹{amt}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <form onSubmit={handleAddCashSubmit} className="space-y-3">
+                    <div>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-extrabold text-amber-400">
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          value={addAmount}
+                          onFocus={() => setAddFocused(true)}
+                          onBlur={() => setAddFocused(false)}
+                          onChange={(e) => setAddAmount(e.target.value)}
+                          placeholder="Enter custom deposit amount"
+                          className={`w-full rounded-xl pl-7 pr-3 py-2 text-sm font-extrabold outline-none transition-all ${
+                            isDark
+                              ? 'bg-slate-900 text-white placeholder-slate-500'
+                              : 'bg-slate-100 text-slate-900 placeholder-slate-400'
+                          } ${
+                            addFocused
+                              ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_0_12px_rgba(255,208,0,0.2)]'
+                              : 'border border-white/10'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isProcessing}
+                      className="w-full rounded-xl bg-[#FFD000] hover:bg-[#FFDA29] active:scale-[0.97] py-2.5 px-4 text-xs font-extrabold text-slate-950 shadow-md shadow-amber-400/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Processing UPI Payment...</span>
+                        </>
+                      ) : (
+                        <span>Pay ₹{addAmount || '0'} via UPI (GPay / PhonePe / Paytm)</span>
+                      )}
+                    </button>
+                  </form>
+                </section>
+              ) : (
+                <section
+                  className={`rounded-2xl p-3.5 border transition-all ${
+                    isDark ? 'bg-[#0B1526]/85 border-white/10' : 'bg-white/90 border-slate-300/85 shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      Instant UPI Withdrawal
+                    </h3>
+                    <span className="text-[10px] font-semibold text-emerald-400">
+                      Available: ₹{winningsCash}
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleWithdrawSubmit} className="space-y-3">
+                    <div>
+                      <label className={`block text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        Enter Your UPI ID (VPA)<span className="text-amber-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={upiId}
+                        onFocus={() => setUpiFocused(true)}
+                        onBlur={() => setUpiFocused(false)}
+                        onChange={(e) => setUpiId(e.target.value)}
+                        placeholder="e.g. 9876543210@paytm or player@oksbi"
+                        className={`w-full rounded-xl px-3 py-2 text-xs font-medium outline-none transition-all ${
+                          isDark
+                            ? 'bg-slate-900 text-white placeholder-slate-500'
+                            : 'bg-slate-100 text-slate-900 placeholder-slate-400'
+                        } ${
+                          upiFocused
+                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
+                            : 'border border-white/10'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={`text-[10px] font-bold uppercase ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                          Amount (Min. ₹50)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawAmount(String(winningsCash))}
+                          className="text-[10px] font-bold text-sky-400 hover:text-sky-300 cursor-pointer"
+                        >
+                          Withdraw Max (₹{winningsCash})
+                        </button>
+                      </div>
+
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-extrabold text-[#00C2FF]">
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          value={withdrawAmount}
+                          onFocus={() => setWithdrawAmtFocused(true)}
+                          onBlur={() => setWithdrawAmtFocused(false)}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          placeholder="Amount to withdraw"
+                          className={`w-full rounded-xl pl-7 pr-3 py-2 text-sm font-extrabold outline-none transition-all ${
+                            isDark
+                              ? 'bg-slate-900 text-white placeholder-slate-500'
+                              : 'bg-slate-100 text-slate-900 placeholder-slate-400'
+                          } ${
+                            withdrawAmtFocused
+                              ? 'border-2 border-sky-400 ring-2 ring-sky-400/30'
+                              : 'border border-white/10'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isProcessing}
+                      className="w-full rounded-xl bg-[#00C2FF] hover:bg-[#19C9FF] active:scale-[0.97] py-2.5 px-4 text-xs font-extrabold text-slate-950 shadow-md shadow-sky-500/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Dispatching to UPI Network...</span>
+                        </>
+                      ) : (
+                        <span>Transfer ₹{withdrawAmount || '0'} to UPI Now</span>
+                      )}
+                    </button>
+
+                    <p className={`text-[10px] text-center font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      ⚡ Min. withdrawal ₹50 • Zero TDS / Zero Fees • 2-Minute transfer
+                    </p>
+                  </form>
+                </section>
+              )}
+
+              {/* TRANSACTION HISTORY LEDGER */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    Recent Transactions
+                  </h3>
+                  <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Live Double-Entry Sync
+                  </span>
+                </div>
+
+                {/* Filter Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                  {TX_FILTERS.map((f) => {
+                    const isActive = txFilter === f;
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setTxFilter(f)}
+                        className={`rounded-lg px-2.5 py-1 text-[10px] font-extrabold transition-all active:scale-95 cursor-pointer border ${
+                          isActive
+                            ? 'bg-amber-400/15 border-[#FFD000] text-[#FFD000]'
+                            : isDark
+                            ? 'bg-[#0B1526]/80 border-white/10 text-slate-400 hover:border-white/20'
+                            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Transaction Items */}
+                <div className="space-y-2">
+                  {filteredTransactions.map((tx) => (
+                    <article
+                      key={tx.id}
+                      className={`rounded-2xl p-3 border transition-all flex items-center justify-between gap-3 ${
+                        isDark
+                          ? 'bg-[#0B1526]/85 border-white/10 hover:border-white/20'
+                          : 'bg-white/90 border-slate-300/85 hover:border-slate-400 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-xl shrink-0 ${
+                            tx.isCredit
+                              ? 'bg-emerald-400/15 text-emerald-400 border border-emerald-400/30'
+                              : 'bg-slate-800 text-slate-300 border border-white/10'
+                          }`}
+                        >
+                          {tx.isCredit ? (
+                            <ArrowDownLeft className="h-4 w-4" />
+                          ) : (
+                            <ArrowUpRight className="h-4 w-4" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 space-y-0.5">
+                          <p className={`text-xs font-bold truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            {tx.title}
+                          </p>
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                              {tx.time}
+                            </span>
+                            <span className="text-slate-600">•</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyUtr(tx.utr, tx.id)}
+                              className="font-mono text-sky-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>{tx.utr}</span>
+                              {copiedId === tx.id ? (
+                                <Check className="h-2.5 w-2.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-2.5 w-2.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span
+                          className={`text-xs font-black ${
+                            tx.isCredit ? 'text-emerald-400' : isDark ? 'text-white' : 'text-slate-900'
+                          }`}
+                        >
+                          {tx.isCredit ? '+' : '-'}₹{tx.amount}
+                        </span>
+                        <div>
+                          <span
+                            className={`inline-block rounded px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider ${
+                              tx.badgeTone === 'emerald'
+                                ? 'bg-emerald-400/15 text-emerald-300 border border-emerald-400/30'
+                                : tx.badgeTone === 'cyan'
+                                ? 'bg-sky-400/15 text-sky-300 border border-sky-400/30'
+                                : 'bg-slate-800 text-slate-400 border border-white/10'
+                            }`}
+                          >
+                            {tx.badgeText}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* BOTTOM NAVIGATION BAR */}
+            <nav
+              aria-label="Bottom Navigation"
+              className={`absolute bottom-3 inset-x-4 z-30 rounded-2xl px-2 py-1.5 border transition-all ${
+                isDark
+                  ? 'bg-slate-950/80 backdrop-blur-xl border-white/15 shadow-2xl shadow-black/80'
+                  : 'bg-white/85 backdrop-blur-xl border-slate-900/10 shadow-xl shadow-slate-900/10'
+              }`}
+            >
+              <div className="grid grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tournaments')}
+                  className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                    activeTab === 'tournaments'
+                      ? isDark
+                        ? 'bg-amber-400/15 text-[#FFD000]'
+                        : 'bg-slate-900 text-[#FFD000]'
+                      : isDark
+                      ? 'text-slate-400 hover:text-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Gamepad2 className="h-4 w-4" />
+                  <span>Tournaments</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('wallet')}
+                  className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                    activeTab === 'wallet'
+                      ? isDark
+                        ? 'bg-amber-400/15 text-[#FFD000] border border-amber-400/30 shadow-[0_0_12px_rgba(255,208,0,0.2)]'
+                        : 'bg-slate-900 text-[#FFD000]'
+                      : isDark
+                      ? 'text-slate-400 hover:text-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Wallet className="h-4 w-4" />
+                  <span>Wallet</span>
+                  <span className="rounded px-1 text-[9px] font-extrabold bg-[#FFD000] text-slate-950">
+                    ₹{totalBalance}
+                  </span>
+                  {activeTab === 'wallet' && (
+                    <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-5 rounded-full bg-[#FFD000] shadow-[0_0_8px_#FFD000]" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('profile')}
+                  className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                    activeTab === 'profile'
+                      ? isDark
+                        ? 'bg-amber-400/15 text-[#FFD000]'
+                        : 'bg-slate-900 text-[#FFD000]'
+                      : isDark
+                      ? 'text-slate-400 hover:text-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <User className="h-4 w-4" />
+                  <span>Profile</span>
+                </button>
+              </div>
+            </nav>
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<FreeFireWalletScreen />);
+  </script>
+</body>
+</html>

@@ -7,6 +7,15 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+/**
+ * Firebase Cloud Messaging — the client drops their own google-services.json
+ * into this module and push (deposit / withdrawal alerts) turns on.
+ */
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    logger.lifecycle("[fcm] google-services.json found — Firebase push enabled for ${project.name}")
+}
+
 /** Same 10-minute re-branding engine as :app-player, but admin identity. */
 val clientConfigFile = File(projectDir, "src/main/assets/client_config.json")
 val clientCfg = if (clientConfigFile.exists()) {
@@ -20,6 +29,37 @@ val clientCfg = if (clientConfigFile.exists()) {
 }
 val clientAppId = (clientCfg["application_id"] as? String) ?: "com.tourney.admin"
 val clientAppName = (clientCfg["app_name"] as? String) ?: "Thunder eSports Admin"
+// Optional per-client release versioning (falls back to the repo defaults).
+val clientVersionName = (clientCfg["version_name"] as? String) ?: "1.0.0"
+val clientVersionCode = (clientCfg["version_code"] as? Number)?.toInt() ?: 1
+
+// Production builds can override the bundled API URL without editing client
+// branding: ./gradlew ... -PapiBaseUrl=https://api.example.com/api/v1
+val apiBaseUrlOverride = providers.gradleProperty("apiBaseUrl")
+    .orElse(providers.environmentVariable("API_BASE_URL"))
+    .orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+
+val generatedApiConfigDir = layout.buildDirectory.dir("generated/api-config")
+val generateApiConfig = tasks.register("generateApiConfig") {
+    inputs.file(clientConfigFile)
+    inputs.property("apiBaseUrlOverride", apiBaseUrlOverride ?: "")
+    outputs.dir(generatedApiConfigDir)
+    doLast {
+        val output = generatedApiConfigDir.get().asFile.resolve("client_config.json")
+        val source = clientConfigFile.readText()
+        val rewritten = apiBaseUrlOverride?.let { url ->
+            require(Regex("^https?://[^\\s]+/api/v1$").matches(url)) {
+                "apiBaseUrl must be an HTTP or HTTPS URL ending in /api/v1"
+            }
+            Regex("(\"api_base_url\"\\s*:\\s*)\"[^\"]*\"")
+                .replace(source) { match -> "${match.groupValues[1]}\"$url\"" }
+        } ?: source
+        output.parentFile.mkdirs()
+        output.writeText(rewritten)
+    }
+}
 
 android {
     namespace = "com.tourney.admin"
@@ -29,8 +69,8 @@ android {
         applicationId = clientAppId
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = clientVersionCode
+        versionName = clientVersionName
 
         resValue("string", "app_name", clientAppName)
 
@@ -57,7 +97,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Use the generated directory as the complete asset source so the
+    // override never creates duplicate client_config.json entries.
+    sourceSets["main"].assets.setSrcDirs(listOf(generatedApiConfigDir))
 }
+
+tasks.named("preBuild").configure { dependsOn(generateApiConfig) }
 
 dependencies {
     implementation(project(":core"))

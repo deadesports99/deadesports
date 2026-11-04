@@ -1,43 +1,73 @@
 package com.tourney.player
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import com.tourney.core.datastore.SessionState
+import com.tourney.core.model.MatchType
 import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentStatus
+import com.tourney.core.network.ApiClient
+import com.tourney.core.security.SecurityChecker
 import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.AppTopBar
 import com.tourney.core.ui.ErrorState
@@ -45,6 +75,7 @@ import com.tourney.core.ui.GlassCard
 import com.tourney.core.ui.LoadingState
 import com.tourney.core.ui.MapBanner
 import com.tourney.core.ui.ModeBadge
+import com.tourney.core.ui.SlideToJoinButton
 import com.tourney.core.ui.StatusBadge
 import com.tourney.core.ui.TournamentArt
 import com.tourney.core.ui.formatMatchTime
@@ -52,27 +83,37 @@ import com.tourney.core.ui.formatMoney
 
 /**
  * Tournament feed — high-res Free Fire map banners + mode badges, live slot
- * progress and the join / room / results actions.
- *
- * Pull down to refresh (the list also auto-refreshes on ON_RESUME).
+ * progress, 1-tap direct Join via ModalBottomSheet, and room/scoreboard links.
  */
+enum class FeedTab { UPCOMING, LIVE }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TournamentFeedScreen(
     viewModel: PlayerViewModel,
-    onOpenSlots: (String, String, String) -> Unit,
     onOpenRoom: (String) -> Unit,
     onOpenScoreboard: (String) -> Unit,
+    onNavigateToWallet: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val state = viewModel.feedUi
-    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val haptics = LocalHapticFeedback.current
+
+    // Tabs: Upcoming vs Live Matches, plus mode chips
+    var currentTab by remember { mutableStateOf(FeedTab.UPCOMING) }
+    var modeFilter by remember { mutableStateOf<MatchType?>(null) }
+
+    // Direct Join Bottom Sheet state
+    var selectedTournamentForJoin by remember { mutableStateOf<Tournament?>(null) }
+    var showJoinedDetailsDialog by remember { mutableStateOf<Tournament?>(null) }
+    var joinSuccessMessage by remember { mutableStateOf<String?>(null) }
+
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshFeed()
+                viewModel.refreshFeed(silent = true)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -99,53 +140,108 @@ fun TournamentFeedScreen(
                 },
             )
 
+            // --- Status tabs + mode chips ---------------------------------
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FeedChip(
+                        label = "⚡ Upcoming",
+                        selected = currentTab == FeedTab.UPCOMING,
+                        onClick = { currentTab = FeedTab.UPCOMING },
+                        modifier = Modifier.weight(1f),
+                    )
+                    FeedChip(
+                        label = "🔴 Live Matches",
+                        selected = currentTab == FeedTab.LIVE,
+                        onClick = { currentTab = FeedTab.LIVE },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FeedChip(
+                        label = "All",
+                        selected = modeFilter == null,
+                        onClick = { modeFilter = null },
+                    )
+                    FeedChip(
+                        label = "Solo",
+                        selected = modeFilter == MatchType.SOLO,
+                        onClick = { modeFilter = MatchType.SOLO },
+                    )
+                    FeedChip(
+                        label = "Duo",
+                        selected = modeFilter == MatchType.DUO,
+                        onClick = { modeFilter = MatchType.DUO },
+                    )
+                    FeedChip(
+                        label = "Squad",
+                        selected = modeFilter == MatchType.SQUAD,
+                        onClick = { modeFilter = MatchType.SQUAD },
+                    )
+                }
+            }
+
+            // --- Feed list with pull-to-refresh ---------------------------
             PullToRefreshBox(
                 isRefreshing = viewModel.isFeedRefreshing,
                 onRefresh = {
-                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.refreshFeed()
                 },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
             ) {
                 when (state) {
-                    UiState.Idle, UiState.Loading -> LoadingState("Loading tournaments…")
-                    is UiState.Error -> {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Text(
-                                text = "⚠️ ${state.message}",
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(bottom = 16.dp),
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Button(onClick = { viewModel.refreshFeed() }) {
-                                    Text("Retry")
-                                }
-                                OutlinedButton(onClick = onLogout) {
-                                    Text("Logout")
-                                }
-                            }
-                        }
+                    UiState.Idle, UiState.Loading -> LoadingState("Loading matches…")
+                    is UiState.Error -> ErrorState(state.message) {
+                        viewModel.refreshFeed(forceLoading = true)
                     }
                     is UiState.Success -> {
-                        val items = state.data.items
+                        val allMatches = state.data.items
+
+                        // 1. Completely hide COMPLETED and CANCELLED (admin paid/settled -> gone from view)
+                        val activeMatches = allMatches.filter {
+                            it.status != TournamentStatus.COMPLETED && it.status != TournamentStatus.CANCELLED
+                        }
+
+                        // 2. Sort: joined matches first so player never loses their match, then by matchTime ASC
+                        val sortedMatches = activeMatches.sortedWith(
+                            compareByDescending<Tournament> { it.mySlot != null }
+                                .thenBy { it.matchTime }
+                        )
+
+                        // 3. Separate Upcoming vs Live sections
+                        val tabMatches = when (currentTab) {
+                            FeedTab.UPCOMING -> sortedMatches.filter {
+                                it.status == TournamentStatus.UPCOMING ||
+                                    it.status == TournamentStatus.OPEN ||
+                                    it.status == TournamentStatus.SLOTS_FULL ||
+                                    it.status == TournamentStatus.ROOM_REVEALED
+                            }
+                            FeedTab.LIVE -> sortedMatches.filter {
+                                it.status == TournamentStatus.LIVE ||
+                                    it.status == TournamentStatus.ROOM_REVEALED ||
+                                    it.status == TournamentStatus.UNDER_REVIEW
+                            }
+                        }
+
+                        val items = if (modeFilter == null) tabMatches else tabMatches.filter { it.matchType == modeFilter }
+
                         LazyColumn(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             item {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        "🔥 Active Matches (${items.size})",
+                                        if (currentTab == FeedTab.UPCOMING) "⚡ Upcoming Matches (${items.size})" else "🔴 Live Matches (${items.size})",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
@@ -159,22 +255,366 @@ fun TournamentFeedScreen(
 
                             if (items.isEmpty()) {
                                 item {
-                                    EmptyMatchesCard(onRefresh = { viewModel.refreshFeed(forceLoading = true) })
+                                    if (currentTab == FeedTab.UPCOMING) {
+                                        EmptyMatchesCard(onRefresh = { viewModel.refreshFeed(forceLoading = true) })
+                                    } else {
+                                        EmptyLiveCard(onRefresh = { viewModel.refreshFeed(forceLoading = true) })
+                                    }
                                 }
                             }
 
                             items(items, key = { it.id }) { t ->
                                 TournamentCard(
                                     tournament = t,
-                                    onOpenSlots = { onOpenSlots(t.id, t.matchType.name, t.entryFeeValue.toString()) },
+                                    onJoinClick = { selectedTournamentForJoin = t },
+                                    onViewSeatClick = { showJoinedDetailsDialog = t },
                                     onOpenRoom = { onOpenRoom(t.id) },
-                                    onOpenScoreboard = { onOpenScoreboard(t.id) },
                                 )
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    // ── Direct Join Bottom Sheet ──────────────────────────────────────────
+    if (selectedTournamentForJoin != null) {
+        val t = selectedTournamentForJoin!!
+        JoinMatchBottomSheet(
+            tournament = t,
+            viewModel = viewModel,
+            onDismiss = { selectedTournamentForJoin = null },
+            onNavigateToWallet = {
+                selectedTournamentForJoin = null
+                onNavigateToWallet()
+            },
+            onSuccess = { _ ->
+                selectedTournamentForJoin = null
+                joinSuccessMessage = "🎉 Successfully joined \"${t.title}\"! You are registered for this match."
+            },
+        )
+    }
+
+    // ── Joined Details Dialog ─────────────────────────────────────────────
+    if (showJoinedDetailsDialog != null) {
+        val t = showJoinedDetailsDialog!!
+        AlertDialog(
+            onDismissRequest = { showJoinedDetailsDialog = null },
+            title = { Text("🎟️ Match Entry Confirmed", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(t.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("✅ You are registered for this match!", color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
+                    Text("⏰ Match Time: ${formatMatchTime(t.matchTime)}", fontSize = 13.sp)
+                    Text("🔑 Room ID & Password will be revealed 15 minutes before match starts.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                AppButton(text = "Got It", onClick = { showJoinedDetailsDialog = null })
+            },
+        )
+    }
+
+    // ── Join Success Dialog ───────────────────────────────────────────────
+    if (joinSuccessMessage != null) {
+        AlertDialog(
+            onDismissRequest = { joinSuccessMessage = null },
+            title = { Text("Match Joined! 🎯", fontWeight = FontWeight.Bold) },
+            text = { Text(joinSuccessMessage!!) },
+            confirmButton = {
+                AppButton(
+                    text = "Awesome!",
+                    onClick = { joinSuccessMessage = null },
+                )
+            },
+        )
+    }
+}
+
+/**
+ * Direct Join Bottom Sheet:
+ * Lets the gamer review the match, verify their Free Fire IGN/UID, check wallet balance,
+ * and slide to confirm joining directly without going to any separate seat grid page!
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun JoinMatchBottomSheet(
+    tournament: Tournament,
+    viewModel: PlayerViewModel,
+    onDismiss: () -> Unit,
+    onNavigateToWallet: () -> Unit,
+    onSuccess: (com.tourney.core.model.JoinResult) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val haptics = LocalHapticFeedback.current
+    val sessionState by ApiClient.sessionManager.session.collectAsState(initial = SessionState())
+
+    var inGameNameInput by remember { mutableStateOf("") }
+    var inGameUidInput by remember { mutableStateOf("") }
+    var teamCodeInput by remember { mutableStateOf("") }
+    var isEditingId by remember { mutableStateOf(false) }
+
+    val hasSavedId = !sessionState.inGameUid.isNullOrBlank()
+
+    LaunchedEffect(tournament.id) {
+        viewModel.clearJoinError()
+        viewModel.refreshWallet()
+        if (sessionState.inGameName != null) inGameNameInput = sessionState.inGameName.orEmpty()
+        if (sessionState.inGameUid != null) inGameUidInput = sessionState.inGameUid.orEmpty()
+        isEditingId = !hasSavedId
+    }
+
+    val effectiveIgn = if (hasSavedId && !isEditingId) sessionState.inGameName.orEmpty() else inGameNameInput.trim()
+    val effectiveUid = if (hasSavedId && !isEditingId) sessionState.inGameUid.orEmpty() else inGameUidInput.trim()
+
+    val isIdentityValid = effectiveIgn.length >= 2 && effectiveUid.length in 6..12
+
+    val walletSummary = (viewModel.walletUi as? UiState.Success)?.data
+    val totalBalance = (walletSummary?.depositValue ?: 0.0) + (walletSummary?.winningValue ?: 0.0)
+    val hasSufficientBalance = totalBalance >= tournament.entryFeeValue
+
+    val isFull = tournament.slotsBooked >= tournament.totalSlots
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // Header: Title & Close
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        tournament.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ModeBadge(tournament.gameMode, size = 18.dp)
+                        Text(
+                            tournament.matchType.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            tournament.mapType.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            formatMatchTime(tournament.matchTime),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+
+            // Summary Card (Prize, Entry, Per Kill, Seats)
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    StatBlock(label = "Entry Fee", value = "₹${formatMoney(tournament.entryFeeValue)}", valueColor = MaterialTheme.colorScheme.primary)
+                    StatBlock(label = "Prize Pool", value = "₹${formatMoney(tournament.prizePoolValue)}", valueColor = Color(0xFF00C853))
+                    StatBlock(label = "Per Kill", value = "₹${formatMoney(tournament.perKillValue)}", valueColor = Color(0xFFFF9800))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "Seats: ${tournament.slotsBooked}/${tournament.totalSlots} Booked",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        if (isFull) "❌ Full" else "⚡ ${tournament.remainingSlots} seats left",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isFull) MaterialTheme.colorScheme.error else Color(0xFF00C853),
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { tournament.fillFraction },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                )
+            }
+
+            // Free Fire Identity (JIT setup)
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
+                if (hasSavedId && !isEditingId) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("🎮 Playing As:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "$effectiveIgn (UID: $effectiveUid)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        TextButton(onClick = { isEditingId = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Change", fontSize = 12.sp)
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "🎮 Free Fire Game Identity",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        OutlinedTextField(
+                            value = inGameNameInput,
+                            onValueChange = { inGameNameInput = it.take(30) },
+                            label = { Text("Free Fire IGN (Nickname)") },
+                            placeholder = { Text("e.g. RAISTAR_99") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = inGameUidInput,
+                            onValueChange = { inGameUidInput = it.filter(Char::isDigit).take(12) },
+                            label = { Text("Free Fire UID (6-12 digits)") },
+                            placeholder = { Text("1928374612") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+
+            // Squad Code if DUO / SQUAD
+            if (tournament.matchType != MatchType.SOLO) {
+                OutlinedTextField(
+                    value = teamCodeInput,
+                    onValueChange = { teamCodeInput = it.filter(Char::isDigit).take(6) },
+                    label = { Text("Squad Code (Optional)") },
+                    placeholder = { Text("6 digits (leave empty to create squad)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // Wallet Balance Status
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (hasSufficientBalance) Color(0xFF00C853).copy(alpha = 0.12f)
+                        else MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                    )
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        if (hasSufficientBalance) "Wallet Balance Sufficient" else "Insufficient Wallet Balance",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (hasSufficientBalance) Color(0xFF00C853) else MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        "Available: ₹${formatMoney(totalBalance)} • Entry: ₹${formatMoney(tournament.entryFeeValue)}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (!hasSufficientBalance) {
+                    AppButton(
+                        text = "+ Add Cash",
+                        onClick = onNavigateToWallet,
+                        modifier = Modifier.height(36.dp),
+                    )
+                }
+            }
+
+            // Error Message (if any)
+            viewModel.joinMatchError?.let { err ->
+                Text(
+                    err,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            if (!isIdentityValid) {
+                Text(
+                    "💡 Enter Free Fire IGN & UID above to unlock join",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            val buttonText = when {
+                isFull -> "Match Full ❌"
+                !isIdentityValid -> "Enter Free Fire IGN & UID >>"
+                !hasSufficientBalance -> "Insufficient Balance (Add Cash)"
+                else -> "Slide or Tap to Join (₹${tournament.entryFeeValue.toInt()}) >>"
+            }
+
+            // SlideToJoinButton
+            SlideToJoinButton(
+                text = buttonText,
+                enabled = !isFull && isIdentityValid && hasSufficientBalance && !viewModel.isJoiningMatch,
+                loading = viewModel.isJoiningMatch,
+                onConfirm = {
+                    if (SecurityChecker.isEmulator()) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        return@SlideToJoinButton
+                    }
+                    viewModel.joinMatch(
+                        tournamentId = tournament.id,
+                        inGameName = effectiveIgn,
+                        inGameUid = effectiveUid,
+                        teamCode = teamCodeInput.takeIf { it.isNotBlank() },
+                        onSuccess = onSuccess,
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -199,24 +639,69 @@ private fun EmptyMatchesCard(onRefresh: () -> Unit) {
     }
 }
 
+/** Live matches tab is empty. */
+@Composable
+private fun EmptyLiveCard(onRefresh: () -> Unit) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Text("🔴", fontSize = 34.sp)
+        Text(
+            "No live matches right now",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            "Matches will appear here automatically when custom room details are released or match starts. Check the Upcoming tab!",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+        )
+        AppButton(
+            text = "Refresh",
+            onClick = onRefresh,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** Small pill used for the status / mode filter rows. */
+@Composable
+private fun FeedChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                label,
+                fontSize = 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+            )
+        },
+        modifier = modifier,
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.primary,
+        ),
+    )
+}
+
 @Composable
 fun TournamentCard(
     tournament: Tournament,
-    onOpenSlots: () -> Unit,
+    onJoinClick: () -> Unit,
+    onViewSeatClick: () -> Unit,
     onOpenRoom: () -> Unit,
-    onOpenScoreboard: () -> Unit,
 ) {
     val canSeeRoom = tournament.mySlot != null && (
         tournament.status == TournamentStatus.ROOM_REVEALED ||
             tournament.status == TournamentStatus.LIVE ||
             tournament.status == TournamentStatus.UNDER_REVIEW
         )
-    val hasResults = tournament.status in setOf(
-        TournamentStatus.ROOM_REVEALED,
-        TournamentStatus.LIVE,
-        TournamentStatus.UNDER_REVIEW,
-        TournamentStatus.COMPLETED,
-    )
 
     GlassCard(
         cornerRadius = 16.dp,
@@ -243,43 +728,72 @@ fun TournamentCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ModeBadge(tournament.gameMode, size = 26.dp)
+                        ModeBadge(
+                            gameMode = tournament.gameMode,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
                         Text(
-                            " ${TournamentArt.modeLabel(tournament.gameMode)}",
-                            color = Color.White.copy(alpha = 0.92f),
-                            fontSize = 10.sp,
+                            tournament.gameMode.name.replace("_", " "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.85f),
                             fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
                         )
                     }
                     Text(
                         tournament.title,
-                        color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        "🗺 ${TournamentArt.mapLabel(tournament.mapType)}  •  👥 ${tournament.matchType.name}",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "🗺️ ${tournament.mapType.name}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 11.sp,
+                        )
+                        Text(
+                            "👥 ${tournament.matchType.name}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
             },
         )
 
+        // ─── Metrics + live slot progress + action buttons ───────────────
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Stats row (Prize Pool, Per Kill, Entry)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                StatBlock("Prize Pool", "₹${formatMoney(tournament.prizePoolValue)}", Color(0xFF00C853))
-                StatBlock("Per Kill", "₹${formatMoney(tournament.perKillValue)}", Color(0xFFFFA000))
-                StatBlock("Entry Fee", "₹${formatMoney(tournament.entryFeeValue)}", MaterialTheme.colorScheme.primary)
+                StatBlock(
+                    label = "Prize Pool",
+                    value = "₹${formatMoney(tournament.prizePoolValue)}",
+                    valueColor = Color(0xFF00C853),
+                )
+                StatBlock(
+                    label = "Per Kill",
+                    value = "₹${formatMoney(tournament.perKillValue)}",
+                    valueColor = Color(0xFFFF9800),
+                )
+                StatBlock(
+                    label = "Entry Fee",
+                    value = "₹${formatMoney(tournament.entryFeeValue)}",
+                    valueColor = MaterialTheme.colorScheme.primary,
+                )
             }
 
             // Slots progress
@@ -294,9 +808,9 @@ fun TournamentCard(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                     )
-                    tournament.mySlot?.let { slot ->
+                    tournament.mySlot?.let {
                         Text(
-                            "✅ Booked: Seat #${slot.slotNumber}",
+                            "✅ Joined",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF00C853),
                             fontWeight = FontWeight.Bold,
@@ -320,16 +834,36 @@ fun TournamentCard(
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AppButton(
-                    text = if (tournament.mySlot != null) "View Your Seat" else "Select Seat (48)",
-                    onClick = onOpenSlots,
-                    modifier = Modifier.weight(1f),
-                )
-                if (canSeeRoom) {
-                    AppButton(text = "Room ID", onClick = onOpenRoom, modifier = Modifier.weight(1f))
+                if (tournament.mySlot != null) {
+                    AppButton(
+                        text = "✅ Joined",
+                        onClick = onViewSeatClick,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else if (tournament.status == TournamentStatus.UPCOMING || tournament.status == TournamentStatus.OPEN) {
+                    AppButton(
+                        text = if (tournament.remainingSlots == 0) "🔒 Slots Full" else "⚡ Join Match",
+                        onClick = onJoinClick,
+                        enabled = tournament.remainingSlots > 0,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else if (tournament.status == TournamentStatus.LIVE) {
+                    AppButton(
+                        text = "🔴 Live In-Progress",
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else if (tournament.status == TournamentStatus.ROOM_REVEALED) {
+                    AppButton(
+                        text = "⏳ Starting Soon",
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                if (hasResults) {
-                    AppButton(text = "Results", onClick = onOpenScoreboard, modifier = Modifier.weight(1f))
+                if (canSeeRoom) {
+                    AppButton(text = "🔑 Room ID & Pass", onClick = onOpenRoom, modifier = Modifier.weight(1f))
                 }
             }
         }
