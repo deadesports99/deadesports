@@ -161,13 +161,25 @@ export async function listTournaments(
     }
   }
 
+  const nowMs = Date.now();
   const isStaff = Boolean(viewer && (viewer.role === 'ADMIN' || viewer.role === 'SUB_ADMIN'));
 
   return {
-    items: items.map((t) => ({
-      ...sanitizeTournament(t, isStaff),
-      mySlotNumber: mySlotByTournamentId.get(t.id) ?? null,
-    })),
+    items: items.map((t) => {
+      const mySlot = mySlotByTournamentId.get(t.id);
+      const isConfirmedPlayer = mySlot !== undefined;
+      const isWithin15Min = nowMs >= (t.matchTime.getTime() - 15 * 60 * 1000);
+      const hasCreds = Boolean(t.roomId && t.roomPassword);
+      const canSeeCreds = isStaff || (isConfirmedPlayer && isWithin15Min && hasCreds);
+
+      return {
+        ...sanitizeTournament(t, canSeeCreds),
+        hasRoomCredentials: hasCreds,
+        isRoomReady: isWithin15Min && hasCreds,
+        mySlotNumber: mySlot ?? null,
+        mySlot: mySlot !== undefined ? { slotNumber: mySlot } : null,
+      };
+    }),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   };
 }

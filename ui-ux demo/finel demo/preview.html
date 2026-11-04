@@ -41,6 +41,9 @@
     const ArrowLeft = ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
     );
+    const ArrowRight = ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    );
     const ArrowUpRight = ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
     );
@@ -274,12 +277,22 @@
       const isDark = theme === 'dark';
       return (
         <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
-          <div className={cx('absolute -left-48 -top-48 h-[560px] w-[560px] rounded-full blur-[140px]', isDark ? 'bg-sky-500/20' : 'bg-sky-400/30')} />
-          <div className={cx('absolute -bottom-48 -right-48 h-[560px] w-[560px] rounded-full blur-[150px]', isDark ? 'bg-amber-500/15' : 'bg-amber-400/25')} />
-          <div className={cx('absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:36px_36px]', isDark ? 'opacity-60' : 'opacity-30')} />
-          <div className="absolute left-[12%] top-[18%] h-1 w-1 rounded-full bg-sky-300 shadow-[0_0_12px_#38BDF8]" />
-          <div className="absolute right-[17%] top-[28%] h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_12px_#FFD000]" />
-          <div className="absolute bottom-[20%] left-[22%] h-1 w-1 rounded-full bg-sky-300 shadow-[0_0_12px_#38BDF8]" />
+          <div
+            className={cx(
+              'absolute inset-0',
+              isDark
+                ? 'bg-[radial-gradient(circle_at_50%_0%,rgba(15,23,42,0.6),transparent_70%)]'
+                : 'bg-[radial-gradient(circle_at_50%_0%,rgba(241,245,249,0.8),transparent_70%)]'
+            )}
+          />
+          <div
+            className={cx(
+              'absolute inset-0 bg-[size:32px_32px]',
+              isDark
+                ? 'bg-[linear-gradient(to_right,#ffffff04_1px,transparent_1px),linear-gradient(to_bottom,#ffffff04_1px,transparent_1px)] opacity-40'
+                : 'bg-[linear-gradient(to_right,#00000004_1px,transparent_1px),linear-gradient(to_bottom,#00000004_1px,transparent_1px)] opacity-30'
+            )}
+          />
         </div>
       );
     }
@@ -299,15 +312,7 @@
       );
     }
 
-    function GlassCard({ theme, className, children }) {
-      return (
-        <div className={cx('border shadow-2xl', theme === 'dark' ? 'border-white/10 bg-slate-900/50 backdrop-blur-xl shadow-black/40' : 'border-slate-900/10 bg-white/75 backdrop-blur-md shadow-slate-900/10', className)}>
-          {children}
-        </div>
-      );
-    }
-
-    function LoginScreen({ theme, onThemeToggle, identifier, setIdentifier, onContinue }) {
+    function LoginScreen({ theme, identifier, setIdentifier, onContinue }) {
       const isDark = theme === 'dark';
 
       const handlePhoneSubmit = (e) => {
@@ -318,96 +323,87 @@
       return (
         <div className="relative flex min-h-screen w-full flex-col justify-center overflow-y-auto px-4 py-8 sm:px-6">
           <Ambient theme={theme} />
-          <div className="relative z-10 mx-auto w-full max-w-md">
-            <GlassCard theme={theme} className="w-full overflow-hidden rounded-3xl">
-              <div
-                className={cx(
-                  'absolute inset-x-0 top-0 h-40',
-                  isDark
-                    ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(255,208,0,0.15),transparent_70%)]'
-                    : 'bg-[radial-gradient(ellipse_at_top_right,rgba(0,0,0,0.05),transparent_70%)]'
-                )}
-              />
-              <div className="relative z-10 p-6 sm:p-8">
-                {/* Header / Brand & Title */}
-                <div>
-                  <div className="flex items-center gap-3.5">
-                    <Crest />
-                    <div>
-                      <span
-                        className={cx(
-                          'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-black tracking-wider uppercase',
-                          isDark
-                            ? 'border-amber-400/25 bg-amber-400/10 text-amber-400'
-                            : 'border-amber-500/30 bg-amber-50 text-amber-800'
-                        )}
-                      >
-                        ⚡ Free Fire Arena
-                      </span>
-                      <p
-                        className={cx(
-                          'mt-1 text-[11px] font-bold tracking-wider uppercase',
-                          isDark ? 'text-slate-400' : 'text-slate-500'
-                        )}
-                      >
-                        Spartan Esports Platform
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="mt-5">
-                    <h1
+          <div className="relative z-10 mx-auto w-full max-w-[420px]">
+            <div
+              className={cx(
+                'w-full overflow-hidden rounded-[26px] border transition-all',
+                isDark
+                  ? 'border-white/[0.08] bg-[#0C121E] shadow-2xl shadow-black/90'
+                  : 'border-slate-200/90 bg-white shadow-xl shadow-slate-900/[0.05]'
+              )}
+            >
+              <div className="p-6 sm:p-7">
+                <div className="flex items-center gap-3">
+                  <Crest />
+                  <div className="min-w-0">
+                    <p
                       className={cx(
-                        'text-2xl font-black tracking-tight sm:text-[26px]',
+                        'text-[10px] font-black uppercase tracking-widest',
+                        isDark ? 'text-slate-400' : 'text-slate-500'
+                      )}
+                    >
+                      Free Fire Esports
+                    </p>
+                    <p
+                      className={cx(
+                        'text-base font-black tracking-tight leading-tight',
                         isDark ? 'text-white' : 'text-slate-950'
                       )}
                     >
-                      Enter the Arena
-                    </h1>
-                    <p
-                      className={cx(
-                        'mt-1 text-xs font-medium leading-relaxed',
-                        isDark ? 'text-slate-400' : 'text-slate-600'
-                      )}
-                    >
-                      Enter your 10-digit mobile number for instant OTP verification.
+                      Spartan Arena
                     </p>
                   </div>
                 </div>
 
-                {/* Primary Phone Login Form */}
-                <form onSubmit={handlePhoneSubmit} className="mt-6 space-y-4">
+                <div className="mt-6">
+                  <h1
+                    className={cx(
+                      'text-2xl font-black tracking-tight',
+                      isDark ? 'text-white' : 'text-slate-950'
+                    )}
+                  >
+                    Sign In
+                  </h1>
+                  <p
+                    className={cx(
+                      'mt-1 text-xs font-medium leading-relaxed',
+                      isDark ? 'text-slate-400' : 'text-slate-500'
+                    )}
+                  >
+                    Enter your 10-digit mobile number to receive an instant OTP.
+                  </p>
+                </div>
+
+                <form onSubmit={handlePhoneSubmit} className="mt-5 space-y-4">
                   <div>
                     <label
                       htmlFor="phone-input"
                       className={cx(
-                        'mb-1.5 flex items-center justify-between text-xs font-bold',
+                        'mb-1.5 flex items-center text-xs font-bold',
                         isDark ? 'text-slate-200' : 'text-slate-800'
                       )}
                     >
                       <span className="flex items-center gap-1.5">
-                        <lucide.Phone className="h-3.5 w-3.5 text-[#00C2FF]" />
+                        <Phone className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
                         <span>Mobile Number</span>
                       </span>
-                      <span className={cx('text-[10px] font-semibold', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                        India (+91)
-                      </span>
                     </label>
+
                     <div
                       className={cx(
-                        'relative flex h-12 w-full items-center overflow-hidden rounded-xl border transition-all focus-within:ring-2 focus-within:ring-[#FFD000]/40',
+                        'relative flex h-12 w-full items-center overflow-hidden rounded-xl border transition-all',
                         isDark
-                          ? 'border-white/15 bg-[#081120] text-white focus-within:border-[#FFD000]'
-                          : 'border-slate-300 bg-slate-50/80 text-slate-950 focus-within:border-slate-900 focus-within:bg-white'
+                          ? 'border-white/15 bg-[#060B14] text-white focus-within:border-white focus-within:ring-2 focus-within:ring-white/20'
+                          : 'border-slate-300 bg-slate-50 text-slate-950 focus-within:border-black focus-within:bg-white focus-within:ring-2 focus-within:ring-black/15'
                       )}
                     >
-                      {/* Country Code Prefix */}
                       <div
                         className={cx(
-                          'flex h-full select-none items-center gap-1.5 border-r px-3.5 text-xs font-black tracking-wider shrink-0 transition-colors',
+                          'flex h-full select-none items-center gap-1.5 border-r px-3.5 text-xs font-black tracking-wider shrink-0',
                           isDark
-                            ? 'border-white/10 bg-slate-900/80 text-slate-200'
-                            : 'border-slate-200 bg-slate-100 text-slate-800'
+                            ? 'border-white/10 bg-white/[0.02] text-slate-200'
+                            : 'border-slate-200 bg-slate-100/80 text-slate-800'
                         )}
                       >
                         <svg className="h-3.5 w-5 rounded-[2px] shadow-sm" viewBox="0 0 640 480">
@@ -421,7 +417,6 @@
                         <span>+91</span>
                       </div>
 
-                      {/* Digits Input */}
                       <input
                         id="phone-input"
                         type="tel"
@@ -434,7 +429,7 @@
                         }}
                         placeholder="98765 43210"
                         className={cx(
-                          'h-full w-full bg-transparent px-3.5 text-[15px] font-bold tracking-widest outline-none transition-colors',
+                          'h-full w-full bg-transparent px-3.5 text-[15px] font-bold tracking-widest outline-none',
                           isDark
                             ? 'text-white placeholder:text-slate-600'
                             : 'text-slate-950 placeholder:text-slate-400'
@@ -448,27 +443,28 @@
                         isDark ? 'text-slate-400' : 'text-slate-500'
                       )}
                     >
-                      Room ID aur tournament updates isi number par aayenge.
+                      Match room ID and credentials will be sent to this number.
                     </p>
                   </div>
 
                   <button
                     type="submit"
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-3 text-[13px] font-black text-slate-950 shadow-lg shadow-amber-400/20 transition-all hover:bg-[#FFDA29] active:scale-[0.97]"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-3 text-[13px] font-black text-slate-950 shadow-md shadow-amber-400/20 transition-all hover:bg-[#FFDA29] active:scale-[0.98]"
                   >
                     <span>Continue with Phone</span>
+                    <ArrowRight className="h-4 w-4" />
                   </button>
                 </form>
 
-                <div className="my-6 flex items-center gap-3">
+                <div className="my-5 flex items-center gap-3">
                   <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-200')} />
                   <span
                     className={cx(
                       'text-[10px] font-bold uppercase tracking-widest',
-                      isDark ? 'text-slate-400' : 'text-slate-500'
+                      isDark ? 'text-slate-400' : 'text-slate-400'
                     )}
                   >
-                    Backup option
+                    Backup
                   </span>
                   <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-200')} />
                 </div>
@@ -477,39 +473,40 @@
                   type="button"
                   onClick={() => onContinue('google')}
                   className={cx(
-                    'flex w-full items-center justify-center gap-2.5 rounded-xl border py-2.5 text-[13px] font-bold transition-all active:scale-[0.97]',
+                    'flex w-full items-center justify-center gap-2.5 rounded-xl border py-2.5 text-[13px] font-bold transition-all active:scale-[0.98]',
                     isDark
-                      ? 'border-white/15 bg-slate-900/80 text-white hover:bg-slate-800'
-                      : 'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-50'
+                      ? 'border-white/10 bg-white/[0.02] text-slate-200 hover:bg-white/[0.06] hover:text-white'
+                      : 'border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50'
                   )}
                 >
-                  <span className="text-base font-black text-[#4285F4]">G</span>
-                  <span>Continue with Google (Demo Backup)</span>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z" />
+                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" />
+                    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.99 0 12s.45 3.83 1.25 5.42l4.03-3.15z" />
+                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+                  </svg>
+                  <span>Continue with Google</span>
                 </button>
 
                 <div
                   className={cx(
-                    'mt-6 flex items-center justify-center gap-1.5 text-[10px]',
+                    'mt-6 flex items-center justify-center gap-1.5 text-[11px] font-medium',
                     isDark ? 'text-slate-400' : 'text-slate-500'
                   )}
                 >
-                  <Shield className="h-3 w-3 text-emerald-500" />
-                  <span>Safe & Secure • OTP verification in next step</span>
+                  <Shield className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                  <span>Safe & Secure • Fair Play Protocol</span>
                 </div>
               </div>
-            </GlassCard>
+            </div>
           </div>
         </div>
       );
     }
-      );
-    }
 
-    function OtpScreen({ theme, onThemeToggle, identifier, setIdentifier, onBack, onVerified }) {
+    function OtpScreen({ theme, identifier, onBack, onVerified }) {
       const isDark = theme === 'dark';
       const [otp, setOtp] = useState(['', '', '', '', '', '']);
-      const [editing, setEditing] = useState(false);
-      const [tempIdentifier, setTempIdentifier] = useState(identifier);
       const [timeLeft, setTimeLeft] = useState(60);
       const [error, setError] = useState('');
       const [verifying, setVerifying] = useState(false);
@@ -543,43 +540,230 @@
         window.setTimeout(() => { setVerifying(false); onVerified(); }, 650);
       };
 
-      const saveIdentifier = () => {
-        if (tempIdentifier.trim().length < 4) return;
-        setIdentifier(tempIdentifier.trim());
-        setOtp(['', '', '', '', '', '']);
-        setTimeLeft(60);
-        setEditing(false);
-        refs.current[0]?.focus();
-      };
-
       return (
         <div className="relative flex min-h-screen w-full flex-col justify-center overflow-y-auto px-4 py-8 sm:px-6">
           <Ambient theme={theme} />
-          <div className="relative z-10 mx-auto w-full max-w-md">
-            <GlassCard theme={theme} className="w-full overflow-hidden rounded-3xl">
-              <div className={cx('absolute inset-x-0 top-0 h-48', isDark ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(14,165,233,0.28),rgba(15,23,42,0.88)_70%,transparent)]' : 'bg-[radial-gradient(ellipse_at_top_right,rgba(56,189,248,0.3),rgba(241,245,249,0.75)_70%,transparent)]')} />
-              <div className="relative z-10 p-6 sm:p-8">
-                <button type="button" onClick={onBack} className={cx('group inline-flex items-center gap-2 text-xs font-bold', isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-950')}><ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" /> Back to Login</button>
-                <div className="mt-7 flex items-start justify-between gap-3"><div><Crest /><p className={cx('mt-4 text-[10px] font-bold uppercase tracking-[0.22em]', isDark ? 'text-sky-300' : 'text-sky-700')}>Step 2 of 2 • 2FA</p></div><span className={cx('mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold', isDark ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700')}><ShieldCheck className="h-3 w-3" /> Protected</span></div>
-                <h1 className={cx('mt-5 text-2xl font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>Verification Code</h1>
-                <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>Enter the 6-digit code sent to your registered email or phone.</p>
-
-                <div className="mt-4">
-                  {editing ? (
-                    <div className="flex items-center gap-2 rounded-xl border-2 border-amber-400 bg-[#0B1526] p-1.5 ring-2 ring-amber-400/25"><input autoFocus value={tempIdentifier} onChange={(event) => setTempIdentifier(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveIdentifier(); if (event.key === 'Escape') setEditing(false); }} className="min-w-0 flex-1 bg-transparent px-2 text-[13px] text-white outline-none" /><button type="button" onClick={saveIdentifier} className="rounded-lg bg-amber-400 px-2.5 py-1.5 text-[11px] font-black text-slate-950"><Check className="h-3.5 w-3.5" /></button><button type="button" onClick={() => setEditing(false)} className="rounded-lg p-1.5 text-slate-400"><X className="h-4 w-4" /></button></div>
-                  ) : (
-                    <div className={cx('flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5', isDark ? 'border-white/10 bg-[#0B1526]/85' : 'border-slate-300 bg-slate-100')}><div className="flex min-w-0 items-center gap-2.5"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" /><span className={cx('truncate text-[13px] font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}>{identifier || 'demo@arena.gg'}</span></div><button type="button" onClick={() => { setTempIdentifier(identifier); setEditing(true); }} className={cx('inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold', isDark ? 'border-amber-400/25 bg-slate-800 text-amber-400' : 'border-amber-500/30 bg-white text-amber-700')}><Pencil className="h-3 w-3" /> Change</button></div>
+          <div className="relative z-10 mx-auto w-full max-w-[420px]">
+            <div
+              className={cx(
+                'w-full overflow-hidden rounded-[26px] border transition-all',
+                isDark
+                  ? 'border-white/[0.08] bg-[#0C121E] shadow-2xl shadow-black/90'
+                  : 'border-slate-200/90 bg-white shadow-xl shadow-slate-900/[0.05]'
+              )}
+            >
+              <div className="p-6 sm:p-7">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className={cx(
+                    'group inline-flex items-center gap-2 text-xs font-bold transition-all',
+                    isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-950'
                   )}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
+                  <span>Back to Login</span>
+                </button>
+
+                <div className="mt-5 flex items-center gap-3">
+                  <Crest />
+                  <div className="min-w-0">
+                    <p
+                      className={cx(
+                        'text-[10px] font-black uppercase tracking-widest',
+                        isDark ? 'text-slate-400' : 'text-slate-500'
+                      )}
+                    >
+                      Verification
+                    </p>
+                    <p
+                      className={cx(
+                        'text-base font-black tracking-tight leading-tight',
+                        isDark ? 'text-white' : 'text-slate-950'
+                      )}
+                    >
+                      Spartan Arena
+                    </p>
+                  </div>
                 </div>
 
-                <form onSubmit={verify} className="mt-6 space-y-5">
-                  <div><div className="mb-2.5 flex items-center justify-between"><label htmlFor="otp-0" className={cx('text-xs font-bold', isDark ? 'text-slate-300' : 'text-slate-700')}>6-digit security code<span className="text-amber-400"> *</span></label><button type="button" onClick={() => { setOtp(['4', '8', '2', '9', '1', '6']); setError(''); refs.current[5]?.focus(); }} className="text-[11px] font-bold text-sky-400 hover:text-sky-300">Auto-fill demo code</button></div><div className="flex justify-between gap-1.5 sm:gap-2.5">{otp.map((digit, index) => <input key={index} id={`otp-${index}`} ref={(element) => { refs.current[index] = element; }} value={digit} maxLength={6} inputMode="numeric" aria-label={`Digit ${index + 1} of 6`} onChange={(event) => updateDigit(index, event.target.value)} onKeyDown={(event) => { if (event.key === 'Backspace' && !otp[index] && index > 0) { const next = [...otp]; next[index - 1] = ''; setOtp(next); refs.current[index - 1]?.focus(); } if (event.key === 'ArrowLeft' && index > 0) refs.current[index - 1]?.focus(); if (event.key === 'ArrowRight' && index < 5) refs.current[index + 1]?.focus(); }} className={cx('h-14 w-11 rounded-xl border text-center text-xl font-black outline-none transition-all sm:w-12', digit ? 'border-amber-400/60 bg-[#111E34]/95 text-amber-300' : isDark ? 'border-white/10 bg-[#0B1526]/90 text-white' : 'border-slate-300 bg-white text-slate-900', 'focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30')} />)}</div>{error && <p className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-rose-400"><AlertTriangle className="h-3.5 w-3.5" />{error}</p>}</div>
-                  <div className={cx('flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs', isDark ? 'border-white/5 bg-[#0B1526]/60' : 'border-slate-200 bg-slate-100/75')}><div className="flex items-center gap-2"><Clock3 className={cx('h-3.5 w-3.5', timeLeft ? 'text-amber-400' : 'text-slate-500')} />{timeLeft ? <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>Resend in <strong className="font-mono text-amber-400">00:{String(timeLeft).padStart(2, '0')}</strong></span> : <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Didn&apos;t receive the code?</span>}</div>{timeLeft ? <button type="button" onClick={() => setTimeLeft(0)} className="text-[11px] font-bold text-slate-500 hover:text-slate-300">Skip wait</button> : <button type="button" onClick={() => { setTimeLeft(60); setOtp(['', '', '', '', '', '']); refs.current[0]?.focus(); }} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-sky-400"><RefreshCw className="h-3.5 w-3.5" /> Resend</button>}</div>
-                  <button type="submit" disabled={verifying} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-2.5 text-[13px] font-black text-slate-950 shadow-lg shadow-amber-400/25 transition-all hover:bg-[#FFDA29] active:scale-[0.96] disabled:opacity-70">{verifying ? <><RefreshCw className="h-4 w-4 animate-spin" /> Verifying...</> : 'Verify OTP & Continue'}</button>
+                <div className="mt-5">
+                  <h1
+                    className={cx(
+                      'text-2xl font-black tracking-tight',
+                      isDark ? 'text-white' : 'text-slate-950'
+                    )}
+                  >
+                    Enter OTP
+                  </h1>
+                  <p className={cx('mt-1 text-xs font-medium leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                    Enter the 6-digit verification code sent to your mobile number.
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  <div
+                    className={cx(
+                      'flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5',
+                      isDark ? 'border-white/10 bg-[#060B14]' : 'border-slate-200 bg-slate-50'
+                    )}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Phone className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                      <span className={cx('truncate text-[13px] font-black tracking-wide', isDark ? 'text-white' : 'text-slate-950')}>
+                        {identifier || '+91 98765 43210'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      className={cx(
+                        'inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95',
+                        isDark
+                          ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                          : 'border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50'
+                      )}
+                    >
+                      <Pencil className="h-3 w-3" /> Change
+                    </button>
+                  </div>
+                </div>
+
+                <form onSubmit={verify} className="mt-5 space-y-4">
+                  <div>
+                    <div className="mb-2.5 flex items-center justify-between">
+                      <label
+                        htmlFor="otp-0"
+                        className={cx('text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
+                      >
+                        6-Digit Code
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtp(['4', '8', '2', '9', '1', '6']);
+                          setError('');
+                          refs.current[5]?.focus();
+                        }}
+                        className={cx(
+                          'text-[11px] font-bold underline transition-colors',
+                          isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
+                        )}
+                      >
+                        Auto-fill demo
+                      </button>
+                    </div>
+
+                    <div className="flex justify-between gap-1.5 sm:gap-2">
+                      {otp.map((digit, index) => (
+                        <input
+                          key={index}
+                          id={`otp-${index}`}
+                          ref={(element) => {
+                            refs.current[index] = element;
+                          }}
+                          value={digit}
+                          maxLength={6}
+                          inputMode="numeric"
+                          aria-label={`Digit ${index + 1} of 6`}
+                          onChange={(event) => updateDigit(index, event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Backspace' && !otp[index] && index > 0) {
+                              const next = [...otp];
+                              next[index - 1] = '';
+                              setOtp(next);
+                              refs.current[index - 1]?.focus();
+                            }
+                            if (event.key === 'ArrowLeft' && index > 0) refs.current[index - 1]?.focus();
+                            if (event.key === 'ArrowRight' && index < 5) refs.current[index + 1]?.focus();
+                          }}
+                          className={cx(
+                            'h-13 w-11 rounded-xl border text-center text-xl font-black outline-none transition-all sm:h-14 sm:w-12',
+                            digit
+                              ? isDark
+                                ? 'border-white bg-[#101826] text-white shadow-[0_0_12px_rgba(255,255,255,0.2)] ring-1 ring-white/40'
+                                : 'border-black bg-white text-black shadow-sm ring-1 ring-black/20'
+                              : isDark
+                              ? 'border-white/15 bg-[#060B14] text-white focus:border-white focus:ring-1 focus:ring-white/30'
+                              : 'border-slate-300 bg-slate-50 text-slate-900 focus:border-black focus:bg-white focus:ring-1 focus:ring-black/20'
+                          )}
+                        />
+                      ))}
+                    </div>
+
+                    {error && (
+                      <p className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-rose-500">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {error}
+                      </p>
+                    )}
+                  </div>
+
+                  <div
+                    className={cx(
+                      'flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs',
+                      isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-200 bg-slate-50'
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Clock3 className={cx('h-3.5 w-3.5', timeLeft ? 'text-slate-400' : 'text-slate-500')} />
+                      {timeLeft ? (
+                        <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+                          Resend in <strong className={cx('font-mono font-bold', isDark ? 'text-white' : 'text-slate-950')}>00:{String(timeLeft).padStart(2, '0')}</strong>
+                        </span>
+                      ) : (
+                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Didn&apos;t receive code?</span>
+                      )}
+                    </div>
+
+                    {timeLeft ? (
+                      <button
+                        type="button"
+                        onClick={() => setTimeLeft(0)}
+                        className={cx('text-[11px] font-bold transition-colors', isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-950')}
+                      >
+                        Skip wait
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTimeLeft(60);
+                          setOtp(['', '', '', '', '', '']);
+                          refs.current[0]?.focus();
+                        }}
+                        className={cx('inline-flex items-center gap-1.5 text-[11px] font-black underline', isDark ? 'text-white' : 'text-slate-950')}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" /> Resend OTP
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={verifying}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-3 text-[13px] font-black text-slate-950 shadow-md shadow-amber-400/20 transition-all hover:bg-[#FFDA29] active:scale-[0.98] disabled:opacity-70"
+                  >
+                    {verifying ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" /> Verifying...
+                      </>
+                    ) : (
+                      'Verify OTP & Continue'
+                    )}
+                  </button>
                 </form>
-                <div className={cx('mt-5 flex items-center justify-center gap-1.5 border-t pt-4 text-[10px]', isDark ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-500')}><Headphones className="h-3.5 w-3.5 text-amber-400" /> Tournament Support is online</div>
+
+                <div
+                  className={cx(
+                    'mt-5 flex items-center justify-center gap-1.5 border-t pt-4 text-[10px]',
+                    isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
+                  )}
+                >
+                  <Headphones className="h-3.5 w-3.5 text-slate-400" /> Spartan Tournament Support is online
+                </div>
               </div>
-            </GlassCard>
+            </div>
           </div>
         </div>
       );
@@ -640,37 +824,34 @@
       );
     }
 
-    function AppHeader({ theme, title, subtitle, balance, onAddFunds, onNotify, onSettings }) {
+    function AppHeader({ theme, balance, onAddFunds, onSettings }) {
       const isDark = theme === 'dark';
       return (
         <header className={cx('sticky top-0 z-20 flex items-center justify-between border-b px-4 pb-3 pt-3.5 backdrop-blur-xl', isDark ? 'border-white/10 bg-slate-950/80' : 'border-slate-900/10 bg-white/85')}>
-          <div className="flex min-w-0 items-center gap-2.5">
+          {/* Top Left: App Logo + App Name */}
+          <div className="flex items-center gap-2.5">
             <Crest small />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h1 className={cx('truncate text-[13px] font-black uppercase tracking-wider', isDark ? 'text-white' : 'text-slate-900')}>{title}</h1>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
-              </div>
-              <p className={cx('truncate text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>{subtitle}</p>
-            </div>
+            <span className={cx('text-[15px] font-black tracking-tight leading-none', isDark ? 'text-white' : 'text-slate-950')}>
+              Spartan Arena
+            </span>
           </div>
+
+          {/* Top Right: Settings (if present) + Clean Wallet Badge */}
           <div className="flex items-center gap-2">
             {onSettings && (
               <button type="button" aria-label="Open Settings" onClick={onSettings} className={cx('flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:text-white' : 'border-slate-200 bg-slate-100 text-slate-700 hover:text-slate-950')}>
                 <Settings className="h-3.5 w-3.5" />
               </button>
             )}
-            <button type="button" aria-label="Notifications" onClick={onNotify} className={cx('relative flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:text-white' : 'border-slate-200 bg-slate-100 text-slate-700 hover:text-slate-950')}>
-              <Bell className="h-3.5 w-3.5" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#FFD000]" />
-            </button>
-            <div className={cx('flex h-8 items-center gap-1.5 rounded-lg border pl-2.5 pr-1', isDark ? 'border-white/15 bg-[#0B1526] text-white' : 'border-slate-300 bg-white text-slate-950 shadow-sm')}>
+            <button
+              type="button"
+              onClick={onAddFunds}
+              aria-label="Open Wallet"
+              className={cx('flex h-8 items-center gap-2 rounded-lg border px-3 transition-all active:scale-95', isDark ? 'border-white/15 bg-[#0B1526] text-white hover:border-white/30' : 'border-slate-300 bg-white text-slate-950 shadow-sm hover:border-slate-400')}
+            >
               <Wallet className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-200' : 'text-slate-700')} />
-              <span className={cx('text-xs font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>{formatINR(balance)}</span>
-              <button type="button" onClick={onAddFunds} aria-label="Add funds" className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-md bg-[#FFD000] text-slate-950 transition-all hover:bg-[#FFDA29] active:scale-90">
-                <Plus className="h-3 w-3 stroke-[3]" />
-              </button>
-            </div>
+              <span className={cx('text-xs font-black tracking-tight leading-none', isDark ? 'text-white' : 'text-slate-950')}>{formatINR(balance)}</span>
+            </button>
           </div>
         </header>
       );
@@ -898,65 +1079,150 @@
       );
     }
 
-    function ProfileView({ theme, user, provider, setProvider, joinedCount, onOpenSettings, onSecurity, onSignOut }) {
+    function ProfileView({ theme, user, provider, joinedCount, onOpenSettings, onSecurity, onSignOut }) {
       const isDark = theme === 'dark';
       return (
         <div className="space-y-4">
-          <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0D1B32] via-[#0B1526] to-[#091220] p-4 shadow-xl shadow-black/50">
-            <div className="pointer-events-none absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-[#FFD000]/15 blur-2xl" />
-            <div className="relative z-10 mb-3 flex items-center justify-between border-b border-white/10 pb-3">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Auth Identity Mode</span>
-              <div className="inline-flex rounded-lg border border-white/10 bg-slate-950/80 p-0.5 text-[10px] font-bold">
-                <button type="button" onClick={() => setProvider('google')} className={cx('rounded-md px-2.5 py-1', provider === 'google' ? 'bg-[#00C2FF] text-slate-950' : 'text-slate-400')}>Google Login</button>
-                <button type="button" onClick={() => setProvider('phone')} className={cx('rounded-md px-2.5 py-1', provider === 'phone' ? 'bg-[#FFD000] text-slate-950' : 'text-slate-400')}>Phone Login</button>
+          {/* Identity Profile Card */}
+          <section
+            className={cx(
+              'relative overflow-hidden rounded-2xl border p-5 transition-all',
+              isDark
+                ? 'border-white/10 bg-[#0C121E] text-white shadow-xl shadow-black/40'
+                : 'border-slate-200/90 bg-white text-slate-950 shadow-sm'
+            )}
+          >
+            <div className="flex items-center gap-3.5">
+              <div
+                className={cx(
+                  'flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border text-lg font-black transition-all select-none',
+                  isDark
+                    ? 'border-white/15 bg-[#141C2E] text-white shadow-inner'
+                    : 'border-slate-200 bg-slate-100 text-slate-900'
+                )}
+              >
+                {provider === 'google' ? (
+                  <span className="font-black text-xl">G</span>
+                ) : (
+                  <Phone className={cx('h-6 w-6', isDark ? 'text-slate-200' : 'text-slate-800')} />
+                )}
               </div>
-            </div>
-            <div className="relative z-10 flex items-center gap-3.5">
-              <div className={cx('flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2', provider === 'google' ? 'border-[#00C2FF] bg-gradient-to-br from-sky-500 to-slate-950' : 'border-amber-400 bg-gradient-to-br from-amber-400 to-sky-500')}>
-                <span className={cx('text-lg font-black', provider === 'google' ? 'text-white' : 'text-slate-950')}>{provider === 'google' ? 'G' : 'EP'}</span>
-              </div>
+
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5"><h2 className="truncate text-base font-black text-white">{user?.name || 'Erik Padamans'}</h2><span className="inline-flex items-center gap-1 rounded-md border border-amber-400/40 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-black text-[#FFD000]"><Sparkles className="h-2.5 w-2.5" /> Booyah Verified</span></div>
-                <p className="mt-1 truncate text-xs font-medium text-sky-300">{provider === 'google' ? `Google: ${user?.identifier || 'erik.padamans@gmail.co'}` : `Logged in via Phone: ${user?.identifier || '+91 99999 00001'}`}</p>
-                <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400"><span className="inline-flex items-center gap-1 font-bold text-emerald-400"><ShieldCheck className="h-3 w-3" /> Anti-Cheat Clear</span><span>•</span><span>Tier: Grandmaster IV</span></div>
-              </div>
-            </div>
-            <div className="relative z-10 mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={onSecurity} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#FFD000] px-3 py-1.5 text-xs font-black text-slate-950 transition-all active:scale-[0.96]"><KeyRound className="h-3.5 w-3.5" /> Account Security</button>
-              <button type="button" onClick={onSignOut} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-slate-800/90 px-3 py-1.5 text-xs font-bold text-slate-200 transition-all active:scale-[0.96]"><LogOut className="h-3.5 w-3.5 text-rose-400" /> Sign Out</button>
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-2 flex items-center justify-between"><h3 className={cx('text-xs font-black uppercase tracking-wider', isDark ? 'text-slate-200' : 'text-slate-800')}>Esports Career Stats</h3><span className="text-[10px] font-bold text-sky-400">Free Fire Max • Official Scrims</span></div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {[
-                ['Matches Played', '48', '100% Lobby Completion', Trophy],
-                ['Total Kills', '142', '2.96 K/D', Crosshair],
-                ['Booyah / Win Rate', '28%', '14 Wins', Flame],
-                ['Total Earnings', '₹3,450', 'Instant UPI Credited', Wallet]
-              ].map(([label, value, meta, Icon], index) => (
-                <div key={String(label)} className={cx('rounded-2xl border p-3.5', index === 3 ? 'border-amber-400/35 bg-gradient-to-br from-[#0B1526] to-[#13233F]' : isDark ? 'border-white/10 bg-[#0B1526]/85' : 'border-slate-300 bg-white/90')}>
-                  <div className="flex items-center justify-between">
-                    <span className={cx('text-[10px] font-bold uppercase tracking-wider', index === 3 ? 'text-amber-300' : isDark ? 'text-slate-400' : 'text-slate-500')}>{String(label)}</span>
-                    <div className={cx('flex h-7 w-7 items-center justify-center rounded-lg border', index === 3 ? 'border-amber-400/40 bg-amber-400/20 text-[#FFD000]' : 'border-sky-400/30 bg-sky-500/15 text-[#00C2FF]')}><Icon className="h-3.5 w-3.5" /></div>
-                  </div>
-                  <p className={cx('mt-1.5 text-xl font-black', index === 3 ? 'text-[#FFD000]' : isDark ? 'text-white' : 'text-slate-900')}>{String(value)}</p>
-                  <p className={cx('mt-0.5 text-[10px] font-medium', index === 3 ? 'text-emerald-300' : isDark ? 'text-slate-400' : 'text-slate-500')}>{String(meta)}</p>
+                <div className="flex items-center gap-2">
+                  <h2 className={cx('truncate text-base font-black', isDark ? 'text-white' : 'text-slate-950')}>
+                    {user?.name || 'Spartan Player'}
+                  </h2>
+                  <span
+                    className={cx(
+                      'inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider',
+                      isDark
+                        ? 'border-white/15 bg-white/[0.04] text-slate-300'
+                        : 'border-slate-300 bg-slate-100 text-slate-700'
+                    )}
+                  >
+                    Verified
+                  </span>
                 </div>
-              ))}
+
+                <p className={cx('mt-1 text-xs font-semibold', isDark ? 'text-slate-300' : 'text-slate-600')}>
+                  {user?.identifier || '+91 98765 43210'}
+                </p>
+
+                <p className={cx('mt-0.5 text-[10px] font-medium tracking-wide', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  Player UID: 84920194
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={onSecurity}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#FFD000] px-3 py-2.5 text-xs font-black text-slate-950 shadow-sm transition-all hover:bg-[#FFDA29] active:scale-[0.97]"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                <span>Account Security</span>
+              </button>
+              <button
+                type="button"
+                onClick={onSignOut}
+                className={cx(
+                  'inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition-all active:scale-[0.97]',
+                  isDark
+                    ? 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07] hover:text-white'
+                    : 'border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                )}
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Sign Out</span>
+              </button>
             </div>
           </section>
 
-          <section className={cx('flex items-center justify-between gap-2 rounded-2xl border p-3', isDark ? 'border-white/10 bg-[#0B1526]/80' : 'border-slate-300 bg-white/90')}>
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-500/15 text-emerald-400"><MessageSquare className="h-4 w-4" /></div>
+          {/* Helpdesk & Support Card */}
+          <section
+            className={cx(
+              'flex items-center justify-between gap-3 rounded-2xl border p-4 transition-all',
+              isDark
+                ? 'border-white/10 bg-[#0C121E] shadow-sm'
+                : 'border-slate-200 bg-white shadow-sm'
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div
+                className={cx(
+                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                  isDark
+                    ? 'border-white/10 bg-[#141C2E] text-slate-300'
+                    : 'border-slate-200 bg-slate-100 text-slate-800'
+                )}
+              >
+                <MessageSquare className="h-4 w-4" />
+              </div>
               <div className="min-w-0">
-                <p className={cx('truncate text-xs font-bold', isDark ? 'text-white' : 'text-slate-900')}>Fair Play & WhatsApp Helpdesk</p>
-                <p className={cx('truncate text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>{joinedCount} matches joined • host support online</p>
+                <p className={cx('truncate text-xs font-black', isDark ? 'text-white' : 'text-slate-950')}>
+                  Tournament Support & Helpdesk
+                </p>
+                <p className={cx('truncate text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  {joinedCount} matches joined • 24/7 Organiser Support
+                </p>
               </div>
             </div>
-            <button type="button" onClick={onOpenSettings} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-sky-400/30 bg-sky-400/15 px-3 py-1.5 text-xs font-bold text-sky-400">Open <ChevronRight className="h-3.5 w-3.5" /></button>
+
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className={cx(
+                'inline-flex shrink-0 items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all active:scale-95',
+                isDark
+                  ? 'border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08]'
+                  : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'
+              )}
+            >
+              <span>Open</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </section>
+
+          {/* Rules Card */}
+          <section
+            className={cx(
+              'flex items-center gap-3 rounded-2xl border p-4 transition-all',
+              isDark
+                ? 'border-white/10 bg-[#0C121E] text-slate-400'
+                : 'border-slate-200 bg-white text-slate-600 shadow-sm'
+            )}
+          >
+            <Shield className="h-5 w-5 shrink-0 text-slate-400" />
+            <div className="min-w-0 flex-1">
+              <p className={cx('text-xs font-black', isDark ? 'text-white' : 'text-slate-950')}>
+                Fair Play & Official Tournament Rules
+              </p>
+              <p className="text-[10px] leading-relaxed mt-0.5">
+                Third-party scripts, hacks, or emulator modifications are strictly prohibited.
+              </p>
+            </div>
           </section>
         </div>
       );

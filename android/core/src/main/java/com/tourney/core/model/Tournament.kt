@@ -30,8 +30,10 @@ data class Tournament(
     val status: TournamentStatus,
     @Json(name = "slotsBooked") val slotsBooked: Int = 0,
     @Json(name = "mySlot") val mySlot: MySlot? = null,
-    /** Staff-only: published custom room (players never receive it). */
+    /** Staff or revealed custom room credentials. */
     val room: RoomCredentials? = null,
+    @Json(name = "hasRoomCredentials") val hasRoomCredentials: Boolean? = null,
+    @Json(name = "isRoomReady") val isRoomReady: Boolean? = null,
 ) {
     val entryFeeValue: Double get() = entryFee.toDoubleOrNull() ?: 0.0
     val prizePoolValue: Double get() = prizePool.toDoubleOrNull() ?: 0.0
@@ -41,6 +43,19 @@ data class Tournament(
     /** Slots-progress fraction for progress bars (0f..1f). */
     val fillFraction: Float
         get() = if (totalSlots > 0) (slotsBooked.toFloat() / totalSlots).coerceIn(0f, 1f) else 0f
+
+    /** Returns true if we are currently within the 15-minute room unlock window or later. */
+    fun isWithin15MinWindow(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean {
+        return secondsUntilRoomReveal(nowEpochMs) == 0L
+    }
+
+    /** Returns true if room credentials can be shown right now to a joined player. */
+    fun isRoomReadyToView(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean {
+        if (mySlot == null) return false
+        val withinWindow = isWithin15MinWindow(nowEpochMs) || status == TournamentStatus.ROOM_REVEALED || status == TournamentStatus.LIVE
+        val hasCreds = room != null || hasRoomCredentials == true || status == TournamentStatus.ROOM_REVEALED
+        return withinWindow && hasCreds
+    }
 
     /** 15-minute countdown helper: time until room creds unlock (Authoritative IST Server Time). */
     fun secondsUntilRoomReveal(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Long {

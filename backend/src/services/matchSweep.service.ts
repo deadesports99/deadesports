@@ -86,6 +86,34 @@ export async function sweepMatchStates(
       status: 'ROOM_REVEALED',
     });
 
+    // If room credentials were saved earlier by admin, deliver them to participants at T-15!
+    if (candidate.roomId) {
+      prisma.tournament.findUnique({
+        where: { id: candidate.id },
+        select: { roomId: true, roomPassword: true, roomRevealedAt: true },
+      }).then((creds) => {
+        if (creds?.roomId && creds.roomPassword) {
+          prisma.tournamentSlot.findMany({
+            where: { tournamentId: candidate.id },
+            select: { userId: true },
+          }).then((confirmedSlots) => {
+            if (confirmedSlots.length > 0) {
+              realtimeService.sendToUsers(
+                confirmedSlots.map((s) => s.userId),
+                'ROOM_CREDENTIALS_REVEALED',
+                {
+                  tournamentId: candidate.id,
+                  roomId: creds.roomId,
+                  roomPassword: creds.roomPassword,
+                  roomRevealedAt: creds.roomRevealedAt,
+                },
+              );
+            }
+          });
+        }
+      }).catch(() => {});
+    }
+
     void pushToTournamentParticipants(candidate.id, {
       type: 'ROOM_REVEALED',
       tournamentId: candidate.id,

@@ -108,6 +108,7 @@ fun TournamentFeedScreen(
     // Direct Join Bottom Sheet state
     var selectedTournamentForJoin by remember { mutableStateOf<Tournament?>(null) }
     var showJoinedDetailsDialog by remember { mutableStateOf<Tournament?>(null) }
+    var showRoomCredentialsDialogFor by remember { mutableStateOf<Tournament?>(null) }
     var joinSuccessMessage by remember { mutableStateOf<String?>(null) }
 
     // Authoritative Server Time ticker (immune to device clock spoofing)
@@ -290,7 +291,7 @@ fun TournamentFeedScreen(
                                     tournament = t,
                                     onJoinClick = { selectedTournamentForJoin = t },
                                     onViewSeatClick = { showJoinedDetailsDialog = t },
-                                    onOpenRoom = { onOpenRoom(t.id) },
+                                    onOpenRoom = { showRoomCredentialsDialogFor = t },
                                 )
                             }
                         }
@@ -321,20 +322,45 @@ fun TournamentFeedScreen(
     // ── Joined Details Dialog ─────────────────────────────────────────────
     if (showJoinedDetailsDialog != null) {
         val t = showJoinedDetailsDialog!!
+        val isWithinWindow = t.isWithin15MinWindow()
         AlertDialog(
             onDismissRequest = { showJoinedDetailsDialog = null },
-            title = { Text("🎟️ Match Entry Confirmed", fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    if (isWithinWindow) "⏳ Room ID Releasing Soon" else "🎟️ Match Entry Confirmed",
+                    fontWeight = FontWeight.Bold,
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(t.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     Text("✅ You are registered for this match!", color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
                     Text("⏰ Match Time: ${formatMatchTime(t.matchTime)}", fontSize = 13.sp)
-                    Text("🔑 Room ID & Password will be revealed 15 minutes before match starts.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (isWithinWindow) {
+                            "⏳ Organizer is creating the Custom Room in Free Fire. The Room ID & Password will drop right here in a few moments!"
+                        } else {
+                            "🔑 Room ID & Password will be revealed 15 minutes before match starts."
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             },
             confirmButton = {
                 AppButton(text = "Got It", onClick = { showJoinedDetailsDialog = null })
             },
+        )
+    }
+
+    // ── In-Place Custom Room ID & Password Pop-up Dialog ──────────────────
+    if (showRoomCredentialsDialogFor != null) {
+        val t = showRoomCredentialsDialogFor!!
+        RoomCredentialsDialog(
+            tournamentId = t.id,
+            tournamentTitle = t.title,
+            initialRoom = t.room,
+            onDismiss = { showRoomCredentialsDialogFor = null },
         )
     }
 
@@ -719,13 +745,6 @@ fun TournamentCard(
     onViewSeatClick: () -> Unit,
     onOpenRoom: () -> Unit,
 ) {
-    val canSeeRoom = tournament.mySlot != null && (
-        tournament.status == TournamentStatus.ROOM_REVEALED ||
-            tournament.status == TournamentStatus.LIVE ||
-            tournament.status == TournamentStatus.UNDER_REVIEW ||
-            tournament.isRoomUnlockTime()
-        )
-
     GlassCard(
         cornerRadius = 16.dp,
         contentPadding = 0.dp,
@@ -738,6 +757,7 @@ fun TournamentCard(
             overlay = {
                 StatusBadge(
                     status = tournament.status,
+                    hasCredentials = tournament.hasRoomCredentials ?: (tournament.room != null),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(10.dp),
@@ -858,11 +878,28 @@ fun TournamentCard(
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (tournament.mySlot != null) {
-                    AppButton(
-                        text = "✅ Joined",
-                        onClick = onViewSeatClick,
-                        modifier = Modifier.weight(1f),
-                    )
+                    val isWithin15Min = tournament.isWithin15MinWindow() || tournament.status == TournamentStatus.ROOM_REVEALED || tournament.status == TournamentStatus.LIVE
+                    val hasCredentials = tournament.room != null || tournament.hasRoomCredentials == true
+
+                    if (isWithin15Min && hasCredentials) {
+                        AppButton(
+                            text = "🔑 Get Room ID & Password",
+                            onClick = onOpenRoom,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else if (isWithin15Min && !hasCredentials) {
+                        AppButton(
+                            text = "⏳ Room ID Dropping Soon...",
+                            onClick = onViewSeatClick,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        AppButton(
+                            text = "✅ Joined • Room at T-15m",
+                            onClick = onViewSeatClick,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 } else if (tournament.status == TournamentStatus.UPCOMING || tournament.status == TournamentStatus.OPEN) {
                     AppButton(
                         text = if (tournament.remainingSlots == 0) "🔒 Slots Full" else "⚡ Join Match",
@@ -884,9 +921,6 @@ fun TournamentCard(
                         enabled = false,
                         modifier = Modifier.weight(1f),
                     )
-                }
-                if (canSeeRoom) {
-                    AppButton(text = "🔑 Room ID & Pass", onClick = onOpenRoom, modifier = Modifier.weight(1f))
                 }
             }
         }

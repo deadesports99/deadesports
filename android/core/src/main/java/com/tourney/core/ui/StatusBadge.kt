@@ -14,12 +14,20 @@ import com.tourney.core.model.TournamentStatus
 
 /** Color-coded lifecycle chip: OPEN green, SLOTS_FULL amber, ROOM_REVEALED cyan, etc. */
 @Composable
-fun StatusBadge(status: TournamentStatus, modifier: Modifier = Modifier) {
+fun StatusBadge(
+    status: TournamentStatus,
+    hasCredentials: Boolean? = null,
+    modifier: Modifier = Modifier,
+) {
     val (label, bg, fg) = when (status) {
         TournamentStatus.OPEN -> Triple("OPEN", Color(0xFF1B5E20), Color.White)
         TournamentStatus.UPCOMING -> Triple("UPCOMING", Color(0xFF37474F), Color.White)
         TournamentStatus.SLOTS_FULL -> Triple("SLOTS FULL", Color(0xFFE65100), Color.White)
-        TournamentStatus.ROOM_REVEALED -> Triple("ROOM OUT", Color(0xFF01579B), Color.White)
+        TournamentStatus.ROOM_REVEALED -> if (hasCredentials == false) {
+            Triple("ROOM SOON", Color(0xFFE65100), Color.White)
+        } else {
+            Triple("ROOM OUT", Color(0xFF01579B), Color.White)
+        }
         TournamentStatus.LIVE -> Triple("LIVE", Color(0xFFB71C1C), Color.White)
         TournamentStatus.UNDER_REVIEW -> Triple("REVIEW", Color(0xFF4A148C), Color.White)
         TournamentStatus.COMPLETED -> Triple("COMPLETED", Color(0xFF263238), Color.White)

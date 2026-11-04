@@ -4,7 +4,6 @@ import { Theme, AuthProvider } from '../../types';
 import { cx } from '../../utils/formatters';
 import { Crest } from '../../components/common/Crest';
 import { Ambient } from '../../components/common/Ambient';
-import { GlassCard } from '../../components/common/GlassCard';
 
 interface LoginScreenProps {
   theme: Theme;
@@ -31,97 +30,91 @@ export function LoginScreen({
     <div className="relative flex min-h-screen w-full flex-col justify-center overflow-y-auto px-4 py-8 sm:px-6">
       <Ambient theme={theme} />
 
-      <div className="relative z-10 mx-auto w-full max-w-md">
-        <GlassCard theme={theme} className="w-full overflow-hidden rounded-3xl">
-          <div
-            className={cx(
-              'absolute inset-x-0 top-0 h-40',
-              isDark
-                ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(255,208,0,0.15),transparent_70%)]'
-                : 'bg-[radial-gradient(ellipse_at_top_right,rgba(0,0,0,0.05),transparent_70%)]'
-            )}
-          />
-
-          <div className="relative z-10 p-6 sm:p-8">
-            {/* Header / Brand & Title */}
-            <div>
-              <div className="flex items-center gap-3.5">
-                <Crest />
-                <div>
-                  <span
-                    className={cx(
-                      'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-black tracking-wider uppercase',
-                      isDark
-                        ? 'border-amber-400/25 bg-amber-400/10 text-amber-400'
-                        : 'border-amber-500/30 bg-amber-50 text-amber-800'
-                    )}
-                  >
-                    ⚡ Free Fire Arena
-                  </span>
-                  <p
-                    className={cx(
-                      'mt-1 text-[11px] font-bold tracking-wider uppercase',
-                      isDark ? 'text-slate-400' : 'text-slate-500'
-                    )}
-                  >
-                    Spartan Esports Platform
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <h1
+      <div className="relative z-10 mx-auto w-full max-w-[420px]">
+        {/* Solid Architectural Card - Unified Palette (No mismatched colors / No AI gradients) */}
+        <div
+          className={cx(
+            'w-full overflow-hidden rounded-[26px] border transition-all',
+            isDark
+              ? 'border-white/[0.08] bg-[#0C121E] shadow-2xl shadow-black/90'
+              : 'border-slate-200/90 bg-white shadow-xl shadow-slate-900/[0.05]'
+          )}
+        >
+          <div className="p-6 sm:p-7">
+            {/* Top Brand Lockup */}
+            <div className="flex items-center gap-3">
+              <Crest />
+              <div className="min-w-0">
+                <p
                   className={cx(
-                    'text-2xl font-black tracking-tight sm:text-[26px]',
+                    'text-[10px] font-black uppercase tracking-widest',
+                    isDark ? 'text-slate-400' : 'text-slate-500'
+                  )}
+                >
+                  Free Fire Esports
+                </p>
+                <p
+                  className={cx(
+                    'text-base font-black tracking-tight leading-tight',
                     isDark ? 'text-white' : 'text-slate-950'
                   )}
                 >
-                  Enter the Arena
-                </h1>
-                <p
-                  className={cx(
-                    'mt-1 text-xs font-medium leading-relaxed',
-                    isDark ? 'text-slate-400' : 'text-slate-600'
-                  )}
-                >
-                  Enter your 10-digit mobile number for instant OTP verification.
+                  Spartan Arena
                 </p>
               </div>
             </div>
 
-            {/* Primary Phone Login Form */}
-            <form onSubmit={handlePhoneSubmit} className="mt-6 space-y-4">
+            {/* Title & Description */}
+            <div className="mt-6">
+              <h1
+                className={cx(
+                  'text-2xl font-black tracking-tight',
+                  isDark ? 'text-white' : 'text-slate-950'
+                )}
+              >
+                Sign In
+              </h1>
+              <p
+                className={cx(
+                  'mt-1 text-xs font-medium leading-relaxed',
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                )}
+              >
+                Enter your 10-digit mobile number to receive an instant OTP.
+              </p>
+            </div>
+
+            {/* Mobile Number Form */}
+            <form onSubmit={handlePhoneSubmit} className="mt-5 space-y-4">
               <div>
                 <label
                   htmlFor="phone-input"
                   className={cx(
-                    'mb-1.5 flex items-center justify-between text-xs font-bold',
+                    'mb-1.5 flex items-center text-xs font-bold',
                     isDark ? 'text-slate-200' : 'text-slate-800'
                   )}
                 >
                   <span className="flex items-center gap-1.5">
-                    <Phone className="h-3.5 w-3.5 text-[#00C2FF]" />
+                    <Phone className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
                     <span>Mobile Number</span>
                   </span>
-                  <span className={cx('text-[10px] font-semibold', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                    India (+91)
-                  </span>
                 </label>
+
                 <div
                   className={cx(
-                    'relative flex h-12 w-full items-center overflow-hidden rounded-xl border transition-all focus-within:ring-2 focus-within:ring-[#FFD000]/40',
+                    'relative flex h-12 w-full items-center overflow-hidden rounded-xl border transition-all',
                     isDark
-                      ? 'border-white/15 bg-[#081120] text-white focus-within:border-[#FFD000]'
-                      : 'border-slate-300 bg-slate-50/80 text-slate-950 focus-within:border-slate-900 focus-within:bg-white'
+                      ? 'border-white/15 bg-[#060B14] text-white focus-within:border-white focus-within:ring-2 focus-within:ring-white/20'
+                      : 'border-slate-300 bg-slate-50 text-slate-950 focus-within:border-black focus-within:bg-white focus-within:ring-2 focus-within:ring-black/15'
                   )}
                 >
-                  {/* Country Code Prefix */}
+                  {/* Country Flag & Prefix */}
                   <div
                     className={cx(
-                      'flex h-full select-none items-center gap-1.5 border-r px-3.5 text-xs font-black tracking-wider shrink-0 transition-colors',
+                      'flex h-full select-none items-center gap-1.5 border-r px-3.5 text-xs font-black tracking-wider shrink-0',
                       isDark
-                        ? 'border-white/10 bg-slate-900/80 text-slate-200'
-                        : 'border-slate-200 bg-slate-100 text-slate-800'
+                        ? 'border-white/10 bg-white/[0.02] text-slate-200'
+                        : 'border-slate-200 bg-slate-100/80 text-slate-800'
                     )}
                   >
                     <svg className="h-3.5 w-5 rounded-[2px] shadow-sm" viewBox="0 0 640 480">
@@ -149,7 +142,7 @@ export function LoginScreen({
                     }}
                     placeholder="98765 43210"
                     className={cx(
-                      'h-full w-full bg-transparent px-3.5 text-[15px] font-bold tracking-widest outline-none transition-colors',
+                      'h-full w-full bg-transparent px-3.5 text-[15px] font-bold tracking-widest outline-none',
                       isDark
                         ? 'text-white placeholder:text-slate-600'
                         : 'text-slate-950 placeholder:text-slate-400'
@@ -163,30 +156,30 @@ export function LoginScreen({
                     isDark ? 'text-slate-400' : 'text-slate-500'
                   )}
                 >
-                  Room ID aur tournament updates isi number par aayenge.
+                  Match room ID and credentials will be sent to this number.
                 </p>
               </div>
 
-              {/* Primary Action Button */}
+              {/* Primary Action Button - Cyber Gold */}
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-3 text-[13px] font-black text-slate-950 shadow-lg shadow-amber-400/20 transition-all hover:bg-[#FFDA29] active:scale-[0.97]"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-3 text-[13px] font-black text-slate-950 shadow-md shadow-amber-400/20 transition-all hover:bg-[#FFDA29] active:scale-[0.98]"
               >
                 <span>Continue with Phone</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
 
-            {/* Subtle Divider */}
-            <div className="my-6 flex items-center gap-3">
+            {/* Clean Divider */}
+            <div className="my-5 flex items-center gap-3">
               <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-200')} />
               <span
                 className={cx(
                   'text-[10px] font-bold uppercase tracking-widest',
-                  isDark ? 'text-slate-400' : 'text-slate-500'
+                  isDark ? 'text-slate-400' : 'text-slate-400'
                 )}
               >
-                Backup option
+                Backup
               </span>
               <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-200')} />
             </div>
@@ -196,10 +189,10 @@ export function LoginScreen({
               type="button"
               onClick={() => onContinue('google')}
               className={cx(
-                'flex w-full items-center justify-center gap-2.5 rounded-xl border py-2.5 text-[13px] font-bold transition-all active:scale-[0.97]',
+                'flex w-full items-center justify-center gap-2.5 rounded-xl border py-2.5 text-[13px] font-bold transition-all active:scale-[0.98]',
                 isDark
-                  ? 'border-white/15 bg-slate-900/80 text-white hover:bg-slate-800'
-                  : 'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-50'
+                  ? 'border-white/10 bg-white/[0.02] text-slate-200 hover:bg-white/[0.06] hover:text-white'
+                  : 'border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50'
               )}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24">
@@ -220,21 +213,21 @@ export function LoginScreen({
                   d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                 />
               </svg>
-              <span>Continue with Google (Demo Backup)</span>
+              <span>Continue with Google</span>
             </button>
 
-            {/* Footer trust badge */}
+            {/* Footer Trust Badge - Monochrome */}
             <div
               className={cx(
-                'mt-6 flex items-center justify-center gap-1.5 text-[10px]',
+                'mt-6 flex items-center justify-center gap-1.5 text-[11px] font-medium',
                 isDark ? 'text-slate-400' : 'text-slate-500'
               )}
             >
-              <Shield className="h-3 w-3 text-emerald-500" />
-              <span>Safe & Secure • OTP verification in next step</span>
+              <Shield className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
+              <span>Safe & Secure • Fair Play Protocol</span>
             </div>
           </div>
-        </GlassCard>
+        </div>
       </div>
     </div>
   );

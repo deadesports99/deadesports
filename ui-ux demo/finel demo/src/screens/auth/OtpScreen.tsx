@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ShieldCheck, Pencil, Check, X, AlertTriangle, Clock3, RefreshCw, Headphones } from 'lucide-react';
+import { ArrowLeft, Phone, Pencil, AlertTriangle, Clock3, RefreshCw, Headphones } from 'lucide-react';
 import { Theme } from '../../types';
 import { cx } from '../../utils/formatters';
 import { Crest } from '../../components/common/Crest';
 import { Ambient } from '../../components/common/Ambient';
-import { GlassCard } from '../../components/common/GlassCard';
 
 interface OtpScreenProps {
   theme: Theme;
-  onThemeToggle: () => void;
+  onThemeToggle?: () => void;
   identifier: string;
   setIdentifier: (value: string) => void;
   onBack: () => void;
@@ -17,16 +16,12 @@ interface OtpScreenProps {
 
 export function OtpScreen({
   theme,
-  onThemeToggle,
   identifier,
-  setIdentifier,
   onBack,
   onVerified,
 }: OtpScreenProps) {
   const isDark = theme === 'dark';
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [editing, setEditing] = useState(false);
-  const [tempIdentifier, setTempIdentifier] = useState(identifier);
   const [timeLeft, setTimeLeft] = useState(60);
   const [error, setError] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -74,156 +69,109 @@ export function OtpScreen({
     }, 650);
   };
 
-  const saveIdentifier = () => {
-    if (tempIdentifier.trim().length < 4) return;
-    setIdentifier(tempIdentifier.trim());
-    setOtp(['', '', '', '', '', '']);
-    setTimeLeft(60);
-    setEditing(false);
-    refs.current[0]?.focus();
-  };
-
   return (
     <div className="relative flex min-h-screen w-full flex-col justify-center overflow-y-auto px-4 py-8 sm:px-6">
       <Ambient theme={theme} />
-      <div className="relative z-10 mx-auto w-full max-w-md">
-        <GlassCard theme={theme} className="w-full overflow-hidden rounded-3xl">
-          <div
-            className={cx(
-              'absolute inset-x-0 top-0 h-40',
-              isDark
-                ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(255,208,0,0.15),transparent_70%)]'
-                : 'bg-[radial-gradient(ellipse_at_top_right,rgba(0,0,0,0.05),transparent_70%)]'
-            )}
-          />
-          <div className="relative z-10 p-6 sm:p-8">
+      <div className="relative z-10 mx-auto w-full max-w-[420px]">
+        {/* Solid Architectural Card - Unified Palette */}
+        <div
+          className={cx(
+            'w-full overflow-hidden rounded-[26px] border transition-all',
+            isDark
+              ? 'border-white/[0.08] bg-[#0C121E] shadow-2xl shadow-black/90'
+              : 'border-slate-200/90 bg-white shadow-xl shadow-slate-900/[0.05]'
+          )}
+        >
+          <div className="p-6 sm:p-7">
+            {/* Back button */}
             <button
               type="button"
               onClick={onBack}
               className={cx(
                 'group inline-flex items-center gap-2 text-xs font-bold transition-all',
-                isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-950'
+                isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-950'
               )}
             >
               <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
-              Back to Login
+              <span>Back to Login</span>
             </button>
 
-            <div className="mt-7 flex items-start justify-between gap-3">
-              <div>
-                <Crest />
+            {/* Top Brand Lockup */}
+            <div className="mt-5 flex items-center gap-3">
+              <Crest />
+              <div className="min-w-0">
                 <p
                   className={cx(
-                    'mt-4 text-[10px] font-bold uppercase tracking-[0.22em]',
+                    'text-[10px] font-black uppercase tracking-widest',
                     isDark ? 'text-slate-400' : 'text-slate-500'
                   )}
                 >
-                  Step 2 of 2 • Verification
+                  Verification
+                </p>
+                <p
+                  className={cx(
+                    'text-base font-black tracking-tight leading-tight',
+                    isDark ? 'text-white' : 'text-slate-950'
+                  )}
+                >
+                  Spartan Arena
                 </p>
               </div>
-              <span
+            </div>
+
+            {/* Header info */}
+            <div className="mt-5">
+              <h1
                 className={cx(
-                  'mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold',
-                  isDark
-                    ? 'border-white/10 bg-slate-900/60 text-slate-300'
-                    : 'border-slate-200 bg-slate-100 text-slate-700'
+                  'text-2xl font-black tracking-tight',
+                  isDark ? 'text-white' : 'text-slate-950'
                 )}
               >
-                <ShieldCheck className="h-3 w-3 text-emerald-500" /> Protected
-              </span>
+                Enter OTP
+              </h1>
+              <p className={cx('mt-1 text-xs font-medium leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                Enter the 6-digit verification code sent to your mobile number.
+              </p>
             </div>
 
-            <h1
-              className={cx(
-                'mt-5 text-2xl font-black tracking-tight',
-                isDark ? 'text-white' : 'text-slate-950'
-              )}
-            >
-              Verification Code
-            </h1>
-            <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
-              Enter the 6-digit code sent to your registered mobile number.
-            </p>
-
-            {/* Phone badge with edit option */}
+            {/* Phone badge with Change button that navigates back to Login */}
             <div className="mt-4">
-              {editing ? (
-                <div
+              <div
+                className={cx(
+                  'flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5',
+                  isDark ? 'border-white/10 bg-[#060B14]' : 'border-slate-200 bg-slate-50'
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Phone className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                  <span className={cx('truncate text-[13px] font-black tracking-wide', isDark ? 'text-white' : 'text-slate-950')}>
+                    {identifier || '+91 98765 43210'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onBack}
                   className={cx(
-                    'flex items-center gap-2 rounded-xl border p-1.5',
+                    'inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95',
                     isDark
-                      ? 'border-white/20 bg-[#0B1526]'
-                      : 'border-slate-400 bg-white'
+                      ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                      : 'border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50'
                   )}
                 >
-                  <input
-                    autoFocus
-                    value={tempIdentifier}
-                    onChange={(event) => setTempIdentifier(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') saveIdentifier();
-                      if (event.key === 'Escape') setEditing(false);
-                    }}
-                    className={cx(
-                      'min-w-0 flex-1 bg-transparent px-2 text-[13px] font-bold outline-none',
-                      isDark ? 'text-white' : 'text-slate-950'
-                    )}
-                  />
-                  <button
-                    type="button"
-                    onClick={saveIdentifier}
-                    className="rounded-lg bg-[#FFD000] px-2.5 py-1.5 text-[11px] font-black text-slate-950"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditing(false)}
-                    className={cx('rounded-lg p-1.5', isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950')}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className={cx(
-                    'flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5',
-                    isDark ? 'border-white/10 bg-[#0B1526]/85' : 'border-slate-200 bg-slate-100'
-                  )}
-                >
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                    <span className={cx('truncate text-[13px] font-black tracking-wide', isDark ? 'text-white' : 'text-slate-950')}>
-                      {identifier || '+91 98765 43210'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempIdentifier(identifier);
-                      setEditing(true);
-                    }}
-                    className={cx(
-                      'inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all',
-                      isDark
-                        ? 'border-white/10 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                        : 'border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50'
-                    )}
-                  >
-                    <Pencil className="h-3 w-3" /> Change
-                  </button>
-                </div>
-              )}
+                  <Pencil className="h-3 w-3" /> Change
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={verify} className="mt-6 space-y-5">
+            {/* OTP Form */}
+            <form onSubmit={verify} className="mt-5 space-y-4">
               <div>
                 <div className="mb-2.5 flex items-center justify-between">
                   <label
                     htmlFor="otp-0"
                     className={cx('text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
                   >
-                    6-Digit Security Code
+                    6-Digit Code
                   </label>
                   <button
                     type="button"
@@ -234,14 +182,15 @@ export function OtpScreen({
                     }}
                     className={cx(
                       'text-[11px] font-bold underline transition-colors',
-                      isDark ? 'text-slate-300 hover:text-white' : 'text-slate-700 hover:text-slate-950'
+                      isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
                     )}
                   >
-                    Auto-fill demo code
+                    Auto-fill demo
                   </button>
                 </div>
 
-                <div className="flex justify-between gap-1.5 sm:gap-2.5">
+                {/* OTP Boxes: White in dark mode, Black in light mode (No yellow!) */}
+                <div className="flex justify-between gap-1.5 sm:gap-2">
                   {otp.map((digit, index) => (
                     <input
                       key={index}
@@ -265,15 +214,14 @@ export function OtpScreen({
                         if (event.key === 'ArrowRight' && index < 5) refs.current[index + 1]?.focus();
                       }}
                       className={cx(
-                        'h-14 w-11 rounded-xl border text-center text-xl font-black outline-none transition-all sm:w-12',
+                        'h-13 w-11 rounded-xl border text-center text-xl font-black outline-none transition-all sm:h-14 sm:w-12',
                         digit
                           ? isDark
-                            ? 'border-white/30 bg-[#111E34] text-white'
-                            : 'border-slate-900 bg-slate-50 text-slate-950 ring-1 ring-slate-900'
+                            ? 'border-white bg-[#101826] text-white shadow-[0_0_12px_rgba(255,255,255,0.2)] ring-1 ring-white/40'
+                            : 'border-black bg-white text-black shadow-sm ring-1 ring-black/20'
                           : isDark
-                          ? 'border-white/10 bg-[#0B1526]/90 text-white'
-                          : 'border-slate-300 bg-white text-slate-900',
-                        'focus:border-slate-900 focus:ring-2 focus:ring-slate-900/15'
+                          ? 'border-white/15 bg-[#060B14] text-white focus:border-white focus:ring-1 focus:ring-white/30'
+                          : 'border-slate-300 bg-slate-50 text-slate-900 focus:border-black focus:bg-white focus:ring-1 focus:ring-black/20'
                       )}
                     />
                   ))}
@@ -287,11 +235,11 @@ export function OtpScreen({
                 )}
               </div>
 
-              {/* Timer / Resend */}
+              {/* Timer / Resend Row */}
               <div
                 className={cx(
                   'flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs',
-                  isDark ? 'border-white/5 bg-[#0B1526]/60' : 'border-slate-200 bg-slate-100/75'
+                  isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-200 bg-slate-50'
                 )}
               >
                 <div className="flex items-center gap-2">
@@ -328,11 +276,11 @@ export function OtpScreen({
                 )}
               </div>
 
-              {/* Verify Button */}
+              {/* Primary Action Button - Cyber Gold */}
               <button
                 type="submit"
                 disabled={verifying}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-3 text-[13px] font-black text-slate-950 shadow-lg shadow-amber-400/20 transition-all hover:bg-[#FFDA29] active:scale-[0.97] disabled:opacity-70"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFD000] px-4 py-3 text-[13px] font-black text-slate-950 shadow-md shadow-amber-400/20 transition-all hover:bg-[#FFDA29] active:scale-[0.98] disabled:opacity-70"
               >
                 {verifying ? (
                   <>
@@ -344,6 +292,7 @@ export function OtpScreen({
               </button>
             </form>
 
+            {/* Footer Support Row - Monochrome */}
             <div
               className={cx(
                 'mt-5 flex items-center justify-center gap-1.5 border-t pt-4 text-[10px]',
@@ -353,7 +302,7 @@ export function OtpScreen({
               <Headphones className="h-3.5 w-3.5 text-slate-400" /> Spartan Tournament Support is online
             </div>
           </div>
-        </GlassCard>
+        </div>
       </div>
     </div>
   );
