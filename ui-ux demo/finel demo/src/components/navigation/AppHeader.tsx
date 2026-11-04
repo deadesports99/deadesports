@@ -87,13 +87,13 @@ export function AppHeader({
         {/* Balance badge with quick add */}
         <div
           className={cx(
-            'flex items-center gap-1.5 rounded-lg border pl-2.5 pr-1 py-1 transition-all',
+            'flex h-8 items-center gap-1.5 rounded-lg border pl-2.5 pr-1 transition-all',
             isDark
               ? 'border-white/15 bg-[#0B1526] text-white'
               : 'border-slate-300 bg-white text-slate-950 shadow-sm'
           )}
         >
-          <Wallet className={cx('h-3 w-3', isDark ? 'text-amber-400' : 'text-slate-700')} />
+          <Wallet className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-200' : 'text-slate-700')} />
           <span className={cx('text-xs font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>
             {formatINR(balance)}
           </span>

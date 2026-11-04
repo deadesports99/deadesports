@@ -47,8 +47,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.tourney.core.util.TimeAuthority
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -107,6 +109,15 @@ fun TournamentFeedScreen(
     var selectedTournamentForJoin by remember { mutableStateOf<Tournament?>(null) }
     var showJoinedDetailsDialog by remember { mutableStateOf<Tournament?>(null) }
     var joinSuccessMessage by remember { mutableStateOf<String?>(null) }
+
+    // Authoritative Server Time ticker (immune to device clock spoofing)
+    var currentServerTimeMs by remember { mutableLongStateOf(TimeAuthority.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(1000L)
+            currentServerTimeMs = TimeAuthority.currentTimeMillis()
+        }
+    }
 
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -212,18 +223,29 @@ fun TournamentFeedScreen(
                                 .thenBy { it.matchTime }
                         )
 
-                        // 3. Separate Upcoming vs Live sections
+                        // 3. Separate Upcoming vs Live sections strictly using Server IST
                         val tabMatches = when (currentTab) {
-                            FeedTab.UPCOMING -> sortedMatches.filter {
-                                it.status == TournamentStatus.UPCOMING ||
-                                    it.status == TournamentStatus.OPEN ||
-                                    it.status == TournamentStatus.SLOTS_FULL ||
-                                    it.status == TournamentStatus.ROOM_REVEALED
+                            FeedTab.UPCOMING -> sortedMatches.filter { match ->
+                                val matchStartMs = try {
+                                    java.time.Instant.parse(match.matchTime).toEpochMilli()
+                                } catch (_: Exception) { Long.MAX_VALUE }
+
+                                val isUpcomingStatus = match.status == TournamentStatus.UPCOMING ||
+                                    match.status == TournamentStatus.OPEN ||
+                                    match.status == TournamentStatus.SLOTS_FULL ||
+                                    match.status == TournamentStatus.ROOM_REVEALED
+
+                                isUpcomingStatus && (matchStartMs > currentServerTimeMs)
                             }
-                            FeedTab.LIVE -> sortedMatches.filter {
-                                it.status == TournamentStatus.LIVE ||
-                                    it.status == TournamentStatus.ROOM_REVEALED ||
-                                    it.status == TournamentStatus.UNDER_REVIEW
+                            FeedTab.LIVE -> sortedMatches.filter { match ->
+                                val matchStartMs = try {
+                                    java.time.Instant.parse(match.matchTime).toEpochMilli()
+                                } catch (_: Exception) { Long.MAX_VALUE }
+
+                                val isKickoffPast = currentServerTimeMs >= matchStartMs
+                                match.status == TournamentStatus.LIVE ||
+                                    match.status == TournamentStatus.UNDER_REVIEW ||
+                                    (isKickoffPast && (match.status == TournamentStatus.ROOM_REVEALED || match.status == TournamentStatus.OPEN || match.status == TournamentStatus.SLOTS_FULL))
                             }
                         }
 
@@ -700,7 +722,8 @@ fun TournamentCard(
     val canSeeRoom = tournament.mySlot != null && (
         tournament.status == TournamentStatus.ROOM_REVEALED ||
             tournament.status == TournamentStatus.LIVE ||
-            tournament.status == TournamentStatus.UNDER_REVIEW
+            tournament.status == TournamentStatus.UNDER_REVIEW ||
+            tournament.isRoomUnlockTime()
         )
 
     GlassCard(

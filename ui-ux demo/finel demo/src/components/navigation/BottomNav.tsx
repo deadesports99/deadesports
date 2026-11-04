@@ -25,30 +25,56 @@ export function BottomNav({ theme, activeTab, onChange }: BottomNavProps) {
         isDark ? 'border-white/10 bg-slate-950/90 shadow-2xl shadow-black' : 'border-slate-900/10 bg-white/90 shadow-xl'
       )}
     >
-      <div className="mx-auto grid max-w-lg grid-cols-3 gap-2">
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onChange(id)}
-            className={cx(
-              'relative flex flex-col items-center justify-center gap-1 rounded-xl py-1 text-[11px] font-bold transition-all active:scale-95',
-              activeTab === id
-                ? isDark
-                  ? 'text-[#FFD000]'
-                  : 'text-slate-950 font-black'
-                : isDark
-                ? 'text-slate-400 hover:text-slate-200'
-                : 'text-slate-500 hover:text-slate-900'
-            )}
-          >
-            <Icon className={cx('h-5 w-5 shrink-0 transition-transform', activeTab === id && 'scale-110')} />
-            <span>{label}</span>
-            {activeTab === id && (
-              <span className="absolute bottom-0 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-[#FFD000] shadow-[0_0_8px_#FFD000]" />
-            )}
-          </button>
-        ))}
+      <div className="mx-auto flex max-w-md items-center justify-around">
+        {tabs.map(({ id, label, icon: Icon }) => {
+          const isActive = activeTab === id;
+
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onChange(id)}
+              className="group flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-all active:scale-95"
+            >
+              {/* Native M3 Style Active Indicator Pill (Icon Only) */}
+              <div
+                className={cx(
+                  'flex h-8 w-14 items-center justify-center rounded-full transition-all duration-200',
+                  isActive
+                    ? isDark
+                      ? 'bg-white/15 text-white shadow-sm'
+                      : 'bg-slate-900/10 text-slate-950 border border-slate-900/10'
+                    : isDark
+                    ? 'bg-transparent text-slate-400 group-hover:text-slate-200'
+                    : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                )}
+              >
+                <Icon
+                  className={cx(
+                    'h-5 w-5 transition-transform duration-200',
+                    isActive ? 'scale-105 stroke-[2.3]' : 'stroke-[1.8]'
+                  )}
+                />
+              </div>
+
+              {/* Label below the indicator */}
+              <span
+                className={cx(
+                  'text-[10px] tracking-tight transition-colors duration-200',
+                  isActive
+                    ? isDark
+                      ? 'font-black text-white'
+                      : 'font-black text-slate-950'
+                    : isDark
+                    ? 'font-medium text-slate-400'
+                    : 'font-medium text-slate-500'
+                )}
+              >
+                {label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

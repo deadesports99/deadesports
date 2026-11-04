@@ -593,23 +593,48 @@
         { id: 'profile', label: 'Profile', icon: User }
       ];
       return (
-        <nav aria-label="Bottom Navigation" className={cx('fixed bottom-0 inset-x-0 z-30 border-t px-4 pb-3 pt-2 backdrop-blur-2xl', isDark ? 'border-white/10 bg-slate-950/90 shadow-2xl shadow-black' : 'border-slate-900/10 bg-white/90 shadow-xl')}>
-          <div className="mx-auto grid max-w-lg grid-cols-3 gap-2">
-            {tabs.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onChange(id)}
-                className={cx(
-                  'relative flex flex-col items-center justify-center gap-1 rounded-xl py-1 text-[11px] font-bold transition-all active:scale-95',
-                  activeTab === id ? (isDark ? 'text-[#FFD000]' : 'text-slate-950 font-black') : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
-                )}
-              >
-                <Icon className={cx('h-5 w-5 shrink-0 transition-transform', activeTab === id && 'scale-110')} />
-                <span>{label}</span>
-                {activeTab === id && <span className="absolute bottom-0 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-[#FFD000] shadow-[0_0_8px_#FFD000]" />}
-              </button>
-            ))}
+        <nav aria-label="Bottom Navigation" className={cx('fixed bottom-0 inset-x-0 z-30 border-t px-4 pb-2.5 pt-2 backdrop-blur-2xl transition-colors', isDark ? 'border-white/10 bg-slate-950/95 shadow-2xl shadow-black' : 'border-slate-200 bg-white/95 shadow-lg')}>
+          <div className="mx-auto flex max-w-md items-center justify-around">
+            {tabs.map(({ id, label, icon: Icon }) => {
+              const isActive = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onChange(id)}
+                  className="group flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-all active:scale-95"
+                >
+                  <div
+                    className={cx(
+                      'flex h-8 w-14 items-center justify-center rounded-full transition-all duration-200',
+                      isActive
+                        ? isDark
+                          ? 'bg-white/15 text-white shadow-sm'
+                          : 'bg-slate-900/10 text-slate-950 border border-slate-900/10'
+                        : isDark
+                        ? 'bg-transparent text-slate-400 group-hover:text-slate-200'
+                        : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    )}
+                  >
+                    <Icon className={cx('h-5 w-5 transition-transform duration-200', isActive ? 'scale-105 stroke-[2.3]' : 'stroke-[1.8]')} />
+                  </div>
+                  <span
+                    className={cx(
+                      'text-[10px] tracking-tight transition-colors duration-200',
+                      isActive
+                        ? isDark
+                          ? 'font-black text-white'
+                          : 'font-black text-slate-950'
+                        : isDark
+                        ? 'font-medium text-slate-400'
+                        : 'font-medium text-slate-500'
+                    )}
+                  >
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </nav>
       );
@@ -631,17 +656,17 @@
           </div>
           <div className="flex items-center gap-2">
             {onSettings && (
-              <button type="button" aria-label="Open Settings" onClick={onSettings} className={cx('flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:border-amber-400/50 hover:text-white' : 'border-slate-300 bg-white text-slate-700')}>
-                <Settings className="h-3.5 w-3.5 text-amber-400" />
+              <button type="button" aria-label="Open Settings" onClick={onSettings} className={cx('flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:text-white' : 'border-slate-200 bg-slate-100 text-slate-700 hover:text-slate-950')}>
+                <Settings className="h-3.5 w-3.5" />
               </button>
             )}
-            <button type="button" aria-label="Notifications" onClick={onNotify} className={cx('relative flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:text-white' : 'border-slate-300 bg-white text-slate-700')}>
+            <button type="button" aria-label="Notifications" onClick={onNotify} className={cx('relative flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95', isDark ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:text-white' : 'border-slate-200 bg-slate-100 text-slate-700 hover:text-slate-950')}>
               <Bell className="h-3.5 w-3.5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_6px_#FFD000]" />
+              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#FFD000]" />
             </button>
-            <div className={cx('flex items-center gap-1.5 rounded-lg border pl-2.5 pr-1 py-1', isDark ? 'border-amber-400/30 bg-[#0B1526]/90 text-white' : 'border-amber-500/40 bg-slate-900 text-white')}>
-              <Wallet className="h-3 w-3 text-amber-400" />
-              <span className="text-xs font-black text-amber-300">{formatINR(balance)}</span>
+            <div className={cx('flex h-8 items-center gap-1.5 rounded-lg border pl-2.5 pr-1', isDark ? 'border-white/15 bg-[#0B1526] text-white' : 'border-slate-300 bg-white text-slate-950 shadow-sm')}>
+              <Wallet className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-200' : 'text-slate-700')} />
+              <span className={cx('text-xs font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>{formatINR(balance)}</span>
               <button type="button" onClick={onAddFunds} aria-label="Add funds" className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-md bg-[#FFD000] text-slate-950 transition-all hover:bg-[#FFDA29] active:scale-90">
                 <Plus className="h-3 w-3 stroke-[3]" />
               </button>
@@ -718,16 +743,13 @@
                       'relative flex h-[52px] min-w-[155px] shrink-0 items-center gap-2.5 rounded-xl border px-3 py-1.5 text-left transition-all active:scale-[0.97]',
                       isSelected
                         ? isDark
-                          ? 'border-2 border-[#FFD000] bg-gradient-to-r from-amber-500/15 via-[#0B1526] to-[#0B1526] shadow-md shadow-amber-400/10'
-                          : 'border-2 border-slate-950 bg-white shadow-md ring-2 ring-slate-900/10'
+                          ? 'border-2 border-white bg-[#0F1E36] shadow-md'
+                          : 'border-2 border-slate-800 bg-white shadow-sm ring-1 ring-slate-800/10'
                         : isDark
-                        ? 'border-white/10 bg-[#0B1526]/60 opacity-60 hover:opacity-85'
-                        : 'border-slate-200 bg-slate-100/70 opacity-65 hover:opacity-90'
+                        ? 'border-white/10 bg-[#0B1526]/60 opacity-45 hover:opacity-75'
+                        : 'border-slate-200 bg-slate-100/70 opacity-50 hover:opacity-80'
                     )}
                   >
-                    {isSelected && (
-                      <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#FFD000] text-[9px] font-black text-slate-950 shadow-sm ring-1 ring-slate-950">✓</span>
-                    )}
                     <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/20">
                       {game.icon ? (
                         <img src={game.icon} alt={game.name} className={cx('h-full w-full object-cover', !game.active && 'grayscale opacity-70')} />

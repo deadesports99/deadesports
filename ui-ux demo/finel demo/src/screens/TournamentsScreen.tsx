@@ -75,20 +75,13 @@ export function TournamentsScreen({
                   'relative flex h-[52px] min-w-[155px] shrink-0 items-center gap-2.5 rounded-xl border px-3 py-1.5 text-left transition-all active:scale-[0.97]',
                   isSelected
                     ? isDark
-                      ? 'border-2 border-[#FFD000] bg-gradient-to-r from-amber-500/15 via-[#0B1526] to-[#0B1526] shadow-md shadow-amber-400/10'
-                      : 'border-2 border-slate-950 bg-white shadow-md ring-2 ring-slate-900/10'
+                      ? 'border-2 border-white bg-[#0F1E36] shadow-md'
+                      : 'border-2 border-slate-800 bg-white shadow-sm ring-1 ring-slate-800/10'
                     : isDark
-                    ? 'border-white/10 bg-[#0B1526]/60 opacity-60 hover:opacity-85'
-                    : 'border-slate-200 bg-slate-100/70 opacity-65 hover:opacity-90'
+                    ? 'border-white/10 bg-[#0B1526]/60 opacity-45 hover:opacity-75'
+                    : 'border-slate-200 bg-slate-100/70 opacity-50 hover:opacity-80'
                 )}
               >
-                {/* Selection Indicator Checkmark */}
-                {isSelected && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#FFD000] text-[9px] font-black text-slate-950 shadow-sm ring-1 ring-slate-950">
-                    ✓
-                  </span>
-                )}
-
                 {/* Game Icon / Official Logo */}
                 <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/20">
                   {game.icon ? (

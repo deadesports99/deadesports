@@ -51,6 +51,7 @@ object ApiClient {
         }
 
         val okHttp = OkHttpClient.Builder()
+            .addInterceptor(ServerTimeInterceptor())
             .addInterceptor(
                 AuthInterceptor(
                     tokenProvider = { sessionManager.currentToken() },

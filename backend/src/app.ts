@@ -6,6 +6,7 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import { authRouter } from './routes/auth.routes.js';
 import { adminWalletRouter } from './routes/adminWallet.routes.js';
 import { healthRouter } from './routes/health.routes.js';
+import { timeRouter } from './routes/time.routes.js';
 import { resultRouter } from './routes/result.routes.js';
 import { tournamentRouter } from './routes/tournament.routes.js';
 import { tenantRouter, adminTenantRouter } from './routes/tenant.routes.js';
@@ -31,6 +32,7 @@ app.use(
     credentials: !allowAllOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['X-Server-Time', 'X-Server-Time-IST'],
   }),
 );
 
@@ -38,7 +40,16 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ─── 4. Simple request logger (Sanitized to prevent Log Injection) ───────
+// ─── 4. Authoritative Server Time & Tamper-Proof Header Middleware ───────
+// Injects exact server timestamp into every single HTTP response header.
+// Client devices use this to defeat local clock spoofing.
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Server-Time', Date.now().toString());
+  res.setHeader('X-Server-Time-IST', new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString());
+  next();
+});
+
+// ─── 5. Simple request logger (Sanitized to prevent Log Injection) ───────
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const safeMethod = req.method.replace(/[\r\n]/g, '');
   const safeUrl = req.originalUrl.replace(/[\r\n]/g, '');
@@ -47,7 +58,7 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// ─── 5. Routes ──────────────────────────────────────────────────────────
+// ─── 6. Routes ──────────────────────────────────────────────────────────
 // Root info banner (nice for quick browser check).
 app.get('/', (_req: Request, res: Response) => {
   res.status(200).json({
@@ -55,13 +66,17 @@ app.get('/', (_req: Request, res: Response) => {
     version: '1.0.0',
     status: 'running',
     health: ['/health', '/api/v1/health'],
+    time: ['/time', '/api/v1/time'],
   });
 });
 
 // Health routes mounted at both the root alias and the versioned namespace.
-// (healthRouter already defines the /health prefix internally, see health.routes.ts)
 app.use(healthRouter);
 app.use('/api/v1', healthRouter);
+
+// Authoritative Indian Standard Time (IST) sync routes
+app.use('/time', timeRouter);
+app.use('/api/v1/time', timeRouter);
 
 // Auth & RBAC
 app.use('/api/v1/auth', authRouter);
@@ -85,12 +100,12 @@ app.use('/api/v1/admin/tenant', adminTenantRouter);
 // Player profile stats (Android Phase 6)
 app.use('/api/v1/players', playerRouter);
 
-// ─── 6. 404 handler for undefined routes ────────────────────────────────
+// ─── 7. 404 handler for undefined routes ────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction) => {
   next(ApiError.notFound('Route not found'));
 });
 
-// ─── 7. Global error handler (LAST) ─────────────────────────────────────
+// ─── 8. Global error handler (LAST) ─────────────────────────────────────
 app.use(errorHandler);
 
 export { app };

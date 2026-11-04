@@ -15,6 +15,8 @@ export interface RealtimeMessage {
   type: RealtimeEventType;
   data: any;
   timestamp: string;
+  serverTimeMs?: number;
+  serverTimeIst?: string;
 }
 
 interface ClientMeta {
@@ -22,6 +24,19 @@ interface ClientMeta {
   userId?: string;
   tenantId?: string;
   isAlive: boolean;
+}
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function formatPayload(type: RealtimeEventType, data: any): string {
+  const now = Date.now();
+  return JSON.stringify({
+    type,
+    data,
+    timestamp: new Date(now).toISOString(),
+    serverTimeMs: now,
+    serverTimeIst: new Date(now + IST_OFFSET_MS).toISOString(),
+  });
 }
 
 class RealtimeService {
@@ -56,7 +71,7 @@ class RealtimeService {
             // Invalid token - keep connection open for public match updates
           }
         }
-      } catch (err) {
+      } catch {
         // Fallback for url parsing
       }
 
@@ -71,13 +86,25 @@ class RealtimeService {
               const decoded = jwt.verify(msg.token, env.JWT_SECRET) as { id?: string; userId?: string; tenantId?: string };
               meta.userId = decoded.id || decoded.userId;
               if (decoded.tenantId) meta.tenantId = decoded.tenantId;
-              ws.send(JSON.stringify({ type: 'AUTH_SUCCESS', userId: meta.userId }));
+              const now = Date.now();
+              ws.send(JSON.stringify({
+                type: 'AUTH_SUCCESS',
+                userId: meta.userId,
+                serverTimeMs: now,
+                serverTimeIst: new Date(now + IST_OFFSET_MS).toISOString(),
+              }));
             } catch {
               ws.send(JSON.stringify({ type: 'AUTH_ERROR', message: 'Invalid token' }));
             }
           } else if (msg.type === 'PING') {
             meta.isAlive = true;
-            ws.send(JSON.stringify({ type: 'PONG', timestamp: new Date().toISOString() }));
+            const now = Date.now();
+            ws.send(JSON.stringify({
+              type: 'PONG',
+              timestamp: new Date(now).toISOString(),
+              serverTimeMs: now,
+              serverTimeIst: new Date(now + IST_OFFSET_MS).toISOString(),
+            }));
           }
         } catch {
           // Ignore invalid client payload
@@ -96,11 +123,15 @@ class RealtimeService {
         this.clients.delete(meta);
       });
 
-      // Send initial connection ack
+      // Send initial connection ack with authoritative Indian Standard Time
+      const now = Date.now();
       ws.send(JSON.stringify({
         type: 'CONNECTED',
         data: { message: '⚡ Free Fire Realtime Engine Connected' },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(now).toISOString(),
+        serverTimeMs: now,
+        serverTimeIst: new Date(now + IST_OFFSET_MS).toISOString(),
+        timezone: 'Asia/Kolkata',
       }));
     });
 
@@ -121,11 +152,7 @@ class RealtimeService {
   }
 
   public broadcast(type: RealtimeEventType, data: any): void {
-    const payload = JSON.stringify({
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-    });
+    const payload = formatPayload(type, data);
 
     for (const client of this.clients) {
       if (client.ws.readyState === WebSocket.OPEN) {
@@ -135,11 +162,7 @@ class RealtimeService {
   }
 
   public broadcastToTenant(tenantId: string, type: RealtimeEventType, data: any): void {
-    const payload = JSON.stringify({
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-    });
+    const payload = formatPayload(type, data);
 
     for (const client of this.clients) {
       if (client.ws.readyState === WebSocket.OPEN && (!client.tenantId || client.tenantId === tenantId)) {
@@ -149,11 +172,7 @@ class RealtimeService {
   }
 
   public sendToUser(userId: string, type: RealtimeEventType, data: any): void {
-    const payload = JSON.stringify({
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-    });
+    const payload = formatPayload(type, data);
 
     for (const client of this.clients) {
       if (client.userId === userId && client.ws.readyState === WebSocket.OPEN) {
@@ -164,11 +183,7 @@ class RealtimeService {
 
   public sendToUsers(userIds: string[], type: RealtimeEventType, data: any): void {
     const targetSet = new Set(userIds);
-    const payload = JSON.stringify({
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-    });
+    const payload = formatPayload(type, data);
 
     for (const client of this.clients) {
       if (client.userId && targetSet.has(client.userId) && client.ws.readyState === WebSocket.OPEN) {

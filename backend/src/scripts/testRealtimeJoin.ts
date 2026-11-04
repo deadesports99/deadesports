@@ -43,10 +43,16 @@ async function main() {
       userId: player2.id,
       tenantId,
       role: 'USER',
-      phoneNumber: player2.phoneNumber,
+      canCreateMatch: false,
+      canUpdateRoomId: false,
+      canDistributePrize: false,
+      canManageWallet: false,
     },
     tournamentId,
-    { inGameName: 'PRO_SNIPER', inGameUid: '987654321' }
+    undefined,
+    undefined,
+    'PRO_SNIPER',
+    '987654321'
   );
 
   console.log('Join result:', result);

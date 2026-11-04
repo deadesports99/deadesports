@@ -45,11 +45,21 @@ export interface SweepResult {
  * @param tenantId optional tenant scope (used by the manual trigger)
  */
 export async function sweepMatchStates(
-  now: Date = new Date(),
+  now?: Date,
   tenantId?: string,
 ): Promise<SweepResult> {
+  let effectiveNow = now;
+  if (!effectiveNow) {
+    try {
+      const dbResult: any = await prisma.$queryRawUnsafe('SELECT NOW() as db_now;');
+      effectiveNow = new Date(dbResult[0]?.db_now ?? Date.now());
+    } catch {
+      effectiveNow = new Date();
+    }
+  }
+
   const tenantFilter = tenantId ? { tenantId } : {};
-  const revealCutoff = new Date(now.getTime() + ROOM_REVEAL_WINDOW_MS);
+  const revealCutoff = new Date(effectiveNow.getTime() + ROOM_REVEAL_WINDOW_MS);
 
   // ── Step 1: reveal rooms for matches that start within 15 minutes ────
   const revealCandidates = await prisma.tournament.findMany({
@@ -66,7 +76,7 @@ export async function sweepMatchStates(
   for (const candidate of revealCandidates) {
     const flipped = await prisma.tournament.updateMany({
       where: { id: candidate.id, status: { in: [...REVEALABLE_STATUSES] } },
-      data: { status: 'ROOM_REVEALED', roomRevealedAt: now },
+      data: { status: 'ROOM_REVEALED', roomRevealedAt: effectiveNow },
     });
     if (flipped.count !== 1) continue; // someone else won the race — skip the push
 
@@ -75,7 +85,6 @@ export async function sweepMatchStates(
       tournamentId: candidate.id,
       status: 'ROOM_REVEALED',
     });
-
 
     void pushToTournamentParticipants(candidate.id, {
       type: 'ROOM_REVEALED',
@@ -92,7 +101,7 @@ export async function sweepMatchStates(
     where: {
       ...tenantFilter,
       status: 'ROOM_REVEALED',
-      matchTime: { lte: now },
+      matchTime: { lte: effectiveNow },
     },
     select: { id: true, title: true, matchTime: true },
     orderBy: { matchTime: 'asc' },
@@ -114,7 +123,7 @@ export async function sweepMatchStates(
   }
 
   return {
-    ranAt: now.toISOString(),
+    ranAt: effectiveNow.toISOString(),
     revealWindowMinutes: ROOM_REVEAL_WINDOW_MS / 60000,
     roomRevealed,
     wentLive,

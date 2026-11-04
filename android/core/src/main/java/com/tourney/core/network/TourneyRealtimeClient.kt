@@ -2,6 +2,7 @@ package com.tourney.core.network
 
 import android.util.Log
 import com.tourney.core.model.TournamentStatus
+import com.tourney.core.util.TimeAuthority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -175,6 +176,9 @@ object TourneyRealtimeClient {
                 isConnecting.set(false)
                 reconnectAttempts = 0
 
+                // Request instant server time sync
+                ws.send(JSONObject().apply { put("type", "PING") }.toString())
+
                 // If authenticated, send token handshake
                 val token = tokenProvider?.invoke()
                 if (!token.isNullOrBlank()) {
@@ -192,9 +196,22 @@ object TourneyRealtimeClient {
                     val type = json.optString("type")
                     val data = json.optJSONObject("data") ?: JSONObject()
 
+                    // Authoritative server-clock sync (anti clock spoofing)
+                    val serverTimeMs = if (json.has("serverTimeMs")) {
+                        json.optLong("serverTimeMs", 0L)
+                    } else {
+                        data.optLong("serverTimeMs", 0L)
+                    }
+                    if (serverTimeMs > 0L) {
+                        TimeAuthority.sync(serverTimeMs, source = "WebSocket [$type]")
+                    }
+
                     when (type) {
                         "CONNECTED" -> {
                             Log.d(TAG, "Handshake ack received from server")
+                        }
+                        "PONG" -> {
+                            Log.d(TAG, "Server heartbeat PONG received with server time sync")
                         }
                         "SLOT_BOOKED" -> {
                             val event = RealtimeEvent.SlotBooked(

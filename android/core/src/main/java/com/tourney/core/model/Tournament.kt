@@ -2,6 +2,7 @@ package com.tourney.core.model
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import com.tourney.core.util.TimeAuthority
 
 enum class GameMode { BATTLE_ROYALE, CLASH_SQUAD }
 
@@ -41,14 +42,35 @@ data class Tournament(
     val fillFraction: Float
         get() = if (totalSlots > 0) (slotsBooked.toFloat() / totalSlots).coerceIn(0f, 1f) else 0f
 
-    /** 15-minute countdown helper: time until room creds unlock. */
-    fun secondsUntilRoomReveal(nowEpochMs: Long = System.currentTimeMillis()): Long {
+    /** 15-minute countdown helper: time until room creds unlock (Authoritative IST Server Time). */
+    fun secondsUntilRoomReveal(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Long {
         val matchEpoch = try {
             java.time.Instant.parse(matchTime).toEpochMilli()
         } catch (e: Exception) {
             return Long.MAX_VALUE
         }
-        return ((matchEpoch - 15 * 60 * 1000L) - nowEpochMs).coerceAtLeast(0)
+        val unlockTime = matchEpoch - 15 * 60 * 1000L
+        return if (nowEpochMs >= unlockTime) 0L else (unlockTime - nowEpochMs) / 1000L
+    }
+
+    /** Seconds until match kicks off. */
+    fun secondsUntilMatch(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Long {
+        val matchEpoch = try {
+            java.time.Instant.parse(matchTime).toEpochMilli()
+        } catch (e: Exception) {
+            return Long.MAX_VALUE
+        }
+        return if (nowEpochMs >= matchEpoch) 0L else (matchEpoch - nowEpochMs) / 1000L
+    }
+
+    /** Returns true if server time has crossed the 15-minute room reveal threshold. */
+    fun isRoomUnlockTime(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean {
+        return secondsUntilRoomReveal(nowEpochMs) == 0L
+    }
+
+    /** Returns true if server time has reached or passed match start. */
+    fun isMatchStarted(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean {
+        return secondsUntilMatch(nowEpochMs) == 0L
     }
 }
 

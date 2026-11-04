@@ -9,12 +9,21 @@ fun formatMoney(value: Double): String =
     if (value == value.toLong().toDouble()) value.toLong().toString()
     else String.format("%.2f", value)
 
-private val timeFormat: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM, hh:mm a").withZone(ZoneId.systemDefault())
+val IST_ZONE: ZoneId = ZoneId.of("Asia/Kolkata")
 
-/** "01 Nov, 08:00 PM" from a backend ISO-8601 string. */
+private val timeFormat: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd MMM, hh:mm a").withZone(IST_ZONE)
+
+/** "01 Nov, 08:00 PM" strictly in Indian Standard Time (IST). */
 fun formatMatchTime(iso: String): String = try {
     timeFormat.format(Instant.parse(iso))
 } catch (e: Exception) {
     iso
+}
+
+/** Format milliseconds strictly in Indian Standard Time (IST). */
+fun formatIstDateTime(epochMs: Long): String = try {
+    timeFormat.format(Instant.ofEpochMilli(epochMs))
+} catch (e: Exception) {
+    epochMs.toString()
 }
