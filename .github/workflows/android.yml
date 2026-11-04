@@ -1,0 +1,79 @@
+name: Android
+
+# Har push/PR pe dono apps ka debug APK build hota hai.
+# White-label: google-services.json commit nahi hota, isliye Firebase push
+# CI me off rehta hai — app phir bhi build hota hai (build.gradle.kts check).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Assemble debug APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Gradle wrapper permissions
+        run: chmod +x gradlew
+
+      - name: Build player + admin
+        run: ./gradlew :app-player:assembleDebug :app-admin:assembleDebug --no-daemon --console=plain --stacktrace
+
+      - name: Lint (non-blocking)
+        # Lint fails build na kare — pehle ek baseline bane, phir blocking karenge.
+        continue-on-error: true
+        run: ./gradlew :app-player:lintDebug :app-admin:lintDebug --no-daemon --console=plain
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apks-${{ github.run_number }}
+          path: |
+            android/app-player/build/outputs/apk/debug/*.apk
+            android/app-admin/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports-${{ github.run_number }}
+          path: |
+            android/app-player/build/reports/lint-results-debug.html
+            android/app-admin/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+          retention-days: 7

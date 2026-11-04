@@ -1,0 +1,28 @@
+version: 2
+
+# Sirf wahi ecosystems jinme lock/manifest hai. Weekly, ek saath grouped —
+# 20 alag-alag PR nahi, 2-3 reviewable PR.
+updates:
+  # Backend (npm) — security patches pehle
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+    open-pull-requests-limit: 3
+    groups:
+      backend-minor:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # Major bumps manually karte hain (breaking changes)
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+
+  # GitHub Actions runners (uses: ...@vN)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
