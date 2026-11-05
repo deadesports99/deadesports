@@ -121,7 +121,7 @@ fun AdminDashboardScreen(
                 AdminFeature(
                     "Player Management",
                     "Search by Player ID / phone / IGN / FF UID • ban or unban accounts",
-                    Icons.Filled.People,
+                    Icons.Filled.PeopleAlt,
                     true,
                     "players",
                 )

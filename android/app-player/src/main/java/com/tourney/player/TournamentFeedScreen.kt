@@ -346,7 +346,7 @@ fun TournamentFeedScreen(
             },
             onSuccess = { _ ->
                 selectedTournamentForJoin = null
-                joinSuccessMessage = "🎉 Successfully joined \"${t.title}\"! You are registered for this match."
+                joinSuccessMessage = "🎉 Successfully joined ${t.displayName}! You are registered for this match."
             },
         )
     }
@@ -365,7 +365,7 @@ fun TournamentFeedScreen(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(t.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text(t.displayName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     Text("✅ You are registered for this match!", color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
                     Text("⏰ Match Time: ${formatMatchTime(t.matchTime)}", fontSize = 13.sp)
                     Text(
@@ -390,7 +390,7 @@ fun TournamentFeedScreen(
         val t = showRoomCredentialsDialogFor!!
         RoomCredentialsDialog(
             tournamentId = t.id,
-            tournamentTitle = t.title,
+            tournamentTitle = t.displayName,
             initialRoom = t.room,
             onDismiss = { showRoomCredentialsDialogFor = null },
         )
@@ -478,7 +478,7 @@ fun JoinMatchBottomSheet(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        tournament.title,
+                        tournament.displayName,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -818,7 +818,7 @@ fun TournamentCard(
                         )
                     }
                     Text(
-                        tournament.title,
+                        tournament.displayName,
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
                         fontWeight = FontWeight.ExtraBold,

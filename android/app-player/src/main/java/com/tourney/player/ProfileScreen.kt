@@ -157,6 +157,17 @@ fun ProfileScreen(
 
                     Spacer(Modifier.height(14.dp))
 
+                    // Auto-generated Player ID ("APX-0001") — assigned at signup.
+                    user?.playerCode?.let { code ->
+                        CopyRow(
+                            label = "Player ID",
+                            value = code,
+                            showCopy = true,
+                            onCopy = { clipboard.setText(AnnotatedString(it)) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+
                     CopyRow(
                         label = "Login Method",
                         value = if (isGoogle) "🚀 Google Account" else "📱 Mobile OTP",

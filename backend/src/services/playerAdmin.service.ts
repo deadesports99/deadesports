@@ -104,11 +104,11 @@ export async function setPlayerBanned(
 ): Promise<{ id: string; playerCode: string | null; isBanned: boolean }> {
   const user = await prisma.user.findFirst({
     where: { id: userId, tenantId, role: 'USER' },
-    select: { id: true, isBanned: true },
+    select: { id: true, isBanned: true, playerCode: true },
   });
   if (!user) throw ApiError.notFound('Player not found');
   if (user.isBanned === isBanned) {
-    return { id: user.id, playerCode: null, isBanned };
+    return { id: user.id, playerCode: user.playerCode, isBanned };
   }
 
   const updated = await prisma.user.update({

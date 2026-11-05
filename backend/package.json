@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:coverage": "node --import tsx --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.raw.info --test tests/*.test.ts && node scripts/normalizeLcov.mjs"
   },
   "keywords": [
     "freefire",

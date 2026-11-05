@@ -38,4 +38,8 @@ dist/
 # Local verification screenshots (adb captures)
 screenshots/
 .aider*
+
+# Unit test coverage output
+backend/coverage/
+coverage/
 .scannerwork/
