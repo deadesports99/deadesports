@@ -390,8 +390,14 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/11_Match_Li
    compile clean, backend unit suite **40/40**. Live Supabase E2E (temporary rows removed after):
    auto code `APE-0215`, auto match `#12 Bermuda Solo #12`, player search, ban/unban, finish with
    UID paid **₹70** (₹50 rank + 2×₹10 kills), ledger + result written, second finish rejected.
-   No physical device was connected during this pass (adb empty), so on-device walkthrough of the
-   new screens is still pending.
+8. **Physical-device walkthrough (RMX5070, Phase 12)** — `adb reverse tcp:5000 tcp:5000`, both debug
+   APKs installed. Verified: Create Match screen has no title field (auto `#N` note), player feed
+   shows `#12 Bermuda • Solo`, join sheet captures IGN/UID and joins, admin **LIVE / UPCOMING /
+   HISTORY** tabs show `Match #12` + ID/Pass status, End Match & Pay dialog paid winner
+   `APE-0214` **₹10**, player Wallet showed the `WINNING_PRIZE` ledger, ban showed
+   "Your account has been banned" on the next player request, and unban restored access.
+   Screenshots in `screenshots/phase12_*.png`; the temporary match/slot/ledger were cleaned up
+   afterwards (player Winning Balance back to ₹0).
 
 ### Suggested next milestone (Phase 6 ideas)
 - Admin "Sweep now" + "Cancel & refund match" buttons on match cards (backend endpoints already exist).
