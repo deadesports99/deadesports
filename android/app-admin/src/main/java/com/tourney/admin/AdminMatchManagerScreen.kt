@@ -601,8 +601,15 @@ private fun MatchOpsCard(
     val canCancel = match.status in preMatchStatuses
     val canClone = match.status != TournamentStatus.CANCELLED
     val canEditVisibility = match.status in preMatchStatuses
-    val canFinish = match.status != TournamentStatus.COMPLETED &&
-        match.status != TournamentStatus.CANCELLED
+    // Must mirror the backend's FINISHABLE_STATUSES; UPCOMING/DRAFT cannot be paid.
+    val finishableStatuses = setOf(
+        TournamentStatus.OPEN,
+        TournamentStatus.SLOTS_FULL,
+        TournamentStatus.ROOM_REVEALED,
+        TournamentStatus.LIVE,
+        TournamentStatus.UNDER_REVIEW,
+    )
+    val canFinish = match.status in finishableStatuses
 
     // Player-list visibility state (server-computed window, IST labels).
     val nowMs = TimeAuthority.currentTimeMillis()
