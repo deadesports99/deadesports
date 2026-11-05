@@ -359,6 +359,40 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/11_Match_Li
    player Live tab `(0)` with 3h note, admin History shows 11 ended matches with dates, Active
    tab empty state; suites **36/36 + 44/44 + 19/19**, build clean, no crashes.
 
+### 🆔 4i. Milestone Status: Phase 12 ✅ COMPLETE — Auto IDs, One-Click Match Finish & Player Ban
+
+1. **Auto Player ID** — every new account (OTP / Google / email / staff) gets a readable
+   `playerCode` like `APE-0215` (3-char tenant prefix + sequence, unique per tenant). Existing
+   users were backfilled by `src/scripts/backfillIdentity.ts` (214 users, 0 nulls). The player
+   app shows a copyable **Player ID** row on the Profile screen.
+2. **Auto Match Number & Title** — the admin no longer types a title. `createTournament` allocates
+   `matchNumber = max + 1` (retries on the `[tenantId, matchNumber]` unique clash) and stores
+   `"Bermuda Solo #12"`. Clone allocates a fresh number too; all 11 existing matches were
+   backfilled (0 nulls). Cards render `#N Map • Mode` via `Tournament.displayName`.
+3. **Player-facing title cleanup** — feed cards, join success dialog, joined-details dialog, room
+   credentials dialog and map banner now use `displayName` (map + Solo/Duo/Squad), never an
+   arbitrary tournament title.
+4. **End Match & Pay Winner by UID** — `POST /tournaments/:id/finish` (permission
+   `canDistributePrize`) takes `{ winnerUid, winnerKills? }`, finds the booked participant whose
+   Free Fire UID matches, then in a serializable `FOR UPDATE` transaction credits rank-1 prize
+   (50% pool + kills × per-kill) to Winning Balance, writes a `WINNING_PRIZE` ledger row,
+   upserts the approved `MatchResult`, marks the match `COMPLETED`, clears Redis and pushes FCM.
+   A second finish is rejected (`already completed`) — no double payout.
+5. **Admin match console** — Manage Matches is now one section with **LIVE / UPCOMING / HISTORY**
+   tabs; each card shows auto `#N`, map/mode, IST time, seats, entry, visibility window and
+   **Room ID/Pass status** (set / hidden / revealed), plus Cancel & Refund, Clone and
+   **End Match & Pay Winner (UID)** actions.
+6. **Player Management + ban** — owner-only `GET /admin/players?search=` (Player ID / phone /
+   name / IGN / FF UID) and `PATCH /admin/players/:id/ban` with instant auth-cache invalidation
+   (banned JWT dies on the next request). Admin dashboard has a Player Management card and a
+   full search/ban/unban screen.
+7. **Verification** — backend `npm run build` clean, Android `:core + :app-admin + :app-player`
+   compile clean, backend unit suite **40/40**. Live Supabase E2E (temporary rows removed after):
+   auto code `APE-0215`, auto match `#12 Bermuda Solo #12`, player search, ban/unban, finish with
+   UID paid **₹70** (₹50 rank + 2×₹10 kills), ledger + result written, second finish rejected.
+   No physical device was connected during this pass (adb empty), so on-device walkthrough of the
+   new screens is still pending.
+
 ### Suggested next milestone (Phase 6 ideas)
 - Admin "Sweep now" + "Cancel & refund match" buttons on match cards (backend endpoints already exist).
 - Deposit/withdrawal CSV export + daily reconciliation totals.
@@ -372,8 +406,10 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/11_Match_Li
 
 When continuing from this file in a new chat:
 1. Greet the user in **Hinglish**.
-2. Acknowledge that Backend + Android Phases 1-11 are **100% completed & verified**.
-3. Backend + Android Phases 1-9 are complete; next work starts from the "Suggested next milestone" ideas above.
+2. Acknowledge that Backend + Android Phases 1-12 are **100% completed & verified**.
+3. Backend + Android Phases 1-9 are complete; Phase 12 (auto Player ID / auto match number,
+   one-click End Match & Pay by UID, admin player ban) is complete; next work starts from the
+   "Suggested next milestone" ideas above.
 4. Always leverage the reference repos in `git demo repo\` when generating code or prompts.
 5. Keep all checklist files in `plan/` updated.
 6. Match schedule, visibility & room reveal rules (Phases 8–9 — do not regress):
@@ -383,3 +419,11 @@ When continuing from this file in a new chat:
    - `Tournament.roomRevealMinutes` / `roomRevealedAt` control when joined players see Room ID & Password.
      Admins can Reveal Now any time (`PATCH /tournaments/:id/room-reveal { revealNow: true }`).
    - Never hide an already-joined player's match, and never let a hidden match be joined.
+7. Identity & finish rules (Phase 12 — do not regress):
+   - Never ask the admin to type a tournament title; the backend auto-generates
+     `matchNumber` + `"<Map> <Mode> #N"`. Player UI shows map + Solo/Duo/Squad via `displayName`.
+   - `playerCode` and `matchNumber` are unique per tenant; new registration paths must call
+     `allocatePlayerCode`, new tournaments go through `createTournament` (never raw insert).
+   - Payouts must stay atomic: lock the tournament row, write `WINNING_PRIZE` ledger, upsert the
+     approved result, then set COMPLETED. Never allow a second payout on a completed match.
+   - Ban/unban is owner-only and must call `invalidateAuthCache(userId)`.
