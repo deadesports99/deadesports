@@ -11,7 +11,7 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | ~11 % | ❌ (test backlog) |
+| new_coverage | ≥ 80 % | 22.8 % | ❌ (test backlog) |
 
 Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0).
 
@@ -74,7 +74,8 @@ Suggested ratchet (raise the threshold only after the suite catches up):
 | Step | Target | Suite |
 | --- | --- | --- |
 | now | 10 % | pure utils, config, gateway, room reveal, rate limiter, error handler |
-| next | 25 % | wallet / deposit / withdrawal / settlement services (Prisma mocked) |
+| done | 23 % | wallet / deposit / withdrawal / settlement services (Prisma mocked) |
+| next | 35 % | auth + tournament + result services, API routes via supertest |
 | later | 50 % | auth + tournament + result services, API route tests via supertest |
 | goal | 80 % | Kotlin unit tests (JUnit + JaCoCo) + full service coverage |
 
@@ -91,3 +92,8 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `paymentGateway.test.ts` — mock orders, HMAC checkout/webhook signatures, raw-body rule
 - `rateLimiter.test.ts` — sliding window, 429 + headers, per-key buckets, reset
 - `errorHandler.test.ts` — ApiError / Zod / malformed JSON / unexpected error mapping
+- `paymentSettlement.test.ts` — **money path**: single credit, retry no-op, EXPIRED→paid recovery, decimal exactness, expiry sweep, reconcile guards
+- `depositService.test.ts` — UTR submit rules, tenant minimum, duplicate/banned/cap guards, approve credits once, reject never credits
+- `withdrawalService.test.ts` — winning-balance hold, ledger DEBIT/WITHDRAWAL, no-deposit-money rule, approve marks paid, reject refunds once
+- `walletService.test.ts` — balances/total formatting, ledger ordering, pagination clamps, cross-tenant 404
+- `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators, increment/decrement, updateMany, orderBy/skip/take, `$transaction`)
