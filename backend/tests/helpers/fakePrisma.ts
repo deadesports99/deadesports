@@ -20,9 +20,12 @@ export interface FakePrismaOptions {
   depositRequests?: Row[];
   withdrawalRequests?: Row[];
   walletLedger?: Row[];
+  tournaments?: Row[];
+  tournamentSlots?: Row[];
+  matchResults?: Row[];
 }
 
-const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger'] as const;
+const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger', 'tournament', 'tournamentSlot', 'matchResult'] as const;
 type ModelName = (typeof MODELS)[number];
 
 const plain = (v: unknown) => (typeof v === 'number' ? v : Number(String(v)));
@@ -42,6 +45,12 @@ function matches(row: Row, where: Row | undefined): boolean {
         : value === condition;
     }
     const ops = condition as Row;
+    // Nested relation filter, e.g. `{ user: { inGameUid } }`.
+    if (value && typeof value === 'object' && !(value instanceof Date)) {
+      const knownOp = ['in', 'not', 'lt', 'lte', 'gt', 'gte', 'equals', 'startsWith', 'endsWith', 'contains']
+        .some((op) => op in ops);
+      if (!knownOp) return matches(value as Row, ops);
+    }
     if ('in' in ops) return (ops.in as unknown[]).some((c) => c === value);
     if ('not' in ops) {
       const notValue = ops.not;
@@ -56,6 +65,9 @@ function matches(row: Row, where: Row | undefined): boolean {
     if ('gt' in ops) return ms > (ops.gt instanceof Date ? ops.gt.getTime() : plain(ops.gt));
     if ('gte' in ops) return ms >= (ops.gte instanceof Date ? ops.gte.getTime() : plain(ops.gte));
     if ('equals' in ops) return value === ops.equals;
+    if ('startsWith' in ops) return String(value ?? '').startsWith(String(ops.startsWith));
+    if ('endsWith' in ops) return String(value ?? '').endsWith(String(ops.endsWith));
+    if ('contains' in ops) return String(value ?? '').includes(String(ops.contains));
     return true;
   });
 }
@@ -94,6 +106,9 @@ export class FakePrisma {
       depositRequest: (options.depositRequests ?? []).map((r) => ({ ...r })),
       withdrawalRequest: (options.withdrawalRequests ?? []).map((r) => ({ ...r })),
       walletLedger: (options.walletLedger ?? []).map((r) => ({ ...r })),
+      tournament: (options.tournaments ?? []).map((r) => ({ ...r })),
+      tournamentSlot: (options.tournamentSlots ?? []).map((r) => ({ ...r })),
+      matchResult: (options.matchResults ?? []).map((r) => ({ ...r })),
     };
   }
 
@@ -113,7 +128,8 @@ export class FakePrisma {
       },
       findFirst: async (args: any = {}) => {
         this.log(model, 'findFirst', args);
-        return project(this.rows(model).find((r) => matches(r, args.where)) ?? null, args.select);
+        const found = this.rows(model).find((r) => matches(this.resolveRelations(model, r, args.where), args.where));
+        return this.withIncludes(model, project(found ?? null, args.select), args.include);
       },
       findUniqueOrThrow: async (args: any = {}) => {
         this.log(model, 'findUniqueOrThrow', args);
@@ -123,7 +139,7 @@ export class FakePrisma {
       },
       findMany: async (args: any = {}) => {
         this.log(model, 'findMany', args);
-        let rows = this.rows(model).filter((r) => matches(r, args.where));
+        let rows = this.rows(model).filter((r) => matches(this.resolveRelations(model, r, args.where), args.where));
         const orderBy = Array.isArray(args.orderBy) ? args.orderBy : args.orderBy ? [args.orderBy] : [];
         if (orderBy.length > 0) {
           rows = [...rows].sort((a, b) => {
@@ -153,6 +169,14 @@ export class FakePrisma {
         this.rows(model).push(row);
         return project(row, args.select);
       },
+      upsert: async (args: any = {}) => {
+        this.log(model, 'upsert', args);
+        const found = this.rows(model).find((r) => matches(r, args.where));
+        if (found) { applyData(found, args.update); return project(found, args.select); }
+        const row = { createdAt: new Date(), ...args.create };
+        this.rows(model).push(row);
+        return project(row, args.select);
+      },
       update: async (args: any = {}) => {
         this.log(model, 'update', args);
         const row = this.rows(model).find((r) => matches(r, args.where));
@@ -175,6 +199,29 @@ export class FakePrisma {
   get depositRequest() { return this.delegate('depositRequest'); }
   get withdrawalRequest() { return this.delegate('withdrawalRequest'); }
   get walletLedger() { return this.delegate('walletLedger'); }
+  get tournament() { return this.delegate('tournament'); }
+  get tournamentSlot() { return this.delegate('tournamentSlot'); }
+  get matchResult() { return this.delegate('matchResult'); }
+
+  /** Resolve `where: { user: { inGameUid } }` style relation filters. */
+  private resolveRelations(model: ModelName, row: Row, where: Row | undefined): Row {
+    if (!where || model !== 'tournamentSlot' || !where.user) return row;
+    const owner = this.store.user.find((u) => u.id === row.userId);
+    return { ...row, user: owner };
+  }
+
+  /** Resolve `include: { user: true }`. */
+  private withIncludes(model: ModelName, row: Row | null, include: Row | undefined): Row | null {
+    if (!row || !include || model !== 'tournamentSlot' || !include.user) return row;
+    const owner = this.store.user.find((u) => u.id === row.userId);
+    return { ...row, user: owner };
+  }
+
+  /** `SELECT ... FOR UPDATE` used to lock the tournament row. */
+  async $queryRaw(): Promise<Row[]> {
+    this.log('$queryRaw', 'query', {});
+    return this.store.tournament.map((t) => ({ id: t.id, status: t.status }));
+  }
 
   async $transaction<T>(cb: (tx: FakePrisma) => Promise<T>, _options?: unknown): Promise<T> {
     this.log('$transaction', 'run', {});
