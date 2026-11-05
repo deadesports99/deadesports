@@ -22,6 +22,7 @@ import {
   resolveRoomRevealMinutes,
   roomRevealMeta,
 } from './roomReveal.js';
+import { autoMatchTitle, nextMatchNumber } from './identity.service.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -70,7 +71,8 @@ const PLAYER_FEED_GRACE_MS = 3 * 60 * 60 * 1000;
 // ─── Input types ─────────────────────────────────────────────────────────
 
 export interface CreateTournamentInput {
-  title: string;
+  /** Optional — by default the backend generates "<Map> <Type> #N". */
+  title?: string;
   gameMode: 'BATTLE_ROYALE' | 'CLASH_SQUAD';
   matchType: 'SOLO' | 'DUO' | 'SQUAD';
   mapType: 'BERMUDA' | 'PURGATORY' | 'KALAHARI' | 'ALPINE' | 'NEXTERRA';
@@ -183,24 +185,42 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
   // Admin's Room ID & Password reveal window (default 15 minutes before start).
   const roomRevealMinutes = resolveRoomRevealMinutes(data.roomRevealMinutes);
 
-  const tournament = await prisma.tournament.create({
-    data: {
-      tenantId: creator.tenantId,
-      title: data.title.trim(),
-      gameMode: data.gameMode,
-      matchType: data.matchType,
-      mapType: data.mapType,
-      entryFee: data.entryFee,
-      prizePool: data.prizePool,
-      perKillPrize: data.perKillPrize ?? 0,
-      totalSlots,
-      matchTime: data.matchTime,
-      ...visibility,
-      roomRevealMinutes,
-      status: 'OPEN',
-    },
-    include: { _count: { select: { slots: true } } },
-  });
+  // Auto match number per tenant (1, 2, 3 …) + auto title ("Bermuda Solo #12").
+  // The unique constraint on [tenantId, matchNumber] is the final safety net;
+  // retry with the next number if two admins create a match at the same moment.
+  let tournament: TournamentWithMeta | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const matchNumber = await nextMatchNumber(creator.tenantId);
+    try {
+      tournament = await prisma.tournament.create({
+        data: {
+          tenantId: creator.tenantId,
+          title:
+            data.title?.trim() ||
+            autoMatchTitle(data.mapType, data.matchType, matchNumber),
+          matchNumber,
+          gameMode: data.gameMode,
+          matchType: data.matchType,
+          mapType: data.mapType,
+          entryFee: data.entryFee,
+          prizePool: data.prizePool,
+          perKillPrize: data.perKillPrize ?? 0,
+          totalSlots,
+          matchTime: data.matchTime,
+          ...visibility,
+          roomRevealMinutes,
+          status: 'OPEN',
+        },
+        include: { _count: { select: { slots: true } } },
+      });
+      break;
+    } catch (err) {
+      const uniqueViolation =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+      if (!uniqueViolation || attempt === 3) throw err;
+    }
+  }
+  if (!tournament) throw ApiError.internal('Could not allocate a match number — retry');
 
   clearFeedCache();
   return sanitizeTournament(tournament, true);
@@ -779,30 +799,45 @@ export async function cloneTournament(
   });
   if (!original) throw ApiError.notFound('Original tournament not found');
 
-  const newTitle = input.title?.trim() || `${original.title} (Next)`;
-
   // The clone inherits the admin's visibility preference, re-anchored to the
   // new match time (so "show only in the last 10h" keeps working).
   const visibility = resolveVisibilityWindow(input.matchTime, original.visibilityHours);
 
-  const cloned = await prisma.tournament.create({
-    data: {
-      tenantId: creator.tenantId,
-      title: newTitle,
-      gameMode: original.gameMode,
-      matchType: original.matchType,
-      mapType: original.mapType,
-      entryFee: original.entryFee,
-      prizePool: original.prizePool,
-      perKillPrize: original.perKillPrize,
-      totalSlots: original.totalSlots,
-      matchTime: input.matchTime,
-      ...visibility,
-      roomRevealMinutes: original.roomRevealMinutes,
-      status: 'OPEN',
-    },
-    include: { _count: { select: { slots: true } } },
-  });
+  // Clones also get their own auto match number + auto title.
+  let cloned: TournamentWithMeta | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const matchNumber = await nextMatchNumber(creator.tenantId);
+    const newTitle =
+      input.title?.trim() ||
+      autoMatchTitle(original.mapType, original.matchType, matchNumber);
+    try {
+      cloned = await prisma.tournament.create({
+        data: {
+          tenantId: creator.tenantId,
+          title: newTitle,
+          matchNumber,
+          gameMode: original.gameMode,
+          matchType: original.matchType,
+          mapType: original.mapType,
+          entryFee: original.entryFee,
+          prizePool: original.prizePool,
+          perKillPrize: original.perKillPrize,
+          totalSlots: original.totalSlots,
+          matchTime: input.matchTime,
+          ...visibility,
+          roomRevealMinutes: original.roomRevealMinutes,
+          status: 'OPEN',
+        },
+        include: { _count: { select: { slots: true } } },
+      });
+      break;
+    } catch (err) {
+      const uniqueViolation =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+      if (!uniqueViolation || attempt === 3) throw err;
+    }
+  }
+  if (!cloned) throw ApiError.internal('Could not allocate a match number — retry');
 
   clearFeedCache();
   return sanitizeTournament(cloned, true);

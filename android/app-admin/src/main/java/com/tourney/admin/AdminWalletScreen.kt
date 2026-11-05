@@ -438,27 +438,16 @@ private fun WithdrawalCard(
     val isPending = w.status == "PENDING"
     GlassCard(cornerRadius = 14.dp, modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "${w.player.inGameName ?: "Unknown"} • UID ${w.player.inGameUid ?: "-"}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Phone ${w.player.phoneNumber}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                    )
-                }
-                Text(
-                    "₹${formatMoney(w.amountValue)}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isPending) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            QueueCardHeader(
+                title = "${w.player.inGameName ?: "Unknown"} • UID ${w.player.inGameUid ?: "-"}",
+                phone = w.player.phoneNumber,
+                amountText = "₹${formatMoney(w.amountValue)}",
+                amountColor = if (isPending) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
 
             Text("UPI: ${w.upiId}", style = MaterialTheme.typography.bodyMedium, fontSize = 13.sp)
 
@@ -469,11 +458,7 @@ private fun WithdrawalCard(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                w.status == "REJECTED" -> Text(
-                    "❌ ${w.rejectionNote ?: "Rejected"}",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp,
-                )
+                w.status == "REJECTED" -> RejectionLine(w.rejectionNote)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     AppButton(text = "Approve ✓", enabled = !busy, onClick = onApprove, modifier = Modifier.weight(1f))
                     AppButton(text = "Reject ✕", enabled = !busy, onClick = onReject, modifier = Modifier.weight(1f))
@@ -493,27 +478,12 @@ private fun DepositCard(
     val isPending = d.status == "PENDING"
     GlassCard(cornerRadius = 14.dp, modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "${d.player.inGameName ?: "Unknown"} • UID ${d.player.inGameUid ?: "-"}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Phone ${d.player.phoneNumber}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                    )
-                }
-                Text(
-                    "₹${formatMoney(d.amountValue)}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isPending) Color(0xFF66BB6A) else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            QueueCardHeader(
+                title = "${d.player.inGameName ?: "Unknown"} • UID ${d.player.inGameUid ?: "-"}",
+                phone = d.player.phoneNumber,
+                amountText = "₹${formatMoney(d.amountValue)}",
+                amountColor = if (isPending) Color(0xFF66BB6A) else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Text(
                 "UTR / Ref: ${d.utrNumber}",
@@ -529,11 +499,7 @@ private fun DepositCard(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                d.status == "REJECTED" -> Text(
-                    "❌ ${d.rejectionNote ?: "Rejected"}",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp,
-                )
+                d.status == "REJECTED" -> RejectionLine(d.rejectionNote)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     AppButton(
                         text = "Approve & Credit",
@@ -567,26 +533,12 @@ private fun OnlinePaymentCard(
     }
     GlassCard(cornerRadius = 14.dp, modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "${p.player.label} • UID ${p.player.inGameUid ?: "-"}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Phone ${p.player.phoneNumber}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    "₹${formatMoney(p.amountRupees)}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor,
-                )
-            }
+            QueueCardHeader(
+                title = "${p.player.label} • UID ${p.player.inGameUid ?: "-"}",
+                phone = p.player.phoneNumber,
+                amountText = "₹${formatMoney(p.amountRupees)}",
+                amountColor = statusColor,
+            )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -638,4 +590,44 @@ private fun OnlinePaymentCard(
             }
         }
     }
+}
+
+/** Player + amount header shared by the withdrawal / deposit / online cards. */
+@Composable
+private fun QueueCardHeader(
+    title: String,
+    phone: String,
+    amountText: String,
+    amountColor: Color,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "Phone $phone",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            amountText,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = amountColor,
+        )
+    }
+}
+
+/** Rejection note shared by withdrawals and deposits. */
+@Composable
+private fun RejectionLine(note: String?) {
+    Text(
+        "❌ ${note ?: "Rejected"}",
+        color = MaterialTheme.colorScheme.error,
+        fontSize = 13.sp,
+    )
 }

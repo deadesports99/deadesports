@@ -271,9 +271,6 @@ object TourneyRealtimeClient {
                             )
                             _events.tryEmit(event)
                         }
-                        "PONG" -> {
-                            // Server heartbeat ack
-                        }
                         else -> {
                             Log.d(TAG, "Unhandled realtime event type: $type")
                         }

@@ -5,12 +5,14 @@ import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { authRouter } from './routes/auth.routes.js';
 import { adminWalletRouter } from './routes/adminWallet.routes.js';
+import { stripTrailingSlashes } from './utils/strings.js';
 import { healthRouter } from './routes/health.routes.js';
 import { timeRouter } from './routes/time.routes.js';
 import { resultRouter } from './routes/result.routes.js';
 import { tournamentRouter } from './routes/tournament.routes.js';
 import { tenantRouter, adminTenantRouter } from './routes/tenant.routes.js';
 import { playerRouter } from './routes/player.routes.js';
+import { adminPlayerRouter } from './routes/adminPlayer.routes.js';
 import { paymentRouter } from './routes/payment.routes.js';
 import { walletRouter } from './routes/wallet.routes.js';
 import { ApiError } from './utils/ApiError.js';
@@ -47,7 +49,7 @@ app.use(
   express.json({
     limit: '10mb',
     verify: (req, _res, buf) => {
-      const pathname = (req as Request).originalUrl.split('?')[0].replace(/\/+$/, '');
+      const pathname = stripTrailingSlashes((req as Request).originalUrl.split('?')[0]);
       if (WEBHOOK_PATHS.has(pathname)) {
         (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
       }
@@ -115,6 +117,9 @@ app.use('/api/v1/admin/tenant', adminTenantRouter);
 
 // Player profile stats (Android Phase 6)
 app.use('/api/v1/players', playerRouter);
+
+// Owner-only player management (search + ban/unban)
+app.use('/api/v1/admin/players', adminPlayerRouter);
 
 // Online wallet top-up (Razorpay / mock) — order, verify, webhook, demo
 app.use('/api/payments', paymentRouter);

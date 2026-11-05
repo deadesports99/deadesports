@@ -7,6 +7,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { invalidateAuthCache } from '../middlewares/auth.middleware.js';
 import { PERMISSION_KEYS, type PermissionsInput, type TokenPayload } from '../types/auth.js';
 import { normalizePhoneNumber, verifyFirebaseGoogleToken, verifyFirebasePhoneToken } from './firebase.service.js';
+import { allocatePlayerCode } from './identity.service.js';
 
 /** Sign a JWT for a given identity (role included for cheap client-side checks). */
 export function generateToken(payload: TokenPayload): string {
@@ -58,6 +59,8 @@ export function sanitizeUser(user: UserRecord) {
     depositBalance,
     winningBalance,
     isBanned,
+    /** Auto-generated readable player ID, e.g. "APX-0001". */
+    playerCode,
     deviceId,
     createdAt,
   } = user;
@@ -81,6 +84,7 @@ export function sanitizeUser(user: UserRecord) {
     depositBalance,
     winningBalance,
     isBanned,
+    playerCode,
     deviceId,
     createdAt,
   };
@@ -197,6 +201,7 @@ export async function registerPlayer(data: RegisterPlayerInput): Promise<{ user:
       name: data.name?.trim() || null,
       inGameName: data.inGameName?.trim() || null,
       inGameUid: data.inGameUid?.trim() || null,
+      playerCode: await allocatePlayerCode(data.tenantId),
       deviceId,
       role: 'USER',
     },
@@ -246,6 +251,7 @@ export async function googleLoginOrRegister(
         email: email,
         phoneNumber: placeholderPhone,
         name: data.name?.trim() || verified.name || 'Gamer',
+        playerCode: await allocatePlayerCode(data.tenantId),
         deviceId,
         role: 'USER',
       },
@@ -340,6 +346,7 @@ export async function createStaffMember(
       name: data.name.trim(),
       email: data.email.toLowerCase().trim(),
       phoneNumber: norm.national,
+      playerCode: await allocatePlayerCode(adminUser.tenantId),
       role: 'SUB_ADMIN',
       adminId: adminUser.id,
       ...normalizedPermissions,
@@ -574,8 +581,8 @@ export async function sendEmailOtp(
     }
   }
 
-  // Generate 6-digit random code
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate 6-digit random code (CSPRNG — never Math.random for OTPs)
+  const code = crypto.randomInt(100_000, 1_000_000).toString();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   // Delete previous OTPs for this email in this tenant
@@ -658,6 +665,7 @@ export async function verifyEmailOtp(
         phoneNumber: placeholderPhone,
         passwordHash,
         name: data.name?.trim() || 'Gamer',
+        playerCode: await allocatePlayerCode(data.tenantId),
         deviceId,
         role: 'USER',
       },

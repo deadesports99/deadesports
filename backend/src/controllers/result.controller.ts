@@ -44,6 +44,15 @@ const payoutSchema = z.object({
     .max(48, 'Max 48 results per payout'),
 });
 
+/** Admin one-click finish: winner is identified by their Free Fire UID. */
+const finishMatchSchema = z.object({
+  winnerUid: z
+    .string()
+    .trim()
+    .regex(/^\d{6,12}$/, 'Winner UID must be the 6-12 digit Free Fire UID'),
+  winnerKills: z.coerce.number().int().min(0).max(99).optional(),
+});
+
 // ─── Handlers ────────────────────────────────────────────────────────────
 
 export async function updateRoomCredentials(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -90,6 +99,18 @@ export async function getTournamentResults(req: Request, res: Response, next: Ne
     if (!req.user) throw new Error('Authenticated user missing');
     const result = await resultService.getTournamentResults(req.user.tenantId, String(req.params.id));
     sendResponse(res, 200, 'Official scoreboard fetched', result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Admin one-click finish: declare the winner by Free Fire UID and pay them. */
+export async function finishMatchAndPayWinner(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const body = finishMatchSchema.parse(req.body);
+    const result = await resultService.finishMatchAndPayWinner(req.user, String(req.params.id), body);
+    sendResponse(res, 200, 'Match completed and winner paid', result);
   } catch (err) {
     next(err);
   }

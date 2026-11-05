@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from '../utils/strings.js';
 import { env } from './env.js';
 
 /**
@@ -42,7 +43,7 @@ export const paymentConfig: PaymentConfig = {
   maxAmountPaise: env.PAYMENT_MAX_AMOUNT_PAISE,
   orderTtlSeconds: env.PAYMENT_ORDER_TTL_SECONDS,
   mockAutoCapture: env.PAYMENT_MOCK_AUTO_CAPTURE,
-  publicBaseUrl: env.PUBLIC_BASE_URL.replace(/\/+$/, ''),
+  publicBaseUrl: stripTrailingSlashes(env.PUBLIC_BASE_URL),
   mockSecret: env.RAZORPAY_KEY_SECRET || 'mock_secret',
   razorpay: {
     keyId: env.RAZORPAY_KEY_ID,

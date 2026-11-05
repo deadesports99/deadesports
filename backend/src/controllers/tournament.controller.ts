@@ -7,7 +7,8 @@ import { sendResponse } from '../utils/ApiResponse.js';
 // ─── Zod validation schemas ──────────────────────────────────────────────
 
 const createTournamentSchema = z.object({
-  title: z.string().trim().min(3, 'Title must be at least 3 characters').max(100),
+  /** Optional — the backend auto-generates "<Map> <Type> #N" when omitted. */
+  title: z.string().trim().min(3, 'Title must be at least 3 characters').max(100).optional(),
   gameMode: z.enum(['BATTLE_ROYALE', 'CLASH_SQUAD']),
   matchType: z.enum(['SOLO', 'DUO', 'SQUAD']),
   mapType: z.enum(['BERMUDA', 'PURGATORY', 'KALAHARI', 'ALPINE', 'NEXTERRA']),

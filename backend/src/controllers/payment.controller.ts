@@ -14,7 +14,7 @@ function requireUser(req: Request) {
 }
 
 function parseAmountPaise(body: Record<string, unknown> | undefined): number {
-  const raw = body?.amountPaise ?? (body?.amount != null ? Number(body.amount) * 100 : NaN);
+  const raw = body?.amountPaise ?? (body?.amount != null ? Number(body.amount) * 100 : Number.NaN);
   const amountPaise = Math.round(Number(raw));
 
   if (!Number.isFinite(amountPaise) || amountPaise <= 0) {

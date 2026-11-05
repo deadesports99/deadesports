@@ -30,6 +30,9 @@ const RANK_PRIZE_SHARE: Record<number, number> = { 1: 0.5, 2: 0.3, 3: 0.2 };
 /** Statuses from which a payout may be executed by Spectator / Staff. */
 const PAYOUTABLE_STATUSES = ['ROOM_REVEALED', 'LIVE', 'UNDER_REVIEW', 'OPEN', 'SLOTS_FULL'] as const;
 
+/** Statuses from which the admin may "End Match & Pay Winner by UID". */
+const FINISHABLE_STATUSES = ['OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'LIVE', 'UNDER_REVIEW'] as const;
+
 const isStaff = (user: AuthUser): boolean => user.role === 'ADMIN' || user.role === 'SUB_ADMIN';
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
@@ -284,6 +287,157 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
     secondsUntilReveal,
   };
 }
+
+// ─── 4. ADMIN "END MATCH & PAY WINNER BY UID" (one-click finish) ────────
+
+export interface FinishMatchInput {
+  /** Winner's Free Fire UID (must belong to a booked participant). */
+  winnerUid: string;
+  winnerKills?: number;
+}
+
+/**
+ * The simplest match-completion flow for the admin console:
+ *   - admin picks any active match and taps "End Match"
+ *   - enters the winner's Free Fire UID (+ kills)
+ *   - rank-1 payout (50% pool + kills × per-kill) is credited to that player's
+ *     Winning Balance, the official result is stored and the match is COMPLETED.
+ */
+export async function finishMatchAndPayWinner(
+  staffUser: AuthUser,
+  tournamentId: string,
+  input: FinishMatchInput,
+) {
+  const tournament = await prisma.tournament.findFirst({
+    where: { id: tournamentId, tenantId: staffUser.tenantId },
+  });
+  if (!tournament) throw ApiError.notFound('Tournament not found');
+  if (tournament.status === 'COMPLETED') throw ApiError.conflict('This match is already completed');
+  if (tournament.status === 'CANCELLED') throw ApiError.conflict('This match was cancelled — nothing to finish');
+  if (!(FINISHABLE_STATUSES as readonly string[]).includes(tournament.status)) {
+    throw ApiError.conflict(`Cannot end a match in status ${tournament.status}`);
+  }
+
+  const winnerUid = input.winnerUid.trim();
+  if (!/^\d{6,12}$/.test(winnerUid)) {
+    throw ApiError.badRequest('Winner UID must be the 6-12 digit Free Fire UID');
+  }
+  const kills = Math.min(99, Math.max(0, Math.round(Number(input.winnerKills ?? 0))));
+
+  const slot = await prisma.tournamentSlot.findFirst({
+    where: { tournamentId, user: { inGameUid: winnerUid } },
+    include: { user: true },
+  });
+  if (!slot) {
+    throw ApiError.notFound(
+      `No participant in this match has Free Fire UID ${winnerUid}`,
+    );
+  }
+
+  const pool = Number(tournament.prizePool);
+  const perKill = Number(tournament.perKillPrize);
+  const rankPrize = round2(0.5 * pool); // rank 1 = Booyah = 50% of the pool
+  const killPrize = round2(kills * perKill);
+  const totalPrize = round2(rankPrize + killPrize);
+
+  const paid = await prisma.$transaction(
+    async (tx) => {
+      // Lock the tournament row so two admins cannot double-pay.
+      const locked = await tx.$queryRaw<Array<{ id: string; status: string }>>`
+        SELECT id, status::text AS status FROM "Tournament" WHERE id = ${tournamentId} FOR UPDATE
+      `;
+      const current = locked[0];
+      if (!current) throw ApiError.notFound('Tournament not found');
+      if (current.status === 'COMPLETED') throw ApiError.conflict('This match is already completed');
+      if (current.status === 'CANCELLED') throw ApiError.conflict('This match was cancelled');
+
+      if (totalPrize > 0) {
+        const creditedUser = await tx.user.update({
+          where: { id: slot.userId },
+          data: { winningBalance: { increment: totalPrize } },
+        });
+        await tx.walletLedger.create({
+          data: {
+            tenantId: staffUser.tenantId,
+            userId: slot.userId,
+            amount: totalPrize,
+            balanceType: 'WINNING',
+            type: 'CREDIT',
+            category: 'WINNING_PRIZE',
+            balanceAfter: creditedUser.winningBalance,
+            referenceId: tournamentId,
+            notes: `Winner payout — UID ${winnerUid}, rank 1, ${kills} kill(s)`,
+          },
+        });
+      }
+
+      await tx.matchResult.upsert({
+        where: { tournamentId_userId: { tournamentId, userId: slot.userId } },
+        create: {
+          tournamentId,
+          userId: slot.userId,
+          verifiedKills: kills,
+          rank: 1,
+          prizeWon: totalPrize,
+          isApproved: true,
+          isDisqualified: false,
+          reviewedAt: new Date(),
+        },
+        update: {
+          verifiedKills: kills,
+          rank: 1,
+          prizeWon: totalPrize,
+          isApproved: true,
+          isDisqualified: false,
+          disqualifyReason: null,
+          reviewedAt: new Date(),
+        },
+      });
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { status: 'COMPLETED' },
+      });
+
+      return totalPrize;
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 5000,
+      timeout: 30000,
+    },
+  );
+
+  await clearTournamentRedis(tournamentId);
+
+  void pushToUsers([slot.userId], {
+    type: 'PRIZE_WON',
+    tournamentId,
+    title: '🏆 You won the match!',
+    body:
+      `₹${paid} has been credited to your Winning Balance for winning "${tournament.title}".`,
+    data: { totalPaid: String(paid) },
+  });
+
+  return {
+    tournamentId,
+    status: 'COMPLETED',
+    totalPaid: paid,
+    winner: {
+      userId: slot.userId,
+      playerCode: slot.user.playerCode,
+      name: slot.user.name,
+      inGameName: slot.user.inGameName,
+      inGameUid: slot.user.inGameUid,
+      rank: 1,
+      kills,
+      rankPrize,
+      killPrize,
+      prize: paid,
+    },
+  };
+}
+
 
 // ─── 2. OFFICIAL SCOREBOARD (SPECTATOR VERIFIED - NO FAKE SCREENSHOTS) ──
 

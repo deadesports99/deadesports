@@ -236,9 +236,9 @@ export async function approveDeposit(
     ),
   );
 
-  
-  // Realtime balance update to player
-  (async () => {
+  // Realtime balance update to player (fire-and-forget on purpose: a
+  // notification failure must never fail the already-committed credit).
+  void (async () => {
     try {
       const u = await prisma.user.findUnique({
         where: { id: existing.userId },

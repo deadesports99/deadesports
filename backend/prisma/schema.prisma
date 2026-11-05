@@ -63,6 +63,8 @@ model User {
   depositBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
   winningBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
   isBanned        Boolean        @default(false)
+  /** Readable auto-generated player ID (e.g. "APX-0001"), unique per tenant. */
+  playerCode      String?
   deviceId        String?
   passwordHash    String?
   fcmToken        String?        // last registered FCM push token
@@ -76,6 +78,7 @@ model User {
   paymentOrders   PaymentOrder[]
 
   @@unique([tenantId, phoneNumber])
+  @@unique([tenantId, playerCode])
   @@index([tenantId, inGameUid])
 }
 
@@ -90,7 +93,13 @@ model Tournament {
   id              String            @id @default(uuid())
   tenantId        String
   tenant          Tenant            @relation(fields: [tenantId], references: [id])
-  title           String            // e.g. "Daily Bermuda Squad Bash #102"
+  /**
+   * Auto-generated human title ("Bermuda Solo #12") — the admin UI no longer
+   * asks for a title; the match number is the real identity.
+   */
+  title           String            // e.g. "Bermuda Solo #12"
+  /** Auto-increment match number per tenant: 1, 2, 3 … (shown to admin/players). */
+  matchNumber     Int?
   gameMode        GameMode          // BATTLE_ROYALE, CLASH_SQUAD
   matchType       MatchType         // SOLO, DUO, SQUAD
   mapType         MapType           // BERMUDA, PURGATORY, KALAHARI, ALPINE
@@ -123,6 +132,7 @@ model Tournament {
   slots           TournamentSlot[]
   results         MatchResult[]
 
+  @@unique([tenantId, matchNumber])
   @@index([tenantId, status, matchTime])
   @@index([tenantId, visibleFrom])
 }

@@ -41,3 +41,12 @@ resultRouter.post(
   requirePermission('canDistributePrize'),
   resultController.distributeTournamentPrizes,
 );
+
+// Phase 12 — admin one-click "End Match & Pay Winner by UID":
+// enters the winner's Free Fire UID, credits rank-1 prize and completes the match.
+resultRouter.post(
+  '/:id/finish',
+  authenticate,
+  requirePermission('canDistributePrize'),
+  resultController.finishMatchAndPayWinner,
+);

@@ -176,7 +176,7 @@ export function LoginScreen({
               <span
                 className={cx(
                   'text-[10px] font-bold uppercase tracking-widest',
-                  isDark ? 'text-slate-400' : 'text-slate-400'
+                  'text-slate-400'
                 )}
               >
                 Backup

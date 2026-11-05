@@ -5,14 +5,14 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 COPY prisma.config.ts tsconfig.json ./
 COPY prisma ./prisma
 
 # Prisma generation only needs a syntactically valid URL at build time.
 ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
-RUN npx prisma generate
+RUN npm run prisma:generate
 
 COPY src ./src
 RUN npm run build
@@ -27,7 +27,7 @@ ENV PORT=5000
 RUN apk add --no-cache curl
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/prisma.config.ts ./prisma.config.ts
