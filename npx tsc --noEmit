@@ -1,0 +1,78 @@
+Fix any type errors. Likely spots:
+- `auth.ts` imports `jsonwebtoken` — ensure `@types/jsonwebtoken` is installed.
+- `paymentGateway.service.ts` imports `razorpay` — ensure the package is installed.
+- `req.user` typing — `backend/src/types/express.d.ts` already augments `Express.Request` with `user?: AuthUser`. Confirm it is still there.
+
+### 3.5 End-to-end smoke test (mock mode)
+1. Start server: `npm run dev`
+2. Log in as a player, capture the JWT.
+3. `POST /api/payments/orders` with `Authorization: Bearer <jwt>` and body `{ "amountPaise": 10000 }`.
+4. Response contains `checkoutUrl` — open it in a browser.
+5. Click **Pay now**.
+6. `GET /api/v1/wallet` — `depositBalance` should have increased by ₹100.
+7. Check `WalletLedger` — one `ADD_MONEY` / `CREDIT` row with `referenceId` = order id.
+8. Repeat step 5 (reload checkout, pay again) — balance must **not** double-credit.
+
+### 3.6 Real Razorpay test (optional but recommended)
+- Razorpay dashboard → Settings → API Keys → generate `rzp_test_*` keys.
+- Settings → Webhooks → add `https://<public-domain>/api/payments/webhook`, events: `payment.captured`, `payment.failed`, `order.paid`.
+- Use test card `4111 1111 1111 1111`, any future expiry, CVV `123`.
+- Confirm webhook fires and settles the order.
+
+### 3.7 Android client wiring (NOT started)
+The Android app has no payment screen yet. Needed:
+- A "Add Money" screen that calls `POST /api/payments/orders`.
+- For `razorpay` provider: launch the Razorpay Android SDK checkout with the returned `keyId` + `providerOrderId`, then call `POST /api/payments/verify` with `orderId`, `paymentId`, `signature`.
+- For `mock` provider: open `checkoutUrl` in a WebView / Custom Tab.
+- Add `razorpay` SDK dependency to `android/app-player/build.gradle.kts`.
+- Relevant existing files: `android/app-player/src/main/java/com/tourney/player/PlayerViewModel.kt`, `android/core/src/main/java/com/tourney/core/model/Wallet.kt`.
+
+### 3.8 Production hardening (before go-live)
+- [ ] Set `PAYMENT_PROVIDER=razorpay` with **live** keys.
+- [ ] Set `PUBLIC_BASE_URL` to the real HTTPS domain.
+- [ ] Confirm `TRUST_PROXY=true` behind the reverse proxy (rate limiter keys on `req.ip`).
+- [ ] Add a reconciliation job: for `PENDING` orders older than N minutes, call `paymentGateway.fetchPayment()` and settle if the gateway says `captured`.
+- [ ] Add refund support (`POST /api/payments/:id/refund`) — `PaymentStatus.REFUNDED` already exists in the enum.
+- [ ] Review `PAYMENT_MIN_AMOUNT_PAISE` / `PAYMENT_MAX_AMOUNT_PAISE` limits.
+- [ ] Add tests for `settleCapturedPayment` idempotency and webhook signature rejection.
+
+---
+
+## 4. Key file references (read these first)
+
+- `backend/src/services/payment.settlement.ts` — the money path. Understand it before changing anything.
+- `backend/src/controllers/payment.controller.ts` — all endpoints.
+- `backend/src/app.ts` — the `rawBody` capture hook (lines around `express.json({ verify })`).
+- `backend/prisma/schema.prisma` — `PaymentOrder` model + `PaymentStatus` enum at the bottom.
+
+---
+
+## 5. Gotchas / things that will bite you
+
+1. **Raw body for webhooks.** `express.json()` parses the body; the webhook needs the *raw* bytes to verify the HMAC. `app.ts` already stashes `rawBody` for `/api/payments/webhook` only. If you move the webhook route or change the parser, signature verification will silently fail.
+2. **No `Wallet` table.** Settlement uses `User.depositBalance`. Do not copy-paste code that assumes `prisma.wallet`.
+3. **`authenticate` is async** and loads the user from the DB on every request (so bans / permission changes apply immediately). Keep it that way.
+4. **Rate limiter** is `createRateLimiter` (not `rateLimiter`) from `backend/src/middlewares/rateLimiter.ts`.
+5. **`sendResponse(res, status, message, data?)`** is the standard response helper — see `backend/src/utils/ApiResponse.ts`.
+6. **Mock signature** uses `RAZORPAY_KEY_SECRET || 'mock_secret'`. If you change the secret in `.env` mid-demo, old mock signatures stop verifying.
+7. **Order expiry sweep** runs every 5 minutes in `server.ts`. Orders expire after `PAYMENT_ORDER_TTL_SECONDS` (default 900s = 15 min).
+
+---
+
+## 6. Definition of done
+
+- [ ] `npx tsc --noEmit` passes with zero errors.
+- [ ] Migration applied; `PaymentOrder` table exists.
+- [ ] Mock flow: order → checkout → pay → wallet credited exactly once.
+- [ ] Webhook rejects a bad signature and accepts a good one.
+- [ ] (Optional) Real Razorpay test-mode payment settles correctly.
+- [ ] Android "Add Money" screen wired (if in scope for this pass).
+
+---
+
+## 7. Notes for the next agent
+
+- The previous agent stopped mid-handoff because of response-length limits — **nothing is broken**, the code is complete, it just needs installing, migrating, and testing.
+- Do not rewrite files that already exist unless a test fails. Prefer minimal diffs.
+- If a file referenced above is missing from the repo, recreate it from the descriptions in section 2 before proceeding.
+- Ask the user before changing the wallet model, the settlement logic, or the webhook path.

@@ -1,0 +1,3 @@
+
+### 3.3 Configure `.env`
+Copy `backend/.env.payment.example` values into `backend/.env`:

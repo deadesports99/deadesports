@@ -1,0 +1,3 @@
+> `jsonwebtoken` may already be present — check `package.json` first. `razorpay` is definitely not installed yet.
+
+### 3.2 Run the migration
