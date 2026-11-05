@@ -43,3 +43,6 @@ screenshots/
 backend/coverage/
 coverage/
 .scannerwork/
+
+# saved page dumps (not source)
+video_page.html
