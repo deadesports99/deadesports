@@ -4,6 +4,9 @@ import com.tourney.core.model.ApiEnvelope
 import com.tourney.core.model.AckRequest
 import com.tourney.core.model.AdminDepositsResponse
 import com.tourney.core.model.AdminPaymentsResponse
+import com.tourney.core.model.AdminPlayersResponse
+import com.tourney.core.model.BanPlayerRequest
+import com.tourney.core.model.BanPlayerResponse
 import com.tourney.core.model.ReconcilePaymentResponse
 import com.tourney.core.model.ApproveWithdrawalRequest
 import com.tourney.core.model.DailySettlement
@@ -20,6 +23,8 @@ import com.tourney.core.model.CreateTournamentRequest
 import com.tourney.core.model.CloneTournamentRequest
 import com.tourney.core.model.FcmTokenRequest
 import com.tourney.core.model.FcmTokenResponse
+import com.tourney.core.model.FinishMatchRequest
+import com.tourney.core.model.FinishMatchResult
 import com.tourney.core.model.JoinRequest
 import com.tourney.core.model.JoinResult
 import com.tourney.core.model.LoginRequest
@@ -179,6 +184,13 @@ interface TourneyApi {
         @Body request: PayoutRequest,
     ): ApiEnvelope<PayoutResponse>
 
+    /** Phase 12: admin ends the match and pays the winner by Free Fire UID. */
+    @POST("tournaments/{id}/finish")
+    suspend fun finishMatch(
+        @Path("id") id: String,
+        @Body request: FinishMatchRequest,
+    ): ApiEnvelope<FinishMatchResult>
+
     // ─── Phase 6: admin match operations (lifecycle ops) ────────────────
     /** Advance every match's lifecycle now (T-15 reveal -> LIVE). */
     @POST("tournaments/sweep/states")
@@ -211,6 +223,19 @@ interface TourneyApi {
     /** Profile tab: matches joined/played, Booyahs, kills, total winnings. */
     @GET("players/me/stats")
     suspend fun playerStats(): ApiEnvelope<PlayerStats>
+
+    // ─── Owner-only player management (search + ban/unban) ───────────────
+    @GET("admin/players")
+    suspend fun adminPlayers(
+        @Query("search") search: String? = null,
+        @Query("limit") limit: Int = 50,
+    ): ApiEnvelope<AdminPlayersResponse>
+
+    @PATCH("admin/players/{id}/ban")
+    suspend fun banPlayer(
+        @Path("id") id: String,
+        @Body request: BanPlayerRequest,
+    ): ApiEnvelope<BanPlayerResponse>
 
     /** Profile tab: update player's Free Fire IGN and UID. */
     @PATCH("players/me/game-profile")

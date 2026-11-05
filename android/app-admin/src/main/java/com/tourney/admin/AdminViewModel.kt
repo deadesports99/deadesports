@@ -10,13 +10,17 @@ import com.tourney.core.datastore.SessionState
 import com.tourney.core.model.AckRequest
 import com.tourney.core.model.AdminDepositsResponse
 import com.tourney.core.model.AdminPaymentsResponse
+import com.tourney.core.model.AdminPlayersResponse
 import com.tourney.core.model.ApiException
 import com.tourney.core.model.ApproveWithdrawalRequest
+import com.tourney.core.model.BanPlayerRequest
 import com.tourney.core.model.CancelMatchRequest
 import com.tourney.core.model.CancelMatchResult
 import com.tourney.core.model.CloneTournamentRequest
 import com.tourney.core.model.CreateStaffRequest
 import com.tourney.core.model.CreateTournamentRequest
+import com.tourney.core.model.FinishMatchRequest
+import com.tourney.core.model.FinishMatchResult
 import com.tourney.core.model.LoginRequest
 import com.tourney.core.model.PayoutRequest
 import com.tourney.core.model.PayoutResponse
@@ -983,6 +987,117 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                 isDashboardRefreshing = false
             }
         }
+    }
+
+    // ─── Phase 12: End Match & Pay Winner by Free Fire UID ───────────────
+    var finishBusyMatchId by mutableStateOf<String?>(null)
+        private set
+
+    var finishMessage by mutableStateOf<String?>(null)
+        private set
+
+    var finishError by mutableStateOf<String?>(null)
+        private set
+
+    /** One-click match finish: credits rank-1 prize to the winner's wallet. */
+    fun finishMatch(tournamentId: String, winnerUid: String, winnerKills: Int?) {
+        if (finishBusyMatchId != null) return
+        finishBusyMatchId = tournamentId
+        finishMessage = null
+        finishError = null
+        viewModelScope.launch {
+            try {
+                val result: FinishMatchResult = apiCall {
+                    api.finishMatch(
+                        tournamentId,
+                        FinishMatchRequest(winnerUid = winnerUid.trim(), winnerKills = winnerKills),
+                    )
+                }
+                val winner = result.winner
+                finishMessage = buildString {
+                    append("🏆 Match ended — winner ")
+                    append(winner?.playerCode ?: winner?.inGameName ?: winner?.inGameUid ?: "declared")
+                    append(" paid ₹${formatMoney(result.totalPaid)}")
+                    if ((winner?.kills ?: 0) > 0) append(" (${winner?.kills} kills)")
+                }
+                loadMatchOps()
+                loadTournaments()
+            } catch (e: ApiException) {
+                finishError = e.message
+            } catch (e: Exception) {
+                finishError = "Match finish failed — network error"
+            } finally {
+                finishBusyMatchId = null
+            }
+        }
+    }
+
+    fun clearFinishFeedback() {
+        finishMessage = null
+        finishError = null
+    }
+
+    // ─── Phase 12: Player management (owner only) ────────────────────────
+    var playersUi by mutableStateOf<AdminUi<AdminPlayersResponse>>(AdminUi.Idle)
+        private set
+
+    var playerBanBusyId by mutableStateOf<String?>(null)
+        private set
+
+    var playerAdminMessage by mutableStateOf<String?>(null)
+        private set
+
+    var playerAdminError by mutableStateOf<String?>(null)
+        private set
+
+    fun loadPlayers(search: String = "") {
+        lastPlayersQuery = search
+        playersUi = AdminUi.Loading
+        viewModelScope.launch {
+            try {
+                playersUi = AdminUi.Success(
+                    apiCall { api.adminPlayers(search = search.takeIf { it.isNotBlank() }) }
+                )
+            } catch (e: ApiException) {
+                playersUi = AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                playersUi = AdminUi.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    fun setPlayerBanned(playerId: String, banned: Boolean) {
+        if (playerBanBusyId != null) return
+        playerBanBusyId = playerId
+        playerAdminMessage = null
+        playerAdminError = null
+        viewModelScope.launch {
+            try {
+                val result = apiCall {
+                    api.banPlayer(playerId, BanPlayerRequest(isBanned = banned))
+                }
+                playerAdminMessage = if (result.isBanned) {
+                    "🚫 Player ${result.playerCode ?: ""} banned — sessions killed instantly"
+                } else {
+                    "✅ Player ${result.playerCode ?: ""} unbanned"
+                }
+                loadPlayers((lastPlayersQuery))
+            } catch (e: ApiException) {
+                playerAdminError = e.message
+            } catch (e: Exception) {
+                playerAdminError = "Action failed — network error"
+            } finally {
+                playerBanBusyId = null
+            }
+        }
+    }
+
+    var lastPlayersQuery by mutableStateOf("")
+        private set
+
+    fun clearPlayerAdminFeedback() {
+        playerAdminMessage = null
+        playerAdminError = null
     }
 }
 

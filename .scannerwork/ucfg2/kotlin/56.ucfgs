@@ -1,0 +1,63 @@
+–	
+…com.tourney.admin#AdminNavHost(Lcom/tourney/admin/AdminViewModel;Lcom/tourney/core/theme/ThemeMode;Lkotlin/jvm/functions/Function1;)V
+__unknown_file ("0*¡
+0 (}
+{
+ (
+%0"
+__annotate* 
+ (
+java.lang.Object*;
+ (/
+-
+	viewModel com.tourney.admin.AdminViewModel]
+[
+ (-
+	viewModel com.tourney.admin.AdminViewModel"__annotation*
+ (
+
+%0}
+{
+ (
+%1"
+__annotate* 
+ (
+java.lang.Object*;
+ (/
+-
+	themeMode com.tourney.core.theme.ThemeMode]
+[
+ (-
+	themeMode com.tourney.core.theme.ThemeMode"__annotation*
+ (
+
+%1€
+~
+ (
+%2"
+__annotate* 
+ (
+java.lang.Object*>
+ (2
+0
+onSetThemeModekotlin.jvm.functions.Function1`
+^
+ (0
+onSetThemeModekotlin.jvm.functions.Function1"__annotation*
+ (
+
+%2P
+N
+ (!
+navControllerjava.lang.Object"__id*
+ (
+	<unknown>"
+ (
+implicit return:9
+ (-
+	viewModel com.tourney.admin.AdminViewModel:9
+ (-
+	themeMode com.tourney.core.theme.ThemeMode:<
+ (0
+onSetThemeModekotlin.jvm.functions.Function1B"
+com.tourney.adminH

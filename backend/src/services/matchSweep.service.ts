@@ -120,30 +120,33 @@ export async function sweepMatchStates(
 
     // If room credentials were saved earlier by admin, deliver them now.
     if (candidate.roomId) {
-      prisma.tournament.findUnique({
-        where: { id: candidate.id },
-        select: { roomId: true, roomPassword: true, roomRevealedAt: true },
-      }).then((creds) => {
+      try {
+        const creds = await prisma.tournament.findUnique({
+          where: { id: candidate.id },
+          select: { roomId: true, roomPassword: true, roomRevealedAt: true },
+        });
         if (creds?.roomId && creds.roomPassword) {
-          prisma.tournamentSlot.findMany({
+          const confirmedSlots = await prisma.tournamentSlot.findMany({
             where: { tournamentId: candidate.id },
             select: { userId: true },
-          }).then((confirmedSlots) => {
-            if (confirmedSlots.length > 0) {
-              realtimeService.sendToUsers(
-                confirmedSlots.map((s) => s.userId),
-                'ROOM_CREDENTIALS_REVEALED',
-                {
-                  tournamentId: candidate.id,
-                  roomId: creds.roomId,
-                  roomPassword: creds.roomPassword,
-                  roomRevealedAt: creds.roomRevealedAt,
-                },
-              );
-            }
           });
+          if (confirmedSlots.length > 0) {
+            realtimeService.sendToUsers(
+              confirmedSlots.map((s) => s.userId),
+              'ROOM_CREDENTIALS_REVEALED',
+              {
+                tournamentId: candidate.id,
+                roomId: creds.roomId,
+                roomPassword: creds.roomPassword,
+                roomRevealedAt: creds.roomRevealedAt,
+              },
+            );
+          }
         }
-      }).catch(() => {});
+      } catch (err) {
+        // A notification failure must not stop the sweep for other matches.
+        console.error('[sweep] room reveal notification failed:', err);
+      }
     }
 
     void pushToTournamentParticipants(candidate.id, {

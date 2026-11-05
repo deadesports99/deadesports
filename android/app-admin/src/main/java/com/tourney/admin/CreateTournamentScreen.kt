@@ -85,7 +85,6 @@ fun CreateTournamentScreen(
     onBack: () -> Unit,
     onCreated: () -> Unit,
 ) {
-    var title by remember { mutableStateOf("") }
     var gameMode by remember { mutableStateOf(GameMode.BATTLE_ROYALE) }
     var matchType by remember { mutableStateOf(MatchType.SOLO) }
     var mapType by remember { mutableStateOf(MapType.BERMUDA) }
@@ -157,16 +156,12 @@ fun CreateTournamentScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
+                Text(
+                    "Match number (#1, #2, #3 …) and the title are generated automatically from the map + mode.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it.take(100) },
-                label = { Text("Tournament Title") },
-                placeholder = { Text("Daily Bermuda Solo Bash #201") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
 
             DropdownField("Game Mode", gameMode.name, GameMode.entries.map { it.name }) { gameMode = GameMode.valueOf(it) }
             DropdownField("Match Type", matchType.name, MatchType.entries.map { it.name }) { matchType = MatchType.valueOf(it) }
@@ -446,7 +441,7 @@ fun CreateTournamentScreen(
 
             AppButton(
                 text = if (uiState is AdminUi.Loading) "Creating…" else "Create Tournament",
-                enabled = (uiState !is AdminUi.Loading) && title.length >= 3 &&
+                enabled = (uiState !is AdminUi.Loading) &&
                     entryFee.toDoubleOrNull() != null && prizePool.toDoubleOrNull() != null &&
                     matchInFuture && visibilityValid && roomRevealValid,
                 onClick = {
@@ -469,7 +464,6 @@ fun CreateTournamentScreen(
                     val matchTimeIso = Instant.ofEpochMilli(matchEpochMs).toString()
                     viewModel.createTournament(
                         CreateTournamentRequest(
-                            title = title.trim(),
                             gameMode = gameMode,
                             matchType = matchType,
                             mapType = mapType,

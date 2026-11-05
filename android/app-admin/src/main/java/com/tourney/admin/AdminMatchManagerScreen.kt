@@ -79,7 +79,12 @@ fun AdminMatchManagerScreen(
     var visibilityHoursText by remember { mutableStateOf("10") }
 
     // Active operations vs the permanent match history (which match happened when).
-    var listTab by remember { mutableStateOf(MatchListTab.ACTIVE) }
+    var listTab by remember { mutableStateOf(MatchListTab.LIVE) }
+
+    // End Match & Pay Winner dialog state.
+    var endTarget by remember { mutableStateOf<Tournament?>(null) }
+    var winnerUid by remember { mutableStateOf("") }
+    var winnerKills by remember { mutableStateOf("0") }
 
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
@@ -130,25 +135,36 @@ fun AdminMatchManagerScreen(
                 viewModel.roomRevealError?.let {
                     Text("⚠️ $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
                 }
+                viewModel.finishMessage?.let {
+                    Text(it, fontSize = 12.sp, color = Color(0xFF00C853), fontWeight = FontWeight.SemiBold)
+                }
+                viewModel.finishError?.let {
+                    Text("⚠️ $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                }
             }
 
-            // Active operations vs permanent history — the admin keeps the record
-            // of every match (which match happened when), the player app does not.
+            // One console for everything: Live matches, Upcoming matches and the
+            // permanent history (which match happened when + Room ID/Pass status).
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 FilterChip(
-                    selected = listTab == MatchListTab.ACTIVE,
-                    onClick = { listTab = MatchListTab.ACTIVE },
-                    label = { Text("⚡ Active & Upcoming", fontSize = 11.sp) },
+                    selected = listTab == MatchListTab.LIVE,
+                    onClick = { listTab = MatchListTab.LIVE },
+                    label = { Text("🔴 Live", fontSize = 11.sp) },
+                )
+                FilterChip(
+                    selected = listTab == MatchListTab.UPCOMING,
+                    onClick = { listTab = MatchListTab.UPCOMING },
+                    label = { Text("⚡ Upcoming", fontSize = 11.sp) },
                 )
                 FilterChip(
                     selected = listTab == MatchListTab.HISTORY,
                     onClick = { listTab = MatchListTab.HISTORY },
-                    label = { Text("🧾 Match History", fontSize = 11.sp) },
+                    label = { Text("🧾 History", fontSize = 11.sp) },
                 )
             }
 
@@ -171,17 +187,37 @@ fun AdminMatchManagerScreen(
                         val isFinished = { t: Tournament ->
                             t.status == TournamentStatus.COMPLETED || t.status == TournamentStatus.CANCELLED
                         }
-                        val activeMatches = state.data.items.filter { t ->
-                            val startedLongAgo = matchMs(t)?.let { it < nowMs - graceMs } ?: false
-                            !isFinished(t) && !startedLongAgo
-                        }
+                        val liveStatuses = setOf(
+                            TournamentStatus.LIVE,
+                            TournamentStatus.ROOM_REVEALED,
+                            TournamentStatus.UNDER_REVIEW,
+                        )
+                        val upcomingStatuses = setOf(
+                            TournamentStatus.DRAFT,
+                            TournamentStatus.UPCOMING,
+                            TournamentStatus.OPEN,
+                            TournamentStatus.SLOTS_FULL,
+                        )
+                        val liveMatches = state.data.items
+                            .filter { t ->
+                                t.status in liveStatuses &&
+                                    (matchMs(t)?.let { it >= nowMs - graceMs } ?: true)
+                            }
+                            .sortedBy { matchMs(it) ?: 0L }
+                        val upcomingMatches = state.data.items
+                            .filter { it.status in upcomingStatuses && !isFinished(it) }
+                            .sortedBy { matchMs(it) ?: 0L }
                         val historyMatches = state.data.items
                             .filter { t ->
                                 val startedLongAgo = matchMs(t)?.let { it < nowMs - graceMs } ?: false
                                 isFinished(t) || startedLongAgo
                             }
                             .sortedByDescending { matchMs(it) ?: 0L }
-                        val shown = if (listTab == MatchListTab.ACTIVE) activeMatches else historyMatches
+                        val shown = when (listTab) {
+                            MatchListTab.LIVE -> liveMatches
+                            MatchListTab.UPCOMING -> upcomingMatches
+                            MatchListTab.HISTORY -> historyMatches
+                        }
 
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
@@ -190,10 +226,10 @@ fun AdminMatchManagerScreen(
                         ) {
                             item {
                                 Text(
-                                    if (listTab == MatchListTab.ACTIVE) {
-                                        "⚡ Active & upcoming matches (${shown.size})"
-                                    } else {
-                                        "🧾 Match history — completed & ended (${shown.size})"
+                                    when (listTab) {
+                                        MatchListTab.LIVE -> "🔴 Live now (${shown.size}) — end & pay winner from here"
+                                        MatchListTab.UPCOMING -> "⚡ Upcoming matches (${shown.size})"
+                                        MatchListTab.HISTORY -> "🧾 Match history — completed & ended (${shown.size})"
                                     },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
@@ -203,15 +239,22 @@ fun AdminMatchManagerScreen(
                                 item {
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                                         Text(
-                                            if (listTab == MatchListTab.ACTIVE) "🎮 No active matches" else "🧾 No past matches yet",
+                                            when (listTab) {
+                                                MatchListTab.LIVE -> "🔴 No live matches right now"
+                                                MatchListTab.UPCOMING -> "🎮 No upcoming matches"
+                                                MatchListTab.HISTORY -> "🧾 No past matches yet"
+                                            },
                                             fontWeight = FontWeight.Bold,
                                         )
                                         Text(
-                                            if (listTab == MatchListTab.ACTIVE) {
-                                                "Create a match first — it will appear here with live slot fill."
-                                            } else {
-                                                "Every match you create and finish stays recorded here with its date, " +
-                                                    "time, status and winner payouts."
+                                            when (listTab) {
+                                                MatchListTab.LIVE ->
+                                                    "Matches appear here once the room reveal window opens, and stay until you end them."
+                                                MatchListTab.UPCOMING ->
+                                                    "Create a match first — it will appear here with live slot fill."
+                                                MatchListTab.HISTORY ->
+                                                    "Every match you create and finish stays recorded here with its date, " +
+                                                        "time, status and winner payouts."
                                             },
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -226,11 +269,18 @@ fun AdminMatchManagerScreen(
                                     cloning = viewModel.cloneBusyMatchId == match.id,
                                     visibilityBusy = viewModel.visibilityBusyMatchId == match.id,
                                     roomBusy = viewModel.roomRevealBusyId == match.id,
+                                    finishing = viewModel.finishBusyMatchId == match.id,
                                     onCancel = { cancelTarget = match },
                                     onClone = {
                                         viewModel.clearCloneFeedback()
                                         cloneTarget = match
                                         cloneTime = plusHours(match.matchTime, 1)
+                                    },
+                                    onFinish = {
+                                        viewModel.clearFinishFeedback()
+                                        endTarget = match
+                                        winnerUid = ""
+                                        winnerKills = "0"
                                     },
                                     onVisibility = {
                                         viewModel.clearVisibilityFeedback()
@@ -259,7 +309,7 @@ fun AdminMatchManagerScreen(
     cancelTarget?.let { match ->
         AlertDialog(
             onDismissRequest = { cancelTarget = null },
-            title = { Text("Cancel “${match.title}”?", fontWeight = FontWeight.Bold) },
+            title = { Text("Cancel “${match.displayName}”?", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
@@ -306,7 +356,7 @@ fun AdminMatchManagerScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Copy ${match.title} into a fresh empty match. Choose the next start time:",
+                        "Copy ${match.displayName} into a fresh empty match. Choose the next start time:",
                         fontSize = 13.sp,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -361,7 +411,7 @@ fun AdminMatchManagerScreen(
             title = { Text("👁️ Player Visibility", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("“${match.title}”", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("“${match.displayName}”", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     matchEpochMs?.let {
                         Text("Match starts: ${formatIstFullDateTime(it)} IST", fontSize = 12.sp)
                     }
@@ -449,13 +499,82 @@ fun AdminMatchManagerScreen(
             },
         )
     }
+
+    // ── End Match & Pay Winner dialog (admin decides the winner by FF UID) ──
+    endTarget?.let { match ->
+        val saving = viewModel.finishBusyMatchId == match.id
+        val uidValid = Regex("^\\d{6,12}$").matches(winnerUid.trim())
+        val killsValue = winnerKills.toIntOrNull()?.coerceIn(0, 99) ?: 0
+
+        AlertDialog(
+            onDismissRequest = { if (!saving) endTarget = null },
+            title = { Text("🏁 End Match & Pay Winner", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(match.displayName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(
+                        "Winner ko uske Free Fire UID se select karo — rank-1 prize (50% pool + per-kill) uske " +
+                            "Winning Balance me turant credit hoga aur match COMPLETED ho jayega.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = winnerUid,
+                        onValueChange = { winnerUid = it.filter(Char::isDigit).take(12) },
+                        label = { Text("Winner Free Fire UID (6-12 digits)") },
+                        placeholder = { Text("e.g. 123456789") },
+                        singleLine = true,
+                        isError = winnerUid.isNotEmpty() && !uidValid,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = winnerKills,
+                        onValueChange = { winnerKills = it.filter(Char::isDigit).take(2) },
+                        label = { Text("Winner kills (optional)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "Prize preview: rank-1 50% of ₹${formatMoney(match.prizePoolValue)}" +
+                            " + $killsValue × ₹${formatMoney(match.perKillValue)}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    viewModel.finishError?.let {
+                        Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = uidValid && !saving,
+                    onClick = {
+                        val id = match.id
+                        endTarget = null
+                        viewModel.finishMatch(id, winnerUid.trim(), killsValue)
+                    },
+                ) {
+                    Text(
+                        if (saving) "Paying…" else "End Match & Pay",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00C853),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { endTarget = null }, enabled = !saving) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 /** Player-feed visibility choice inside the admin's visibility dialog. */
 private enum class MatchVisibilityMode { ALWAYS, WITHIN_HOURS }
 
 /** Active operations vs permanent match history tabs. */
-private enum class MatchListTab { ACTIVE, HISTORY }
+private enum class MatchListTab { LIVE, UPCOMING, HISTORY }
 
 @Composable
 private fun MatchOpsCard(
@@ -464,8 +583,10 @@ private fun MatchOpsCard(
     cloning: Boolean,
     visibilityBusy: Boolean,
     roomBusy: Boolean,
+    finishing: Boolean,
     onCancel: () -> Unit,
     onClone: () -> Unit,
+    onFinish: () -> Unit,
     onVisibility: () -> Unit,
     onRevealRoom: () -> Unit,
 ) {
@@ -480,6 +601,8 @@ private fun MatchOpsCard(
     val canCancel = match.status in preMatchStatuses
     val canClone = match.status != TournamentStatus.CANCELLED
     val canEditVisibility = match.status in preMatchStatuses
+    val canFinish = match.status != TournamentStatus.COMPLETED &&
+        match.status != TournamentStatus.CANCELLED
 
     // Player-list visibility state (server-computed window, IST labels).
     val nowMs = TimeAuthority.currentTimeMillis()
@@ -504,11 +627,11 @@ private fun MatchOpsCard(
     val roomUnlocked = match.roomUnlocked == true
     val roomRevealAtMs = match.roomRevealAtEpochMs()
     val roomStatusText = when {
-        !hasRoomCreds -> "🔑 Room ID: not published yet"
-        roomUnlocked -> "🔑 Room ID: visible to players now"
+        !hasRoomCreds -> "🔑 ID/Pass: ❌ not published"
+        roomUnlocked -> "🔑 ID/Pass: ✅ published — visible to players now"
         roomRevealAtMs != null ->
-            "🔑 Room ID: hidden — reveals at ${formatIstDateTime(roomRevealAtMs)} (${match.roomRevealLabel()})"
-        else -> "🔑 Room ID: hidden until the reveal window"
+            "🔑 ID/Pass: ✅ published, hidden until ${formatIstDateTime(roomRevealAtMs)}"
+        else -> "🔑 ID/Pass: ✅ published, hidden until the reveal window"
     }
     val roomStatusColor = if (roomUnlocked || !hasRoomCreds) {
         MaterialTheme.colorScheme.onSurfaceVariant
@@ -523,14 +646,15 @@ private fun MatchOpsCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    match.title,
+                    match.displayName,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    "${match.matchType.name} • ${match.gameMode.name.replace('_', ' ')} • ₹${formatMoney(match.prizePoolValue)} pool",
+                    "${match.gameMode.name.replace('_', ' ')} • ₹${formatMoney(match.prizePoolValue)} pool" +
+                        (match.matchNumber?.let { " • Match #$it" } ?: ""),
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -605,7 +729,7 @@ private fun MatchOpsCard(
 
         when (match.status) {
             TournamentStatus.UNDER_REVIEW -> Text(
-                "🧾 Match ended — results & payout pending (use Spectator Scorer)",
+                "🧾 Match ended — enter winner UID below to pay & complete",
                 fontSize = 10.sp,
                 color = Color(0xFF4A148C),
                 fontWeight = FontWeight.SemiBold,
@@ -618,6 +742,16 @@ private fun MatchOpsCard(
                 modifier = Modifier.padding(top = 6.dp),
             )
             else -> {}
+        }
+
+        if (canFinish) {
+            Spacer(Modifier.height(6.dp))
+            AppButton(
+                text = if (finishing) "⏳ Paying winner…" else "🏁 End Match & Pay Winner (UID)",
+                enabled = !finishing && !cancelling && !cloning,
+                onClick = onFinish,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
 
         if (canEditVisibility) {

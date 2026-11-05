@@ -58,6 +58,12 @@ fun AdminNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
+        composable("players") {
+            AdminPlayersScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable("matches") {
             AdminMatchManagerScreen(
                 viewModel = viewModel,

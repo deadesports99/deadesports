@@ -1,0 +1,45 @@
+ä
+Jcom.tourney.core.model.WalletActionResponse#getMessage()Ljava/lang/String;
+__unknown_file ("0*Ã
+0 (Š
+‡
+ (
+fieldjava.lang.String"__id*Z
+ (N*L-
++com.tourney.core.model.WalletActionResponse"
+messagejava.lang.String"'
+ (
+
+fieldjava.lang.StringB/-
++com.tourney.core.model.WalletActionResponseH`„
+Kcom.tourney.core.model.WalletActionResponse#setMessage(Ljava/lang/String;)V
+__unknown_file ("0*»
+0 (Š
+‡
+ (L-
++com.tourney.core.model.WalletActionResponse"
+messagejava.lang.String"__id*'
+ (
+
+valuejava.lang.String"
+ (
+implicit return:%
+ (
+valuejava.lang.StringB/-
++com.tourney.core.model.WalletActionResponseH`Ð
+Gcom.tourney.core.model.WalletActionResponse#<init>(Ljava/lang/String;)V
+__unknown_file ("0*‹
+0 (Ú
+×
+ (
+%0java.lang.String"Kcom.tourney.core.model.WalletActionResponse#setMessage(Ljava/lang/String;)V*;
+ (/-
++com.tourney.core.model.WalletActionResponse*)
+ (
+
+messagejava.lang.String"
+ (
+implicit return:'
+ (
+messagejava.lang.StringB/-
++com.tourney.core.model.WalletActionResponseH

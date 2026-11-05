@@ -1,0 +1,374 @@
+õ
+0com.tourney.core.model.ApiEnvelope#getSuccess()Z
+__unknown_file ("0*ù
+0 (n
+l
+ (
+fieldboolean"__id*H
+ (<*:$
+"com.tourney.core.model.ApiEnvelope"
+successboolean"
+ (
+
+fieldbooleanB&$
+"com.tourney.core.model.ApiEnvelopeH`ª
+1com.tourney.core.model.ApiEnvelope#setSuccess(Z)V
+__unknown_file ("0*û
+0 (n
+l
+ (:$
+"com.tourney.core.model.ApiEnvelope"
+successboolean"__id*
+ (
+
+valueboolean"
+ (
+implicit return:
+ (
+valuebooleanB&$
+"com.tourney.core.model.ApiEnvelopeH`»
+Acom.tourney.core.model.ApiEnvelope#getMessage()Ljava/lang/String;
+__unknown_file ("0*π
+0 (Ä
+~
+ (
+fieldjava.lang.String"__id*Q
+ (E*C$
+"com.tourney.core.model.ApiEnvelope"
+messagejava.lang.String"'
+ (
+
+fieldjava.lang.StringB&$
+"com.tourney.core.model.ApiEnvelopeH`Ë
+Bcom.tourney.core.model.ApiEnvelope#setMessage(Ljava/lang/String;)V
+__unknown_file ("0*±
+0 (Ä
+~
+ (C$
+"com.tourney.core.model.ApiEnvelope"
+messagejava.lang.String"__id*'
+ (
+
+valuejava.lang.String"
+ (
+implicit return:%
+ (
+valuejava.lang.StringB&$
+"com.tourney.core.model.ApiEnvelopeH`¡
+>com.tourney.core.model.ApiEnvelope#getData()Ljava/lang/Object;
+__unknown_file ("0*µ
+0 (}
+{
+ (
+fieldjava.lang.Object"__id*N
+ (B*@$
+"com.tourney.core.model.ApiEnvelope"
+datajava.lang.Object"'
+ (
+
+fieldjava.lang.ObjectB&$
+"com.tourney.core.model.ApiEnvelopeH`·
+?com.tourney.core.model.ApiEnvelope#setData(Ljava/lang/Object;)V
+__unknown_file ("0*≠
+0 (}
+{
+ (@$
+"com.tourney.core.model.ApiEnvelope"
+datajava.lang.Object"__id*'
+ (
+
+valuejava.lang.Object"
+ (
+implicit return:%
+ (
+valuejava.lang.ObjectB&$
+"com.tourney.core.model.ApiEnvelopeH`±
+3com.tourney.core.model.ApiEnvelope#getStatusCode()I
+__unknown_file ("0*∞
+0 (i
+g
+ (
+fieldint"__id*G
+ (;*9$
+"com.tourney.core.model.ApiEnvelope"
+
+statusCodeint\
+Z
+ (
+%0"
+__annotate* 
+ (
+java.lang.Object*
+ (
+
+fieldint<
+:
+ (
+fieldint"__annotation*
+ (
+
+%0"
+ (
+
+fieldintB&$
+"com.tourney.core.model.ApiEnvelopeH`—
+4com.tourney.core.model.ApiEnvelope#setStatusCode(I)V
+__unknown_file ("0*µ
+0 (\
+Z
+ (
+%0"
+__annotate* 
+ (
+java.lang.Object*
+ (
+
+valueint<
+:
+ (
+valueint"__annotation*
+ (
+
+%0i
+g
+ (9$
+"com.tourney.core.model.ApiEnvelope"
+
+statusCodeint"__id*
+ (
+
+valueint"
+ (
+implicit return:
+ (
+valueintB&$
+"com.tourney.core.model.ApiEnvelopeH`ﬁ	
+Rcom.tourney.core.model.ApiEnvelope#<init>(ZLjava/lang/String;Ljava/lang/Object;I)V
+__unknown_file ("0*≤
+0 (a
+_
+ (
+%0"
+__annotate* 
+ (
+java.lang.Object*
+ (
+
+
+statusCodeintA
+?
+ (
+
+statusCodeint"__annotation*
+ (
+
+%0•
+¢
+ (
+%1boolean"1com.tourney.core.model.ApiEnvelope#setSuccess(Z)V*2
+ (&$
+"com.tourney.core.model.ApiEnvelope* 
+ (
+
+successboolean»
+≈
+ (
+%2java.lang.String"Bcom.tourney.core.model.ApiEnvelope#setMessage(Ljava/lang/String;)V*2
+ (&$
+"com.tourney.core.model.ApiEnvelope*)
+ (
+
+messagejava.lang.String¬
+ø
+ (
+%3java.lang.Object"?com.tourney.core.model.ApiEnvelope#setData(Ljava/lang/Object;)V*2
+ (&$
+"com.tourney.core.model.ApiEnvelope*&
+ (
+
+datajava.lang.Object£
+†
+ (	
+%4int"4com.tourney.core.model.ApiEnvelope#setStatusCode(I)V*2
+ (&$
+"com.tourney.core.model.ApiEnvelope*
+ (
+
+
+statusCodeint"
+ (
+implicit return:
+ (
+successboolean:'
+ (
+messagejava.lang.String:$
+ (
+datajava.lang.Object:
+ (
+
+statusCodeintB&$
+"com.tourney.core.model.ApiEnvelopeHò
+4com.tourney.core.model.ApiException#getStatusCode()I
+__unknown_file ("0*ï
+0 (j
+h
+ (
+fieldint"__id*H
+ (<*:%
+#com.tourney.core.model.ApiException"
+
+statusCodeint"
+ (
+
+fieldintB'%
+#com.tourney.core.model.ApiExceptionH`∏
+5com.tourney.core.model.ApiException#setStatusCode(I)V
+__unknown_file ("0*ö
+0 (j
+h
+ (:%
+#com.tourney.core.model.ApiException"
+
+statusCodeint"__id*
+ (
+
+valueint"
+ (
+implicit return:
+ (
+valueintB'%
+#com.tourney.core.model.ApiExceptionH`À
+Bcom.tourney.core.model.ApiException#getMessage()Ljava/lang/String;
+__unknown_file ("0*∫
+0 (Å
+
+ (
+fieldjava.lang.String"__id*R
+ (F*D%
+#com.tourney.core.model.ApiException"
+messagejava.lang.String"'
+ (
+
+fieldjava.lang.StringB'%
+#com.tourney.core.model.ApiExceptionH`Î
+Ccom.tourney.core.model.ApiException#setMessage(Ljava/lang/String;)V
+__unknown_file ("0*≤
+0 (Å
+
+ (D%
+#com.tourney.core.model.ApiException"
+messagejava.lang.String"__id*'
+ (
+
+valuejava.lang.String"
+ (
+implicit return:%
+ (
+valuejava.lang.StringB'%
+#com.tourney.core.model.ApiExceptionH`æ
+?com.tourney.core.model.ApiException#getDetails()Ljava/util/Map;
+__unknown_file ("0*∞
+0 ({
+y
+ (
+fieldjava.util.Map"__id*O
+ (C*A%
+#com.tourney.core.model.ApiException"
+detailsjava.util.Map"$
+ (
+
+fieldjava.util.MapB'%
+#com.tourney.core.model.ApiExceptionH`ﬁ
+@com.tourney.core.model.ApiException#setDetails(Ljava/util/Map;)V
+__unknown_file ("0*´
+0 ({
+y
+ (A%
+#com.tourney.core.model.ApiException"
+detailsjava.util.Map"__id*$
+ (
+
+valuejava.util.Map"
+ (
+implicit return:"
+ (
+valuejava.util.MapB'%
+#com.tourney.core.model.ApiExceptionH`ò
+Ocom.tourney.core.model.ApiException#<init>(ILjava/lang/String;Ljava/util/Map;)V
+__unknown_file ("0*é
+0 (•
+¢
+ (	
+%0int"5com.tourney.core.model.ApiException#setStatusCode(I)V*3
+ ('%
+#com.tourney.core.model.ApiException*
+ (
+
+
+statusCodeint 
+«
+ (
+%1java.lang.String"Ccom.tourney.core.model.ApiException#setMessage(Ljava/lang/String;)V*3
+ ('%
+#com.tourney.core.model.ApiException*)
+ (
+
+messagejava.lang.String¡
+æ
+ (
+%2java.util.Map"@com.tourney.core.model.ApiException#setDetails(Ljava/util/Map;)V*3
+ ('%
+#com.tourney.core.model.ApiException*&
+ (
+
+detailsjava.util.Map§
+°
+ (
+%3"/java.lang.Exception#<init>(Ljava/lang/String;)V*3
+ ('%
+#com.tourney.core.model.ApiException*)
+ (
+
+messagejava.lang.String"
+ (
+implicit return:
+ (
+
+statusCodeint:'
+ (
+messagejava.lang.String:$
+ (
+detailsjava.util.MapB'%
+#com.tourney.core.model.ApiExceptionH÷
+Hcom.tourney.core.model.ApiException#secondsUntilReveal()Ljava/lang/Long;
+__unknown_file ("0*¡
+0 (ò
+ï
+ (
+%0java.util.Map"?com.tourney.core.model.ApiException#getDetails()Ljava/util/Map;*3
+ ('%
+#com.tourney.core.model.ApiException«ƒ
+ (
+%1java.lang.Object"@kotlin.collections.Map#get(Ljava/lang/Object;)Ljava/lang/Object;*!
+ (
+
+%0java.util.Map*"
+ (
+secondsUntilReveal2get(Ljava/lang/Object;)P
+N
+ (
+%2java.lang.Number"__id*$
+ (
+
+%1java.lang.Objecta_
+ (
+
+%3long"kotlin.Number#toLong()J*$
+ (
+
+%2java.lang.Number2toLong()"
+ (
+
+
+%3longB'%
+#com.tourney.core.model.ApiExceptionH

@@ -119,6 +119,15 @@ fun AdminDashboardScreen(
         if (isAdmin) {
             add(
                 AdminFeature(
+                    "Player Management",
+                    "Search by Player ID / phone / IGN / FF UID • ban or unban accounts",
+                    Icons.Filled.People,
+                    true,
+                    "players",
+                )
+            )
+            add(
+                AdminFeature(
                     "Staff Management",
                     "Hire sub-admins, edit permissions, remove staff (owner only)",
                     Icons.Filled.PeopleAlt,

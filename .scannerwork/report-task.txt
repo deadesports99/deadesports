@@ -1,0 +1,6 @@
+organization=deadesports99
+projectKey=deadesports99_deadesports
+serverUrl=https://sonarcloud.io
+dashboardUrl=https://sonarcloud.io/dashboard?id=deadesports99_deadesports
+ceTaskId=AaGrsLfvKZjlcM7Mirwt
+ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AaGrsLfvKZjlcM7Mirwt

@@ -18,7 +18,10 @@ enum class TournamentStatus {
 @JsonClass(generateAdapter = true)
 data class Tournament(
     val id: String,
+    /** Auto-generated title ("Bermuda Solo #12") — players/admin see map+mode+#N instead. */
     val title: String,
+    /** Auto-increment match number per tenant (1, 2, 3 …). */
+    @Json(name = "matchNumber") val matchNumber: Int? = null,
     @Json(name = "gameMode") val gameMode: GameMode,
     @Json(name = "matchType") val matchType: MatchType,
     @Json(name = "mapType") val mapType: MapType,
@@ -51,6 +54,36 @@ data class Tournament(
     val prizePoolValue: Double get() = prizePool.toDoubleOrNull() ?: 0.0
     val perKillValue: Double get() = (perKillPrize ?: "0").toDoubleOrNull() ?: 0.0
     val remainingSlots: Int get() = (totalSlots - slotsBooked).coerceAtLeast(0)
+
+    /** Human map label, e.g. "Bermuda". */
+    val mapLabel: String
+        get() = when (mapType) {
+            MapType.BERMUDA -> "Bermuda"
+            MapType.PURGATORY -> "Purgatory"
+            MapType.KALAHARI -> "Kalahari"
+            MapType.ALPINE -> "Alpine"
+            MapType.NEXTERRA -> "Nexterra"
+        }
+
+    /** Human mode label, e.g. "Solo" / "Duo" / "Squad". */
+    val matchTypeLabel: String
+        get() = when (matchType) {
+            MatchType.SOLO -> "Solo"
+            MatchType.DUO -> "Duo"
+            MatchType.SQUAD -> "Squad"
+        }
+
+    /**
+     * What the player/admin sees instead of a custom title:
+     * "#12 Bermuda • Solo" (map + mode + auto match number).
+     */
+    val displayName: String
+        get() = buildString {
+            if (matchNumber != null) append("#${matchNumber} ")
+            append(mapLabel)
+            append(" • ")
+            append(matchTypeLabel)
+        }
 
     /** Slots-progress fraction for progress bars (0f..1f). */
     val fillFraction: Float
@@ -229,7 +262,8 @@ data class JoinResult(
 /** POST /tournaments — create match (requires canCreateMatch). */
 @JsonClass(generateAdapter = true)
 data class CreateTournamentRequest(
-    val title: String,
+    /** Optional — backend auto-generates "<Map> <Type> #N". */
+    val title: String? = null,
     @Json(name = "gameMode") val gameMode: GameMode,
     @Json(name = "matchType") val matchType: MatchType,
     @Json(name = "mapType") val mapType: MapType,
@@ -281,4 +315,35 @@ data class RoomRevealRequest(
     @Json(name = "roomRevealMinutes") val roomRevealMinutes: Int? = null,
     /** Reveal to players immediately (requires published credentials). */
     @Json(name = "revealNow") val revealNow: Boolean? = null,
+)
+
+/** POST /tournaments/:id/finish — admin ends the match and pays the winner by FF UID. */
+@JsonClass(generateAdapter = true)
+data class FinishMatchRequest(
+    @Json(name = "winnerUid") val winnerUid: String,
+    @Json(name = "winnerKills") val winnerKills: Int? = null,
+)
+
+/** Winner block returned by POST /tournaments/:id/finish. */
+@JsonClass(generateAdapter = true)
+data class FinishMatchWinner(
+    @Json(name = "userId") val userId: String = "",
+    @Json(name = "playerCode") val playerCode: String? = null,
+    val name: String? = null,
+    @Json(name = "inGameName") val inGameName: String? = null,
+    @Json(name = "inGameUid") val inGameUid: String? = null,
+    val rank: Int = 1,
+    val kills: Int = 0,
+    @Json(name = "rankPrize") val rankPrize: Double = 0.0,
+    @Json(name = "killPrize") val killPrize: Double = 0.0,
+    val prize: Double = 0.0,
+)
+
+/** POST /tournaments/:id/finish response. */
+@JsonClass(generateAdapter = true)
+data class FinishMatchResult(
+    @Json(name = "tournamentId") val tournamentId: String = "",
+    val status: String = "",
+    @Json(name = "totalPaid") val totalPaid: Double = 0.0,
+    val winner: FinishMatchWinner? = null,
 )

@@ -45,6 +45,8 @@ data class User(
     @Json(name = "depositBalance") val depositBalance: String? = null, // Decimal-as-string
     @Json(name = "winningBalance") val winningBalance: String? = null,
     @Json(name = "isBanned") val isBanned: Boolean = false,
+    /** Auto-generated readable player ID, e.g. "APX-0001". */
+    @Json(name = "playerCode") val playerCode: String? = null,
 ) {
     val depositValue: Double get() = (depositBalance ?: "0").toDoubleOrNull() ?: 0.0
     val winningValue: Double get() = (winningBalance ?: "0").toDoubleOrNull() ?: 0.0
