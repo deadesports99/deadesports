@@ -20,6 +20,15 @@ resultRouter.patch(
   resultController.updateRoomCredentials,
 );
 
+// Phase 9 — admin decides WHEN the room credentials become visible
+// (auto reveal N minutes before start, or reveal to players right now).
+resultRouter.patch(
+  '/:id/room-reveal',
+  authenticate,
+  requirePermission('canUpdateRoomId'),
+  resultController.updateRoomReveal,
+);
+
 resultRouter.get('/:id/room', authenticate, resultController.getRoomCredentials);
 
 // Official scoreboard (published by Spectator - no player fake screenshots)

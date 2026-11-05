@@ -129,3 +129,12 @@ export function requirePermission(permissionKey: PermissionKey) {
     next(ApiError.forbidden('You lack permission to perform this action'));
   };
 }
+
+/** Optional auth: attaches req.user if Bearer token is present & valid, otherwise proceeds without failing. */
+export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return next();
+  }
+  return authenticate(req, res, next);
+}

@@ -3,6 +3,7 @@ package com.tourney.core.theme
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -120,7 +121,11 @@ fun ClientTheme(
                 ),
             ),
             shapes = shapes,
-            content = content,
-        )
+        ) {
+            // Surface provides the default content color (onBackground).
+            // Without it Compose falls back to Color.Black, which is invisible
+            // in the dark theme for any Text that does not set a colour.
+            Surface(color = MaterialTheme.colorScheme.background, content = content)
+        }
     }
 }

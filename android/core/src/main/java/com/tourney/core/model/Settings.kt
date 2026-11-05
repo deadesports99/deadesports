@@ -15,6 +15,9 @@ data class TenantSettings(
     @Json(name = "upiName") val upiName: String = "",
     @Json(name = "supportWhatsapp") val supportWhatsapp: String = "",
     @Json(name = "minDeposit") val minDeposit: Int = 10,
+    @Json(name = "allowPhoneAuth") val allowPhoneAuth: Boolean = true,
+    @Json(name = "allowEmailAuth") val allowEmailAuth: Boolean = true,
+    @Json(name = "allowGoogleAuth") val allowGoogleAuth: Boolean = true,
 ) {
     /** Never render a blank payee name. */
     val payeeName: String get() = upiName.ifBlank { brandName }
@@ -27,6 +30,9 @@ data class UpdateTenantSettingsRequest(
     @Json(name = "upiName") val upiName: String? = null,
     @Json(name = "supportWhatsapp") val supportWhatsapp: String? = null,
     @Json(name = "minDeposit") val minDeposit: Int? = null,
+    @Json(name = "allowPhoneAuth") val allowPhoneAuth: Boolean? = null,
+    @Json(name = "allowEmailAuth") val allowEmailAuth: Boolean? = null,
+    @Json(name = "allowGoogleAuth") val allowGoogleAuth: Boolean? = null,
 )
 
 /** GET /players/me/stats — career card in the Profile tab. */
@@ -55,16 +61,18 @@ data class SweepResult(
     @Json(name = "revealWindowMinutes") val revealWindowMinutes: Int = 15,
     @Json(name = "roomRevealed") val roomRevealed: List<SweptMatch> = emptyList(),
     @Json(name = "wentLive") val wentLive: List<SweptMatch> = emptyList(),
+    /** Long-finished LIVE matches auto-handed to the results/payout queue. */
+    @Json(name = "movedToReview") val movedToReview: List<SweptMatch> = emptyList(),
 ) {
-    val totalChanges: Int get() = roomRevealed.size + wentLive.size
+    val totalChanges: Int get() = roomRevealed.size + wentLive.size + movedToReview.size
     val summary: String
         get() = when {
             totalChanges == 0 -> "Nothing due — all matches already up to date."
-            else -> buildString {
-                if (roomRevealed.isNotEmpty()) append("${roomRevealed.size} room(s) revealed")
-                if (roomRevealed.isNotEmpty() && wentLive.isNotEmpty()) append(" • ")
-                if (wentLive.isNotEmpty()) append("${wentLive.size} match(es) went LIVE")
-            }
+            else -> buildList {
+                if (roomRevealed.isNotEmpty()) add("${roomRevealed.size} room(s) revealed")
+                if (wentLive.isNotEmpty()) add("${wentLive.size} match(es) went LIVE")
+                if (movedToReview.isNotEmpty()) add("${movedToReview.size} match(es) moved to REVIEW")
+            }.joinToString(" • ")
         }
 }
 

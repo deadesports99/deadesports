@@ -79,7 +79,7 @@ fun RoomScreen(
                 Text("🔒", fontSize = 44.sp)
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Room credentials reveal at T-15 minutes",
+                    "Room ID & Password are locked",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -87,7 +87,12 @@ fun RoomScreen(
                 CountdownText(remainingSeconds = state.secondsUntilReveal)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Stay on this screen — the code unlocks automatically.",
+                    state.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    "Stay on this screen — the code unlocks automatically (or the organizer can reveal it earlier).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

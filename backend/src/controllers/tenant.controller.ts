@@ -10,21 +10,25 @@ const updateSettingsSchema = z
     upiName: z.string().trim().min(2).max(60).optional(),
     supportWhatsapp: z.string().trim().max(20).optional(),
     minDeposit: z.number().int().optional(),
+    allowPhoneAuth: z.boolean().optional(),
+    allowGoogleAuth: z.boolean().optional(),
+    allowEmailAuth: z.boolean().optional(),
   })
   .strict();
 
-/** GET /tenant/settings — any logged-in user (drives the runtime QR/support). */
+/** GET /tenant/settings — public config (works for both guests and authenticated players). */
 export async function getSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    if (!req.user) throw ApiError.unauthorized('Authenticated user missing');
-    const settings = await tenantService.getTenantSettings(req.user.tenantId);
+    const tenantId = (req.user?.tenantId || req.query.tenantId || req.headers['x-tenant-id']) as string | undefined;
+    if (!tenantId) throw ApiError.badRequest('tenantId is required');
+    const settings = await tenantService.getTenantSettings(tenantId);
     sendResponse(res, 200, 'Tenant settings fetched', settings);
   } catch (err) {
     next(err);
   }
 }
 
-/** PATCH /admin/tenant/settings — owner only (runtime UPI / WhatsApp update). */
+/** PATCH /admin/tenant/settings — owner only (runtime UPI / WhatsApp / Auth methods update). */
 export async function updateSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (!req.user) throw ApiError.unauthorized('Authenticated user missing');

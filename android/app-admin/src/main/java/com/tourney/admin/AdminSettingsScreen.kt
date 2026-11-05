@@ -1,5 +1,6 @@
 package com.tourney.admin
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,6 +63,9 @@ fun AdminSettingsScreen(
     var upiName by remember { mutableStateOf("") }
     var whatsapp by remember { mutableStateOf("") }
     var minDeposit by remember { mutableStateOf("10") }
+    var allowPhoneAuth by remember { mutableStateOf(true) }
+    var allowEmailAuth by remember { mutableStateOf(true) }
+    var allowGoogleAuth by remember { mutableStateOf(true) }
     var loadedOnce by remember { mutableStateOf(false) }
 
     // Prefill the form the first time the settings arrive (never clobber edits).
@@ -70,6 +75,9 @@ fun AdminSettingsScreen(
             upiName = s.payeeName
             whatsapp = s.supportWhatsapp
             minDeposit = s.minDeposit.toString()
+            allowPhoneAuth = s.allowPhoneAuth
+            allowEmailAuth = s.allowEmailAuth
+            allowGoogleAuth = s.allowGoogleAuth
             loadedOnce = true
         }
     }
@@ -80,7 +88,8 @@ fun AdminSettingsScreen(
     val waValid = waDigits.isEmpty() || waDigits.length in 10..15
     val minValue = minDeposit.toIntOrNull()
     val minValid = minValue != null && minValue in 10..10000
-    val canSave = upiValid && nameValid && waValid && minValid && !viewModel.settingsSaving
+    val atLeastOneAuth = allowPhoneAuth || allowEmailAuth || allowGoogleAuth
+    val canSave = upiValid && nameValid && waValid && minValid && atLeastOneAuth && !viewModel.settingsSaving
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -192,6 +201,63 @@ fun AdminSettingsScreen(
                         }
                     }
 
+                    GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp) {
+                        Text("🔐 Player Authentication Methods", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Choose which login options are available to players in the app. At least one method must be enabled.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+                        )
+
+                        AuthMethodRow(
+                            icon = "✉️",
+                            title = "Email + Password + OTP",
+                            subtitle = "Player registers/logs in with Email and Password, verified via 6-digit Email OTP.",
+                            checked = allowEmailAuth,
+                            onCheckedChange = { checked ->
+                                if (!checked && !allowPhoneAuth && !allowGoogleAuth) return@AuthMethodRow
+                                allowEmailAuth = checked
+                            }
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        AuthMethodRow(
+                            icon = "📩",
+                            title = "Phone Auth (Firebase SMS OTP)",
+                            subtitle = "Player verifies their number with a 6-digit SMS verification code.",
+                            checked = allowPhoneAuth,
+                            onCheckedChange = { checked ->
+                                if (!checked && !allowEmailAuth && !allowGoogleAuth) return@AuthMethodRow
+                                allowPhoneAuth = checked
+                            }
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        AuthMethodRow(
+                            icon = "🚀",
+                            title = "1-Tap Google Sign-In",
+                            subtitle = "Player logs in with their Google Account in one tap.",
+                            checked = allowGoogleAuth,
+                            onCheckedChange = { checked ->
+                                if (!checked && !allowPhoneAuth && !allowEmailAuth) return@AuthMethodRow
+                                allowGoogleAuth = checked
+                            }
+                        )
+
+                        if (!atLeastOneAuth) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "⚠️ At least one login method must be enabled to avoid player lockout.",
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
                     viewModel.settingsMessage?.let {
                         Text("✅ $it", fontSize = 11.sp, color = Color(0xFF00C853), fontWeight = FontWeight.SemiBold)
                     }
@@ -208,6 +274,9 @@ fun AdminSettingsScreen(
                                 upiName = upiName,
                                 supportWhatsapp = waDigits,
                                 minDeposit = minValue ?: 10,
+                                allowPhoneAuth = allowPhoneAuth,
+                                allowEmailAuth = allowEmailAuth,
+                                allowGoogleAuth = allowGoogleAuth,
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -240,5 +309,37 @@ private fun ThemePill(
         colors = androidx.compose.material3.ButtonDefaults.textButtonColors(containerColor = bg),
     ) {
         Text(label, color = fg, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun AuthMethodRow(
+    icon: String,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text("$icon $title", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
     }
 }

@@ -11,6 +11,7 @@ import { resultRouter } from './routes/result.routes.js';
 import { tournamentRouter } from './routes/tournament.routes.js';
 import { tenantRouter, adminTenantRouter } from './routes/tenant.routes.js';
 import { playerRouter } from './routes/player.routes.js';
+import { paymentRouter } from './routes/payment.routes.js';
 import { walletRouter } from './routes/wallet.routes.js';
 import { ApiError } from './utils/ApiError.js';
 
@@ -37,7 +38,22 @@ app.use(
 );
 
 // ─── 3. Body parsers ────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
+// Payment webhooks MUST be verified against the exact raw bytes: re-serialising
+// the parsed JSON changes whitespace/order and the HMAC would never match.
+// We therefore stash `rawBody` for the two webhook paths only.
+const WEBHOOK_PATHS = new Set(['/api/payments/webhook', '/api/v1/payments/webhook']);
+
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, _res, buf) => {
+      const pathname = (req as Request).originalUrl.split('?')[0].replace(/\/+$/, '');
+      if (WEBHOOK_PATHS.has(pathname)) {
+        (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      }
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ─── 4. Authoritative Server Time & Tamper-Proof Header Middleware ───────
@@ -99,6 +115,10 @@ app.use('/api/v1/admin/tenant', adminTenantRouter);
 
 // Player profile stats (Android Phase 6)
 app.use('/api/v1/players', playerRouter);
+
+// Online wallet top-up (Razorpay / mock) — order, verify, webhook, demo
+app.use('/api/payments', paymentRouter);
+app.use('/api/v1/payments', paymentRouter);
 
 // ─── 7. 404 handler for undefined routes ────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction) => {

@@ -8,7 +8,26 @@ import { sendResponse } from '../utils/ApiResponse.js';
 const roomSchema = z.object({
   roomId: z.string().trim().min(1, 'roomId is required').max(64),
   roomPassword: z.string().trim().min(1, 'roomPassword is required').max(64),
+  /** true = ignore the countdown and show the credentials to players right now. */
+  revealNow: z.boolean().optional(),
 });
+
+/** Admin controls WHEN players see the Room ID & Password. */
+const roomRevealSchema = z
+  .object({
+    /** Auto-reveal window in minutes before match start (1..10080). */
+    roomRevealMinutes: z
+      .number({ error: 'roomRevealMinutes must be a number' })
+      .int('roomRevealMinutes must be a whole number')
+      .min(1, 'roomRevealMinutes must be at least 1 minute')
+      .max(10080, 'roomRevealMinutes cannot exceed 10080 minutes (7 days)')
+      .optional(),
+    /** Reveal to players immediately instead of waiting for the window. */
+    revealNow: z.boolean().optional(),
+  })
+  .refine((body) => body.roomRevealMinutes !== undefined || body.revealNow !== undefined, {
+    message: 'Provide roomRevealMinutes and/or revealNow',
+  });
 
 const payoutSchema = z.object({
   results: z
@@ -36,8 +55,21 @@ export async function updateRoomCredentials(req: Request, res: Response, next: N
       String(req.params.id),
       body.roomId,
       body.roomPassword,
+      body.revealNow ?? false,
     );
     sendResponse(res, 200, 'Room credentials published', result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Admin chooses the reveal window and/or reveals the room to players now. */
+export async function updateRoomReveal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const body = roomRevealSchema.parse(req.body);
+    const result = await resultService.updateRoomReveal(req.user, String(req.params.id), body);
+    sendResponse(res, 200, 'Room reveal settings updated', result);
   } catch (err) {
     next(err);
   }

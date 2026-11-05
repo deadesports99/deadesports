@@ -22,6 +22,10 @@ model Tenant {
   upiName         String?        // Payee name shown in the UPI app / QR
   supportWhatsapp String?        // Digits only, e.g. "919999900001"
   minDeposit      Int            @default(10)
+  allowPhoneAuth  Boolean        @default(true)
+
+  allowGoogleAuth Boolean        @default(true)
+  allowEmailAuth  Boolean        @default(true)
   isActive        Boolean        @default(true)
   createdAt       DateTime       @default(now())
   
@@ -30,6 +34,7 @@ model Tenant {
   withdrawals     WithdrawalRequest[]
   deposits        DepositRequest[]
   walletLedgers   WalletLedger[]
+  paymentOrders   PaymentOrder[]
 }
 
 // 2. USER PROFILE (ADMIN, SUB_ADMIN / STAFF, & PLAYERS)
@@ -59,6 +64,7 @@ model User {
   winningBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
   isBanned        Boolean        @default(false)
   deviceId        String?
+  passwordHash    String?
   fcmToken        String?        // last registered FCM push token
   createdAt       DateTime       @default(now())
 
@@ -67,6 +73,7 @@ model User {
   withdrawals     WithdrawalRequest[]
   deposits        DepositRequest[]
   matchResults    MatchResult[]
+  paymentOrders   PaymentOrder[]
 
   @@unique([tenantId, phoneNumber])
   @@index([tenantId, inGameUid])
@@ -93,8 +100,20 @@ model Tournament {
   totalSlots      Int               @default(48)
   matchTime       DateTime
   status          TournamentStatus  @default(UPCOMING)
-  
-  // Custom Room Credentials (Encrypted/Locked until 15 mins before match)
+
+  // Player-feed visibility window (admin decides when the match is listed):
+  //   visibilityHours = null  -> listed immediately after creation
+  //   visibilityHours = N     -> hidden from players until visibleFrom
+  //                              (= matchTime - N hours)
+  // visibleFrom is denormalised so the feed can filter inside the DB query.
+  visibilityHours Int?
+  visibleFrom     DateTime?
+
+  // Custom Room Credentials (admin-controlled reveal)
+  //   roomRevealMinutes = auto-reveal N minutes before matchTime (default 15)
+  //   roomRevealedAt    = when credentials actually became visible to players
+  //                       (auto sweep at the window, or admin "Reveal Now")
+  roomRevealMinutes Int             @default(15)
   roomId          String?
   roomPassword    String?
   roomRevealedAt  DateTime?
@@ -105,6 +124,7 @@ model Tournament {
   results         MatchResult[]
 
   @@index([tenantId, status, matchTime])
+  @@index([tenantId, visibleFrom])
 }
 
 enum GameMode {
@@ -152,6 +172,7 @@ model TournamentSlot {
   @@unique([tournamentId, slotNumber])
   @@unique([tournamentId, userId])
 }
+
 
 // 5. DOUBLE-ENTRY WALLET LEDGER
 model WalletLedger {
@@ -260,4 +281,57 @@ model MatchResult {
   reviewedAt      DateTime?
 
   @@unique([tournamentId, userId])
+}
+
+
+
+// 9. ONLINE PAYMENT ORDERS (Razorpay / mock gateway -> wallet top-up)
+// Amounts are stored in PAISE (integer) so no float rounding ever touches money.
+model PaymentOrder {
+  id                String        @id @default(uuid())
+  tenantId          String
+  tenant            Tenant        @relation(fields: [tenantId], references: [id])
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+
+  provider          String        // "mock" | "razorpay"
+  providerOrderId   String        @unique // gateway order id (mock: order_mock_*, razorpay: order_*)
+  providerPaymentId String?       // gateway payment id after capture
+  amountPaise       Int
+  currency          String        @default("INR")
+  receipt           String        @unique
+  signature         String?       // checkout signature once verified
+  status            PaymentStatus @default(CREATED)
+  failureReason     String?
+  notes             String?
+
+  expiresAt         DateTime
+  capturedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([tenantId, status])
+  @@index([userId, createdAt])
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  CAPTURED
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+// 7. EMAIL OTP VERIFICATION
+model EmailOtp {
+  id        String   @id @default(uuid())
+  tenantId  String
+  email     String
+  code      String
+  type      String   @default("LOGIN")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, email])
 }

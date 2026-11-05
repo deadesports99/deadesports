@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import type { Role, User } from '../generated/prisma/client.js';
 import { env } from '../config/env.js';
@@ -18,6 +19,22 @@ export function generateToken(payload: TokenPayload): string {
 
 /** Fields that must never leak out of the API (add secrets here as they appear). */
 type UserRecord = User;
+
+/** Secure scrypt password hashing with unique salt per user. */
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+/** Constant-time password hash verification against timing attacks. */
+export function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, key] = storedHash.split(':');
+  if (!salt || !key) return false;
+  const keyBuffer = Buffer.from(key, 'hex');
+  const derivedKey = crypto.scryptSync(password, salt, 64);
+  return crypto.timingSafeEqual(keyBuffer, derivedKey);
+}
 
 /**
  * Public projection of a User — balances are intentional: wallet pages
@@ -143,15 +160,21 @@ export interface RegisterPlayerInput {
 export async function registerPlayer(data: RegisterPlayerInput): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
   await assertTenantActive(data.tenantId);
 
-  let targetPhone = data.phoneNumber;
-  if (data.idToken) {
-    const verified = await verifyFirebasePhoneToken(data.idToken);
-    targetPhone = verified.national;
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: data.tenantId },
+    select: { allowPhoneAuth: true },
+  });
+  if (tenant?.allowPhoneAuth === false) {
+    throw ApiError.forbidden('Phone OTP authentication is currently disabled by administrator');
   }
 
-  if (!targetPhone) {
-    throw ApiError.badRequest('Phone number or Firebase idToken is required');
+  if (!data.idToken) {
+    throw ApiError.badRequest('Firebase idToken is required for Phone OTP verification');
   }
+
+  const verified = await verifyFirebasePhoneToken(data.idToken);
+  const targetPhone = verified.national;
+
 
   const norm = normalizePhoneNumber(targetPhone);
   await assertPhoneFree(data.tenantId, norm.national);
@@ -245,15 +268,21 @@ export interface LoginWithPhoneInput {
 export async function loginWithPhone(data: LoginWithPhoneInput): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
   await assertTenantActive(data.tenantId);
 
-  let targetPhone = data.phoneNumber;
-  if (data.idToken) {
-    const verified = await verifyFirebasePhoneToken(data.idToken);
-    targetPhone = verified.national;
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: data.tenantId },
+    select: { allowPhoneAuth: true },
+  });
+  if (tenant?.allowPhoneAuth === false) {
+    throw ApiError.forbidden('Phone OTP authentication is currently disabled by administrator');
   }
 
-  if (!targetPhone) {
-    throw ApiError.badRequest('Phone number or Firebase idToken is required');
+  if (!data.idToken) {
+    throw ApiError.badRequest('Firebase idToken is required for Phone OTP verification');
   }
+
+  const verified = await verifyFirebasePhoneToken(data.idToken);
+  const targetPhone = verified.national;
+
 
   const norm = normalizePhoneNumber(targetPhone);
   const user = await prisma.user.findFirst({
@@ -477,4 +506,172 @@ export async function removeStaffMember(
 
   invalidateAuthCache(updated.id);
   return toStaffView(updated);
+}
+
+// ─── EMAIL + PASSWORD + OTP AUTHENTICATION ────────────────────────────────
+
+export interface SendEmailOtpInput {
+  tenantId: string;
+  email: string;
+  password?: string;
+  name?: string;
+  type: 'LOGIN' | 'REGISTER';
+}
+
+export interface VerifyEmailOtpInput {
+  tenantId: string;
+  email: string;
+  code: string;
+  password?: string;
+  name?: string;
+  deviceId?: string;
+  type: 'LOGIN' | 'REGISTER';
+}
+
+/** Step 1: Validates credentials and sends a 6-digit verification code to the email. */
+export async function sendEmailOtp(
+  data: SendEmailOtpInput,
+): Promise<{ message: string; email: string; debugOtp?: string }> {
+  await assertTenantActive(data.tenantId);
+
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: data.tenantId },
+    select: { allowEmailAuth: true, brandName: true },
+  });
+  if (tenant?.allowEmailAuth === false) {
+    throw ApiError.forbidden('Email authentication is currently disabled by administrator');
+  }
+
+  const normalizedEmail = data.email.toLowerCase().trim();
+
+  if (data.type === 'REGISTER') {
+    if (!data.password || data.password.length < 6) {
+      throw ApiError.badRequest('Password must be at least 6 characters long');
+    }
+    const existing = await prisma.user.findFirst({
+      where: { tenantId: data.tenantId, email: normalizedEmail },
+    });
+    if (existing) {
+      throw ApiError.conflict('An account with this email already exists. Please login instead.');
+    }
+  } else {
+    // LOGIN
+    if (!data.password) {
+      throw ApiError.badRequest('Password is required');
+    }
+    const user = await prisma.user.findFirst({
+      where: { tenantId: data.tenantId, email: normalizedEmail },
+    });
+    if (!user || !user.passwordHash) {
+      throw ApiError.unauthorized('Invalid email or password');
+    }
+    if (user.isBanned) {
+      throw ApiError.forbidden('Your account has been banned');
+    }
+    const valid = verifyPassword(data.password, user.passwordHash);
+    if (!valid) {
+      throw ApiError.unauthorized('Invalid email or password');
+    }
+  }
+
+  // Generate 6-digit random code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  // Delete previous OTPs for this email in this tenant
+  await prisma.emailOtp.deleteMany({
+    where: { tenantId: data.tenantId, email: normalizedEmail },
+  });
+
+  await prisma.emailOtp.create({
+    data: {
+      tenantId: data.tenantId,
+      email: normalizedEmail,
+      code,
+      type: data.type,
+      expiresAt,
+    },
+  });
+
+  console.log(`📧 [EMAIL OTP] Brand: ${tenant?.brandName} | To: ${normalizedEmail} | Type: ${data.type} | OTP: ${code}`);
+
+  return {
+    message: `6-digit verification code sent to ${normalizedEmail}`,
+    email: normalizedEmail,
+    debugOtp: process.env.NODE_ENV !== 'production' ? code : undefined,
+  };
+}
+
+/** Step 2: Verifies the 6-digit OTP code and creates or logs into the account. */
+export async function verifyEmailOtp(
+  data: VerifyEmailOtpInput,
+): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
+  await assertTenantActive(data.tenantId);
+
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: data.tenantId },
+    select: { allowEmailAuth: true },
+  });
+  if (tenant?.allowEmailAuth === false) {
+    throw ApiError.forbidden('Email authentication is currently disabled by administrator');
+  }
+
+  const normalizedEmail = data.email.toLowerCase().trim();
+  const now = new Date();
+
+  const otp = await prisma.emailOtp.findFirst({
+    where: {
+      tenantId: data.tenantId,
+      email: normalizedEmail,
+      code: data.code.trim(),
+      expiresAt: { gt: now },
+    },
+  });
+
+  if (!otp) {
+    throw ApiError.badRequest('Invalid or expired verification code');
+  }
+
+  // Delete the used OTP
+  await prisma.emailOtp.delete({ where: { id: otp.id } });
+
+  let user = await prisma.user.findFirst({
+    where: { tenantId: data.tenantId, email: normalizedEmail },
+  });
+
+  if (data.type === 'REGISTER') {
+    if (user) {
+      throw ApiError.conflict('User already exists with this email');
+    }
+    if (!data.password || data.password.length < 6) {
+      throw ApiError.badRequest('Password must be at least 6 characters');
+    }
+
+    const deviceId = await assertDeviceFree(data.tenantId, data.deviceId);
+    const passwordHash = hashPassword(data.password);
+    const placeholderPhone = `E${Date.now().toString().slice(-9)}`;
+
+    user = await prisma.user.create({
+      data: {
+        tenantId: data.tenantId,
+        email: normalizedEmail,
+        phoneNumber: placeholderPhone,
+        passwordHash,
+        name: data.name?.trim() || 'Gamer',
+        deviceId,
+        role: 'USER',
+      },
+    });
+  } else {
+    // LOGIN
+    if (!user) {
+      throw ApiError.notFound('Account not found');
+    }
+    if (user.isBanned) {
+      throw ApiError.forbidden('Your account has been banned');
+    }
+  }
+
+  const token = generateToken({ userId: user.id, tenantId: user.tenantId, role: user.role });
+  return { user: sanitizeUser(user), token };
 }

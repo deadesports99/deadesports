@@ -227,6 +227,138 @@ release R8 ✅ (5.06/2.08 MB) · device walkthrough on a physical 1080×2400 pho
 - Play Store pre-flight strings, disclaimer placeholder and handover checklist added.
 - Verification: backend build clean; debug and R8 release APK builds clean.
 
+### 🎯 4e. Milestone Status: Phase 8 ✅ COMPLETE — Player-Feed Visibility Window + IST Scheduling
+
+Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/8_Match_Visibility_Window_and_IST_Scheduling/PLAN.md)
+
+1. **Admin-controlled listing window (boss demand)** — new `Tournament.visibilityHours` (`Int?`) +
+   `visibleFrom` (`DateTime?`, = `matchTime - visibilityHours`). `POST /tournaments` accepts
+   `visibilityHours` (1–336 or null); `PATCH /tournaments/:id/visibility` edits it later
+   (`canCreateMatch`). Player feed (`GET /tournaments`) filters in SQL:
+   non-staff only receive `visibleFrom IS NULL OR visibleFrom <= now` (plus matches they already
+   joined); admin/staff lists always show every match. Hidden match details → 404 for players and
+   join → 409 with an IST "Registration opens from …" message. Clones inherit the window,
+   re-anchored to the new match time. Payload now includes `visibilityHours`, `visibleFrom`,
+   `isListedNow`, `secondsUntilListed`.
+2. **Admin Create Match — Indian schedule UI** (`CreateTournamentScreen.kt`): read-only date field
+   `Wed, 05 Nov 2026`, Material3 `TimePicker` with **AM/PM** (always IST, not device TZ), live
+   preview `05 Nov 2026, 08:00 PM IST` + "starts in 2h 15m", +1h/+3h/+6h/+12h/+24h quick chips.
+3. **Player List Visibility control in Create Match:** `Always visible` vs `Only near start`,
+   hours field (1–336) with 2h/6h/10h/12h/24h presets and a live preview of the exact IST time
+   players will start seeing the match. Same editor is available per-match in Manage Matches
+   (`👁️ Player Visibility Window`) and each card shows `👁️ Listed` / `🕒 Hidden — lists at …`.
+4. **Player feed** (`TournamentFeedScreen.kt`): honours the window with the server-authoritative
+   ticking clock, silently auto-refreshes every 60 s so a match appears the moment its window
+   opens (no pull-to-refresh), never hides already-joined matches, and cards show IST time +
+   relative countdown (`05 Nov, 08:00 PM • starts in 2h 15m`).
+5. **Verification:** backend `npm run build` clean · `scripts_phase8_visibility.ts` **36/36 passed**
+   (12h match + 10h window hidden → 13h window listed, details 404→200, join 409 IST message,
+   0h/500h rejected, player 403, immediate listing, clone inheritance, 2h window on 12h match →
+   `secondsUntilListed = 36000`, joined player keeps a match after the window is tightened,
+   auto-cleanup) · `:app-admin` + `:app-player` `assembleDebug` ✅ ·
+   **physical-device walkthrough** (RMX5070 via adb, screenshots in `screenshots/phase8_*.png`):
+   admin created a match 12h ahead with a 10h window (player feed = 0 matches, card showed
+   `🕒 Hidden — lists to players at 12:15 PM`), then changed it to 13h through the
+   `👁️ Player Visibility Window` dialog → player feed showed the match with
+   `05 Nov, 10:15 PM • starts in 12h 6m`; zero app crashes in logcat.
+
+### 🎯 4f. Milestone Status: Phase 9 ✅ COMPLETE — Admin-Controlled Room ID / Password Reveal
+
+Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/9_Admin_Controlled_Room_Reveal/PLAN.md)
+
+1. **Admin decides WHEN players see the custom room code (boss demand)** — new
+   `Tournament.roomRevealMinutes Int @default(15)` (auto-reveal N minutes before start) + the
+   existing `roomRevealedAt` (set when reveal actually happens). One shared rule in
+   `backend/src/services/roomReveal.ts` (`isRoomUnlocked`) used by the feed, details, room endpoint
+   and the lifecycle sweep. `POST /tournaments` accepts `roomRevealMinutes` (1–10080, default 15);
+   clone inherits it. Payload gains `roomRevealMinutes`, `roomRevealsAt`, `roomUnlocked`,
+   `secondsUntilRoomReveal`.
+2. **Reveal Now / edit later** — `PATCH /tournaments/:id/room` now accepts `revealNow: true`
+   (publish + show immediately); new `PATCH /tournaments/:id/room-reveal` (`canUpdateRoomId`)
+   edits the auto window and/or reveals instantly. The 60s sweep reveals each match at its own
+   `matchTime - roomRevealMinutes`; the room endpoint's 403 quotes the admin's window.
+3. **Admin app** — Create Match has a new `🔑 Room ID & Password Reveal` section (5m/15m/30m/1h/2h/6h/12h/24h
+   presets + custom minutes + IST preview). Publish Room shows the reveal state, tap-to-change timing,
+   a "Reveal to players immediately" switch and a "Reveal to players now" action; Manage Matches cards
+   show `🔑 Room ID: hidden — reveals at 11:45 AM (15 min before start)` / `visible to players now` /
+   `not published yet` plus a `🔑 Reveal Room ID to Players Now` quick action. Device-testing caught &
+   fixed: staff always receive the `room` payload, so "unlocked" must use the server `roomUnlocked`
+   flag, never `room != null`.
+   **Publish Room picker fix:** it used to list every match, including yesterday's LIVE/COMPLETED
+   leftovers while the player app showed none. Backend now supports
+   `GET /tournaments?publishable=true` (only UPCOMING/OPEN/SLOTS_FULL/ROOM_REVEALED, 1-hour kickoff
+   grace); the screen uses that dedicated list (`publishTargetsUi`) with a client-side guard and a
+   clear empty state ("No active or upcoming matches right now" + Refresh).
+4. **Player app** — dynamic messaging (`roomRevealLabel()`), locked card shows
+   `✅ Joined • Room in 1h 22m`, after the reveal it becomes `🔑 Get Room ID & Password`, and the
+   Room screen countdown/messages follow the admin window (no hardcoded T-15).
+5. **Verification:** backend `npm run build` clean · `scripts_phase9_room_reveal.ts` **44/44 passed**
+   (create 30-min window, early publish stays locked, player 403 + window message, Reveal Now → 200,
+   list/payload flags, window edit + 0/20000 validation, player 403, sweep auto-reveal per-match
+   window, clone inheritance, cleanup) · both debug APKs build ✅ · **physical-device walkthrough**
+   (RMX5070 via adb, screenshots in `screenshots/phase9_*.png`): created ₹0 match at 12:00 PM IST
+   with reveal 11:45 AM, joined from the player app, published `ROOM-7788 / pass7788` (player card
+   `Joined • Room in 1h 22m`, admin card `Hidden — reveals at 05 Nov, 11:45 AM`), pressed
+   `🔑 Reveal Room ID to Players Now` → admin `ROOM OUT`, player saw `Get Room ID & Password` and the
+   dialog showed `ROOM-7788 / pass7788`; zero crashes, test match removed afterwards.
+   **Post-fix re-verification:** `scripts_phase8_visibility.ts` **36/36** + `scripts_phase9_room_reveal.ts`
+   **44/44** pass; Publish Room picker with 11 stale matches → `publishable=0` + empty state, and with
+   one fresh upcoming match → `publishable=1` (only that match listed); player app feed 0 matches
+   (consistent). Server also needed a schema↔DB sync (concurrent concurrent schema edits had added
+   `Tenant.allowPhoneAuth/allowDirectNumber/allowGoogleAuth/allowEmailAuth` + `EmailOtp` without a
+   `db push`, and a duplicate `EmailOtp` model blocked `prisma validate` — now synced/repaired).
+
+### 🎯 4g. Milestone Status: Phase 10 ✅ COMPLETE — Online Payments, Email Auth & Auth Toggles
+
+Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/10_Payments_and_Email_Auth/PLAN.md) ·
+Gateway doc: [PAYMENT_GATEWAY.md](file:///C:/Free%20Fire%20turnament/docs/PAYMENT_GATEWAY.md)
+
+1. **Online wallet top-up (mock in dev, Razorpay in production)** — `PaymentOrder` model
+   (paise), order create/poll/verify/sync endpoints, HMAC-verified public webhook, mock
+   `/demo/checkout` + `/demo/pay`, idempotent settlement into the double-entry ledger, and a
+   stale-order expiry sweep in `server.ts`. Config: `PAYMENT_PROVIDER=mock|razorpay`,
+   `PAYMENT_MIN/MAX_AMOUNT_PAISE`, `PAYMENT_ORDER_TTL_SECONDS`, `PAYMENT_MOCK_AUTO_CAPTURE`,
+   `PUBLIC_BASE_URL`, `RAZORPAY_KEY_ID/KEY_SECRET/WEBHOOK_SECRET` (documented in `backend/.env.example`).
+2. **Player Add Money sheet** (`AddMoneySheet.kt`) — chips/custom amount, DEMO-MODE banner,
+   "Continue to demo checkout" (browser tab), UPI+UTR fallback, live "₹100 added" confirmation.
+3. **Admin Wallet Console → Online tab** — today's collected ₹, paid/pending/failed counts,
+   DEMO banner, order list (player, amount, status, payment id, sync).
+4. **Email + password + OTP auth** — `POST /auth/player/email/send-otp` (+ `debugOtp` in dev) and
+   `/email/verify-otp`; per-tenant `allowPhoneAuth / allowGoogleAuth / allowEmailAuth`; admin
+   **App Settings → Player Authentication Methods** toggles (at least one must stay on).
+   Phone/Google login now require a real Firebase idToken (production hardening).
+5. **Audit fixes in this session** — repaired schema↔DB drift (`PaymentOrder`, `EmailOtp`,
+   auth flags; removed a duplicate `EmailOtp` model that broke `prisma validate`), dropped the
+   unused `allowDirectNumber`, restored `allowPhoneAuth/allowGoogleAuth=true` (they were left off,
+   locking out phone logins), updated `scripts_phase8/9` to sign JWTs directly (phone-only login
+   no longer exists), and documented all payment env vars in `backend/.env.example`.
+6. **Verification** — payment smoke **19/19** (`src/scripts/testPaymentFlow.ts`), Phase 8 **36/36**,
+   Phase 9 **44/44**, both APKs build. Device walkthrough (RMX5070): Add Money → mock checkout in
+   Chrome → "Payment captured and wallet credited" → app balance **₹710 → ₹810**; admin Online
+   tab `Today ₹810 · 5 paid orders`; auth toggles saved and reflected by the API; no crashes.
+
+### 🎯 4h. Milestone Status: Phase 11 ✅ COMPLETE — Match Lifecycle: Player Feed Cleanup & Admin History
+
+Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/11_Match_Lifecycle_History/PLAN.md)
+
+1. **Problem:** finished matches stayed in the player app's Live tab forever (4 Nov matches
+   showing "Live In-Progress" on 5 Nov) and ate the feed pagination; the admin had no clear
+   history view.
+2. **Backend** — player feed (non-staff, no status filter) now only returns matches within the
+   last **3 hours** of kickoff and hides COMPLETED/CANCELLED; the lifecycle sweep got a new
+   **Step 3**: LIVE → **UNDER_REVIEW** automatically after **2 hours** (`movedToReview` in the
+   sweep result + realtime broadcast); room-reveal timing edits are rejected after kickoff.
+3. **Player app** — both tabs drop a match 3h after kick-off (server + client), Live empty state
+   explains the window.
+4. **Admin app** — Manage Matches now has **⚡ Active & Upcoming** / **🧾 Match History** tabs;
+   history keeps every match with IST date/time, status (REVIEW/COMPLETED/CANCELLED), seats,
+   entry and settlement notes, newest first. Cancel/visibility/reveal actions are limited to
+   pre-match statuses (Clone still available in history).
+5. **Verification** — API: stale + 4h-past match → player feed **0**, admin **12**, sweep
+   `{revealed:1, live:1, toReview:1}`, admin history `{UNDER_REVIEW:11, COMPLETED:1}`; device:
+   player Live tab `(0)` with 3h note, admin History shows 11 ended matches with dates, Active
+   tab empty state; suites **36/36 + 44/44 + 19/19**, build clean, no crashes.
+
 ### Suggested next milestone (Phase 6 ideas)
 - Admin "Sweep now" + "Cancel & refund match" buttons on match cards (backend endpoints already exist).
 - Deposit/withdrawal CSV export + daily reconciliation totals.
@@ -240,7 +372,14 @@ release R8 ✅ (5.06/2.08 MB) · device walkthrough on a physical 1080×2400 pho
 
 When continuing from this file in a new chat:
 1. Greet the user in **Hinglish**.
-2. Acknowledge that Backend + Android Phases 1-6 are **100% completed & verified**.
-3. Backend + Android Phases 1-6 are complete; next work starts from the Phase 7 ideas above.
+2. Acknowledge that Backend + Android Phases 1-11 are **100% completed & verified**.
+3. Backend + Android Phases 1-9 are complete; next work starts from the "Suggested next milestone" ideas above.
 4. Always leverage the reference repos in `git demo repo\` when generating code or prompts.
 5. Keep all checklist files in `plan/` updated.
+6. Match schedule, visibility & room reveal rules (Phases 8–9 — do not regress):
+   - Every match time is stored as UTC ISO but **entered/displayed in IST (Asia/Kolkata) with 12-hour AM/PM**.
+   - `Tournament.visibilityHours` / `visibleFrom` control when players can list & join a match.
+     Backend hides outside-window matches from `GET /tournaments` for players only; admins see everything.
+   - `Tournament.roomRevealMinutes` / `roomRevealedAt` control when joined players see Room ID & Password.
+     Admins can Reveal Now any time (`PATCH /tournaments/:id/room-reveal { revealNow: true }`).
+   - Never hide an already-joined player's match, and never let a hidden match be joined.

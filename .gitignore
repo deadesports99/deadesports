@@ -37,3 +37,4 @@ dist/
 
 # Local verification screenshots (adb captures)
 screenshots/
+.aider*

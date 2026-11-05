@@ -20,6 +20,9 @@ export interface TenantSettingsView {
   upiName: string;
   supportWhatsapp: string;
   minDeposit: number;
+  allowPhoneAuth: boolean;
+  allowGoogleAuth: boolean;
+  allowEmailAuth: boolean;
 }
 
 export interface UpdateTenantSettingsInput {
@@ -27,6 +30,9 @@ export interface UpdateTenantSettingsInput {
   upiName?: string;
   supportWhatsapp?: string;
   minDeposit?: number;
+  allowPhoneAuth?: boolean;
+  allowGoogleAuth?: boolean;
+  allowEmailAuth?: boolean;
 }
 
 function toSettingsView(tenant: {
@@ -35,6 +41,9 @@ function toSettingsView(tenant: {
   upiName: string | null;
   supportWhatsapp: string | null;
   minDeposit: number;
+  allowPhoneAuth?: boolean | null;
+  allowGoogleAuth?: boolean | null;
+  allowEmailAuth?: boolean | null;
 }): TenantSettingsView {
   return {
     brandName: tenant.brandName,
@@ -42,6 +51,9 @@ function toSettingsView(tenant: {
     upiName: tenant.upiName ?? tenant.brandName,
     supportWhatsapp: tenant.supportWhatsapp ?? '',
     minDeposit: tenant.minDeposit ?? MIN_DEPOSIT_FLOOR,
+    allowPhoneAuth: tenant.allowPhoneAuth ?? true,
+    allowGoogleAuth: tenant.allowGoogleAuth ?? true,
+    allowEmailAuth: tenant.allowEmailAuth ?? true,
   };
 }
 
@@ -60,6 +72,9 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
       upiName: true,
       supportWhatsapp: true,
       minDeposit: true,
+      allowPhoneAuth: true,
+      allowGoogleAuth: true,
+      allowEmailAuth: true,
     },
   });
   if (!tenant) throw ApiError.notFound('Tenant not found');
@@ -74,7 +89,13 @@ export async function updateTenantSettings(
 ): Promise<TenantSettingsView> {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { id: true, isActive: true },
+    select: {
+      id: true,
+      isActive: true,
+      allowPhoneAuth: true,
+      allowGoogleAuth: true,
+      allowEmailAuth: true,
+    },
   });
   if (!tenant) throw ApiError.notFound('Tenant not found');
   if (!tenant.isActive) throw ApiError.forbidden('This tenant is deactivated');
@@ -84,6 +105,9 @@ export async function updateTenantSettings(
     upiName?: string;
     supportWhatsapp?: string | null;
     minDeposit?: number;
+    allowPhoneAuth?: boolean;
+    allowEmailAuth?: boolean;
+    allowGoogleAuth?: boolean;
   } = {};
 
   if (input.upiId !== undefined) {
@@ -127,6 +151,25 @@ export async function updateTenantSettings(
     data.minDeposit = minDeposit;
   }
 
+  if (input.allowPhoneAuth !== undefined) {
+    data.allowPhoneAuth = Boolean(input.allowPhoneAuth);
+  }
+  if (input.allowGoogleAuth !== undefined) {
+    data.allowGoogleAuth = Boolean(input.allowGoogleAuth);
+  }
+  if (input.allowEmailAuth !== undefined) {
+    data.allowEmailAuth = Boolean(input.allowEmailAuth);
+  }
+
+  // Ensure at least one authentication method remains enabled
+  const finalPhoneAuth = data.allowPhoneAuth !== undefined ? data.allowPhoneAuth : tenant.allowPhoneAuth;
+  const finalGoogleAuth = data.allowGoogleAuth !== undefined ? data.allowGoogleAuth : tenant.allowGoogleAuth;
+  const finalEmailAuth = data.allowEmailAuth !== undefined ? data.allowEmailAuth : tenant.allowEmailAuth;
+
+  if (!finalPhoneAuth && !finalGoogleAuth && !finalEmailAuth) {
+    throw ApiError.badRequest('At least one authentication method must remain enabled.');
+  }
+
   if (Object.keys(data).length === 0) {
     throw ApiError.badRequest('Nothing to update');
   }
@@ -140,6 +183,9 @@ export async function updateTenantSettings(
       upiName: true,
       supportWhatsapp: true,
       minDeposit: true,
+      allowPhoneAuth: true,
+      allowGoogleAuth: true,
+      allowEmailAuth: true,
     },
   });
 

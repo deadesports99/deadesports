@@ -139,14 +139,22 @@ export function App() {
     setTransactions((prev) => [
       {
         id: `tx-${Date.now()}`,
-        title: `Entry Fee: ${match.title}`,
+        title: `Entry Fee — ${match.title}`,
         amount: match.entryFee,
         isCredit: false,
         category: 'Entries',
-        badgeText: 'Slot Secured',
+        channel: 'freefire_entry',
+        badgeText: 'Confirmed',
         badgeTone: 'cyan',
         time: 'Just now',
+        dateGroup: 'TODAY',
+        closingBalance: (depositCash + winningsCash) - match.entryFee,
         reference: `REG-${Math.floor(1000000 + Math.random() * 9000000)}`,
+        matchName: match.title,
+        matchMode: match.category as any,
+        map: match.map,
+        playerUid: '84920194',
+        status: 'Success',
       },
       ...prev,
     ]);
@@ -165,14 +173,19 @@ export function App() {
     setTransactions((prev) => [
       {
         id: `tx-${Date.now()}`,
-        title: 'UPI Fast Deposit Successful',
+        title: 'Added Cash via UPI',
         amount,
         isCredit: true,
         category: 'Deposits',
-        badgeText: 'Instant Add',
-        badgeTone: 'cyan',
+        channel: 'phonepe',
+        badgeText: 'Deposit',
+        badgeTone: 'emerald',
         time: 'Just now',
+        dateGroup: 'TODAY',
+        closingBalance: (depositCash + winningsCash) + amount,
         reference: generateUTR(),
+        payoutMethod: 'Instant UPI',
+        status: 'Success',
       },
       ...prev,
     ]);
@@ -198,14 +211,19 @@ export function App() {
     setTransactions((prev) => [
       {
         id: `tx-${Date.now()}`,
-        title: `UPI Payout to ${upiId}`,
+        title: `Withdrawal to ${upiId}`,
         amount,
         isCredit: false,
         category: 'Withdrawals',
-        badgeText: 'Transfer Success',
+        channel: 'paytm',
+        badgeText: 'Transferred',
         badgeTone: 'emerald',
         time: 'Just now',
+        dateGroup: 'TODAY',
+        closingBalance: (depositCash + winningsCash) - amount,
         reference: generateUTR(),
+        payoutMethod: `${upiId} (IMPS)`,
+        status: 'Success',
       },
       ...prev,
     ]);
@@ -295,6 +313,7 @@ export function App() {
         }}
         onNotify={() => showToast('Next tournament starts in 1h 24m!')}
         onSettings={activeTab === 'profile' ? () => setSettingsOpen(true) : undefined}
+        hideBalance={activeTab === 'wallet'}
       />
 
       {/* Main Content Area - True Full-Screen Edge-to-Edge */}

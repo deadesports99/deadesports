@@ -1,9 +1,15 @@
 import { app } from './app.js';
 import { env } from './config/env.js';
+import { assertPaymentConfig } from './config/payment.js';
 import { disconnectPrisma } from './config/prisma.js';
 import { disconnectRedis } from './config/redis.js';
 import { startMatchSweepScheduler, stopMatchSweepScheduler } from './services/matchSweep.service.js';
+import { expireStalePaymentOrders } from './services/payment.settlement.js';
 import { realtimeService } from './services/realtime.service.js';
+
+// Fail fast before accepting traffic: a misconfigured gateway must never
+// surface as a broken "Add Money" button for players.
+assertPaymentConfig();
 
 /**
  * HTTP server listener with graceful shutdown.
@@ -23,6 +29,24 @@ const server = app.listen(env.PORT, () => {
 realtimeService.init(server);
 startMatchSweepScheduler();
 
+// 💳 Payment checkout sweep: CREATED/PENDING orders past `expiresAt` become
+// EXPIRED. A late gateway success can still be settled (the settlement claim
+// accepts any non-CAPTURED status), so no player money is lost here.
+let paymentSweepRunning = false;
+const paymentSweepTimer = setInterval(() => {
+  if (paymentSweepRunning) return;
+  paymentSweepRunning = true;
+  void expireStalePaymentOrders()
+    .then((count) => {
+      if (count > 0) console.log(`💳 Expired ${count} stale payment order(s).`);
+    })
+    .catch((err) => console.error('✖ Payment order sweep failed:', err))
+    .finally(() => {
+      paymentSweepRunning = false;
+    });
+}, env.PAYMENT_EXPIRY_SWEEP_INTERVAL_MS);
+paymentSweepTimer.unref?.();
+
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 let shuttingDown = false;
@@ -33,6 +57,7 @@ async function shutdown(signal: string): Promise<void> {
 
   console.log(`\n⚠ ${signal} received — shutting down gracefully...`);
   stopMatchSweepScheduler();
+  clearInterval(paymentSweepTimer);
   realtimeService.shutdown();
 
   // Hard fail-safe: force exit if connections refuse to close.

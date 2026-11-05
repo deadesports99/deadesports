@@ -1,54 +1,69 @@
-# Handoff Prompt — Payment Gateway Integration (Tourney / Free Fire Tournament Platform)
+# Handoff — next work (payment gateway is DONE)
 
-> **Purpose of this file:** Handoff document for the next AI agent. It records
-> what has already been built, what is still pending, and the exact steps to
-> finish the job. Read this fully before touching any code.
-
----
-
-## 1. Project context
-
-- **Repo root:** `C:\Free Fire turnament`
-- **Backend:** Node.js + Express + TypeScript + Prisma (PostgreSQL via `@prisma/adapter-pg`)
-- **Android app:** Kotlin + Jetpack Compose (separate `android/` tree — not touched by this task)
-- **Goal of this task:** Add an **online payment gateway** so players can top up their wallet with real money. Chosen provider: **Razorpay** (India — UPI / cards / netbanking / wallets). A **`mock` provider** was also built so the whole flow can be demoed locally without any keys.
+> Payment gateway ka kaam pura ho gaya hai. Full details:
+> **`docs/PAYMENT_GATEWAY.md`**.
+> Smoke test: `cd backend && npx tsx src/scripts/testPaymentFlow.ts` → 19/19 pass.
 
 ---
 
-## 2. What has ALREADY been done (do not redo)
+## 1. Kya complete hua (is pass me)
 
-The following files were created or modified. **All of them are already in the repo** — verify with `git status` / `git log` before assuming anything is missing.
+### Backend (Razorpay + mock)
+- `PaymentOrder` model + `PaymentStatus` enum (amounts in **paise**), applied to
+  the database with `prisma db push`.
+- `src/config/payment.ts` — provider config + boot-time `assertPaymentConfig()`.
+- `src/services/paymentGateway.service.ts` — mock + Razorpay REST (no npm SDK;
+  Node 22 global `fetch`), checkout + webhook HMAC verification (constant time).
+- `src/services/payment.settlement.ts` — **idempotent** settlement inside a
+  Serializable transaction (status claim → balance increment → `WalletLedger`
+  CREDIT/ADD_MONEY row) + `expireStalePaymentOrders()`.
+- `src/controllers/payment.controller.ts` — create / get / verify / **sync** /
+  webhook / demo pay + demo checkout page.
+- `src/routes/payment.routes.ts` — mounted at `/api/payments` and
+  `/api/v1/payments`; 6/min orders, 20/min verify+sync, 20/min demo per IP.
+- `app.ts` — raw-body capture for webhook signatures (must stay).
+- `server.ts` — boot config check + 5-minute expiry sweep (cleared on shutdown).
+- `public/demo-checkout.html`, `.env.payment.example`, `Dockerfile` copies
+  `public/`.
 
-### New files created
-| File | Purpose |
-|---|---|
-| `backend/src/config/payment.ts` | Provider config, env validation, `assertPaymentConfig()` |
-| `backend/src/services/paymentGateway.service.ts` | Gateway abstraction — `createOrder`, `verifyCheckoutSignature`, `verifyWebhookSignature`, `fetchPayment`. Handles both `mock` and `razorpay`. |
-| `backend/src/services/payment.settlement.ts` | Idempotent settlement — marks order `CAPTURED`, credits `User.depositBalance`, writes `WalletLedger` row (`category: ADD_MONEY`). |
-| `backend/src/controllers/payment.controller.ts` | `createOrder`, `getOrder`, `verifyPayment`, `handleWebhook`, `demoCheckoutPage`, `demoPay` |
-| `backend/src/routes/payment.routes.ts` | Routes + rate limiter. Webhook + demo endpoints are public; order/verify are behind `authenticate`. |
-| `backend/src/middlewares/auth.ts` | `authenticate` (JWT verify + fresh DB user load + ban check), `authorize(roles)`, `requirePermission(keys)` |
-| `backend/public/demo-checkout.html` | Standalone mock checkout page (Pay / Simulate failure buttons) |
-| `backend/.env.payment.example` | Env template for payment vars |
+### Android (player app)
+- `core/.../model/Payment.kt`, `TourneyApi` payment endpoints.
+- `PlayerViewModel` — create order, verify signature, sync/check status,
+  refresh wallet + deposits on success.
+- `AddMoneySheet.kt` — presets + custom amount, native Razorpay checkout for
+  `provider=razorpay`, browser checkout for `mock`, "Already paid? Check status".
+- `WalletScreen` — ➕ Add Cash opens the instant sheet; manual UPI + UTR flow
+  still available inside it.
+- `MainActivity` — Razorpay `PaymentResultWithDataListener` + `Checkout.preload`.
+- Razorpay SDK `com.razorpay:checkout:1.6.41` added; dependency verification
+  metadata regenerated.
 
-### Files modified
-| File | Change |
-|---|---|
-| `backend/prisma/schema.prisma` | Added `PaymentStatus` enum, `PaymentOrder` model, `Tenant.paymentOrders` + `User.paymentOrders` back-relations |
-| `backend/src/app.ts` | Mounted `/api/payments` router; added `express.json({ verify })` hook that stashes `rawBody` for `/api/payments/webhook` (needed for signature verification) |
-| `backend/src/server.ts` | Calls `assertPaymentConfig()` at boot; runs a 5-minute sweep that marks stale `CREATED`/`PENDING` orders as `EXPIRED`; clears the timer on shutdown |
-| `backend/src/config/env.ts` | Added Zod-validated payment env vars (`PAYMENT_PROVIDER`, `RAZORPAY_*`, `PAYMENT_*`, `PUBLIC_BASE_URL`) |
-| `backend/src/config/payment.ts` | Reads from `env` (not raw `process.env`) |
+### Verification done
+- `npx tsc --noEmit` → 0 errors.
+- `npx tsx src/scripts/testPaymentFlow.ts` → 19/19 (order, credit, no double
+  credit, verify, sync, webhook good/bad/replay, failed order, 403, limits).
+- `./gradlew :app-player:assembleDebug :app-admin:assembleDebug` → BUILD SUCCESSFUL.
+- Not verified: a real Razorpay payment (needs live/test keys) and the Android
+  UI on a device/emulator.
 
-### Design decisions already made (keep them)
-- **Amounts are in paise (integer)** everywhere — no floats.
-- **Settlement is idempotent** — a second call for a `CAPTURED` order is a no-op.
-- **Wallet model:** the schema has **no `Wallet` table**. Balances live on `User.depositBalance` / `User.winningBalance`. Settlement increments `depositBalance` directly and writes a `WalletLedger` row. Do **not** introduce a `Wallet` model unless you also migrate everything else.
-- **Webhook signature** is verified against the **raw body** captured in `app.ts`. Do not remove that `verify` hook.
-- **Mock provider** uses an HMAC signature derived from `RAZORPAY_KEY_SECRET || 'mock_secret'` so the same verify path runs in demo mode.
+## 2. Ab kya karna hai (next steps, priority order)
 
----
+1. **Device test** — install the player APK, Wallet → Add Cash → mock pay →
+   balance update. (I could not run an emulator.)
+2. **Razorpay test-mode** — set `PAYMENT_PROVIDER=razorpay` + `rzp_test_*` keys,
+   pay with `4111 1111 1111 1111`, confirm `/verify` + webhook settle once.
+3. **Refund endpoint** — `POST /api/payments/:id/refund` (enum already has
+   `REFUNDED`); reverse the ledger with a DEBIT row.
+4. **Background reconciliation** — cron/sweep for `PENDING` orders older than
+   N minutes → `paymentGateway.fetchPayment()` → settle.
+5. **Admin visibility** — show `PaymentOrder` rows in the admin wallet console
+   (currently only DepositRequest / WithdrawalRequest are listed).
+6. **CI** — run the payment smoke test behind a flag (needs DB access).
 
-## 3. What is STILL PENDING (the actual work)
+## 3. Rules that must not be broken
 
-### 3.1 Install dependencies
+- Amounts are **integer paise**; never floats.
+- Settlement must stay **idempotent** (conditional status claim in a transaction).
+- Webhook verification needs the **raw body** (`app.ts` hook).
+- No `Wallet` table — use `User.depositBalance` + `WalletLedger`.
+- Mock signature secret = `RAZORPAY_KEY_SECRET || 'mock_secret'`.

@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +62,7 @@ fun WalletScreen(
 
     var showWithdraw by remember { mutableStateOf(false) }
     var showDeposit by remember { mutableStateOf(false) }
+    var showAddMoney by remember { mutableStateOf(false) }
     var showLowWinningAlert by remember { mutableStateOf(false) }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
@@ -102,8 +104,9 @@ fun WalletScreen(
                         deposits = deposits,
                         supportWhatsapp = viewModel.liveSettings.supportWhatsapp,
                         onAddMoney = {
+                            viewModel.clearTopUp()
                             viewModel.clearDeposit()
-                            showDeposit = true
+                            showAddMoney = true
                         },
                         onWithdraw = {
                             if (state.data.winningValue >= 50) {
@@ -116,6 +119,18 @@ fun WalletScreen(
                 }
             }
         }
+    }
+
+    if (showAddMoney) {
+        AddMoneySheet(
+            viewModel = viewModel,
+            onDismiss = { showAddMoney = false },
+            onManualDeposit = {
+                showAddMoney = false
+                viewModel.clearDeposit()
+                showDeposit = true
+            },
+        )
     }
 
     if (showDeposit) {
@@ -175,7 +190,7 @@ private fun WalletContent(
                     label = "Deposit Balance",
                     value = wallet.depositValue,
                     subtext = "For match entry fees",
-                    tint = Color(0xFF2E7D32),
+                    tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF66BB6A) else Color(0xFF2E7D32),
                     currencyIcon = TournamentArt.diamond,
                     modifier = Modifier.weight(1f),
                 )
@@ -350,7 +365,11 @@ private fun LedgerRow(entry: LedgerEntry) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = (if (entry.isCredit) "+" else "-") + "₹" + formatMoney(entry.amountValue),
-                    color = if (entry.isCredit) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
+                    color = if (entry.isCredit) {
+                        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF66BB6A) else Color(0xFF2E7D32)
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                 )
@@ -368,13 +387,15 @@ private fun LedgerRow(entry: LedgerEntry) {
 /** Small category chip — ADD_MONEY / JOIN_FEE / REFUND / PRIZE / WITHDRAWAL. */
 @Composable
 private fun CategoryChip(category: String) {
+    // Dark theme needs the 400-level tones; light theme the 700/800 levels.
+    val onDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val (label, tint) = when (category) {
-        "ADD_MONEY" -> "DEPOSIT" to Color(0xFF2E7D32)
-        "JOIN_FEE" -> "ENTRY" to Color(0xFFB71C1C)
-        "WINNING_PRIZE" -> "PRIZE" to Color(0xFF00838F)
-        "WITHDRAWAL" -> "PAYOUT" to Color(0xFFE65100)
-        "REFUND" -> "REFUND" to Color(0xFF6A1B9A)
-        else -> category to Color(0xFF546E7A)
+        "ADD_MONEY" -> "DEPOSIT" to (if (onDark) Color(0xFF66BB6A) else Color(0xFF2E7D32))
+        "JOIN_FEE" -> "ENTRY" to (if (onDark) Color(0xFFEF5350) else Color(0xFFB71C1C))
+        "WINNING_PRIZE" -> "PRIZE" to (if (onDark) Color(0xFF26C6DA) else Color(0xFF00838F))
+        "WITHDRAWAL" -> "PAYOUT" to (if (onDark) Color(0xFFFFA726) else Color(0xFFE65100))
+        "REFUND" -> "REFUND" to (if (onDark) Color(0xFFAB47BC) else Color(0xFF6A1B9A))
+        else -> category to (if (onDark) Color(0xFFB0BEC5) else Color(0xFF546E7A))
     }
     Surface(
         color = tint.copy(alpha = 0.14f),

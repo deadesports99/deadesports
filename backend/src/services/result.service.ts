@@ -5,11 +5,24 @@ import type { AuthUser } from '../types/auth.js';
 import { clearTournamentRedis } from './slotLock.service.js';
 import { pushToTournamentParticipants, pushToUsers } from './fcm.service.js';
 import { realtimeService } from './realtime.service.js';
+import {
+  DEFAULT_ROOM_REVEAL_MINUTES,
+  MINUTE_MS,
+  formatRevealWindowLabel,
+  isRoomUnlocked,
+  resolveRoomRevealMinutes,
+  roomRevealAt,
+  roomRevealMeta,
+  secondsUntilRoomReveal,
+} from './roomReveal.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
-/** Room credentials unlock exactly 15 minutes before matchTime. */
-export const ROOM_REVEAL_WINDOW_MS = 15 * 60 * 1000;
+/**
+ * Legacy constant kept for backwards compatibility: the DEFAULT reveal window
+ * is 15 minutes (admins can override per match via `roomRevealMinutes`).
+ */
+export const ROOM_REVEAL_WINDOW_MS = DEFAULT_ROOM_REVEAL_MINUTES * MINUTE_MS;
 
 /** Rank -> share of prizePool (rank 1 = Booyah). Ranks 4+ earn kill-money only. */
 const RANK_PRIZE_SHARE: Record<number, number> = { 1: 0.5, 2: 0.3, 3: 0.2 };
@@ -23,12 +36,20 @@ const round2 = (value: number): number => Math.round(value * 100) / 100;
 
 // ─── 1. TIMED ROOM CREDENTIALS ──────────────────────────────────────────
 
-/** Admin/Staff enters the custom room ID + password. Status -> ROOM_REVEALED. */
+/**
+ * Admin/Staff publishes the custom room ID + password.
+ *
+ * Visibility is admin-controlled:
+ *  - `revealNow = true`             -> visible to players immediately
+ *  - `now >= matchTime - N minutes`  -> visible automatically (N = roomRevealMinutes)
+ *  - otherwise                       -> stored, hidden until the reveal window opens
+ */
 export async function updateRoomCredentials(
   staffUser: AuthUser,
   tournamentId: string,
   roomId: string,
   roomPassword: string,
+  revealNow: boolean = false,
 ) {
   const tournament = await prisma.tournament.findFirst({
     where: { id: tournamentId, tenantId: staffUser.tenantId },
@@ -39,63 +60,159 @@ export async function updateRoomCredentials(
   }
 
   const now = Date.now();
-  const matchTimeMs = tournament.matchTime.getTime();
-  const isWithinRevealWindow = now >= (matchTimeMs - ROOM_REVEAL_WINDOW_MS);
-
-  // If match start is within 15 mins or already past, status becomes ROOM_REVEALED.
-  // If admin sets it early (e.g. 20+ min before match), we store credentials in DB,
-  // but keep status as-is so players cannot access until the T-15 minute window arrives!
-  const newStatus = isWithinRevealWindow ? 'ROOM_REVEALED' : tournament.status;
+  const wasRevealed = Boolean(tournament.roomRevealedAt);
+  const autoWindowOpen =
+    now >= roomRevealAt(tournament.matchTime, tournament.roomRevealMinutes).getTime();
+  const shouldReveal = revealNow || wasRevealed || autoWindowOpen;
 
   const updated = await prisma.tournament.update({
     where: { id: tournamentId },
     data: {
       roomId: roomId.trim(),
       roomPassword: roomPassword.trim(),
-      roomRevealedAt: isWithinRevealWindow ? new Date() : null,
-      status: newStatus,
+      ...(shouldReveal
+        ? {
+            roomRevealedAt: tournament.roomRevealedAt ?? new Date(),
+            status: 'ROOM_REVEALED' as const,
+          }
+        : {}),
     },
   });
 
-  // Only broadcast & push to players if already within the 15-minute reveal window
-  if (isWithinRevealWindow) {
-    // Realtime WebSocket broadcast
-    realtimeService.broadcastToTenant(staffUser.tenantId, 'MATCH_STATUS_CHANGED', {
-      tournamentId,
-      status: 'ROOM_REVEALED',
-      roomRevealedAt: updated.roomRevealedAt,
-    });
-
-    // Privately deliver credentials to confirmed slot participants
-    prisma.tournamentSlot.findMany({
-      where: { tournamentId },
-      select: { userId: true },
-    }).then((confirmedSlots) => {
-      if (confirmedSlots.length > 0) {
-        realtimeService.sendToUsers(
-          confirmedSlots.map((s) => s.userId),
-          'ROOM_CREDENTIALS_REVEALED',
-          {
-            tournamentId,
-            roomId: updated.roomId,
-            roomPassword: updated.roomPassword,
-            roomRevealedAt: updated.roomRevealedAt,
-          },
-        );
-      }
-    }).catch(() => {});
-
-    void pushToTournamentParticipants(tournamentId, {
-      type: 'ROOM_REVEALED',
-      tournamentId,
-      title: '🏟 Room ID Released!',
-      body: `Custom room unlocked for "${updated.title}" — open the app for the code.`,
-    });
+  if (shouldReveal) {
+    await announceRoomReveal(staffUser.tenantId, updated, !wasRevealed);
   }
 
   return {
+    ...roomRevealMeta(updated, now),
     id: updated.id,
+    title: updated.title,
     status: updated.status,
+    roomRevealedAt: updated.roomRevealedAt,
+    room: { roomId: updated.roomId, roomPassword: updated.roomPassword },
+  };
+}
+
+/** Realtime broadcast + private credentials delivery + optional FCM push. */
+async function announceRoomReveal(
+  tenantId: string,
+  tournament: {
+    id: string;
+    title: string;
+    roomId: string | null;
+    roomPassword: string | null;
+    roomRevealedAt: Date | null;
+  },
+  sendPush: boolean,
+): Promise<void> {
+  realtimeService.broadcastToTenant(tenantId, 'MATCH_STATUS_CHANGED', {
+    tournamentId: tournament.id,
+    status: 'ROOM_REVEALED',
+    roomRevealedAt: tournament.roomRevealedAt,
+  });
+
+  try {
+    const confirmedSlots = await prisma.tournamentSlot.findMany({
+      where: { tournamentId: tournament.id },
+      select: { userId: true },
+    });
+    if (confirmedSlots.length > 0) {
+      realtimeService.sendToUsers(
+        confirmedSlots.map((s) => s.userId),
+        'ROOM_CREDENTIALS_REVEALED',
+        {
+          tournamentId: tournament.id,
+          roomId: tournament.roomId,
+          roomPassword: tournament.roomPassword,
+          roomRevealedAt: tournament.roomRevealedAt,
+        },
+      );
+    }
+  } catch {
+    // Realtime delivery is best-effort — the player can always re-fetch.
+  }
+
+  if (sendPush) {
+    void pushToTournamentParticipants(tournament.id, {
+      type: 'ROOM_REVEALED',
+      tournamentId: tournament.id,
+      title: '🏟 Room ID Released!',
+      body: `Custom room unlocked for "${tournament.title}" — open the app for the code.`,
+    });
+  }
+}
+
+export interface UpdateRoomRevealInput {
+  /** New auto-reveal window (minutes before match start). */
+  roomRevealMinutes?: number;
+  /** Ignore the countdown and show the credentials to players right now. */
+  revealNow?: boolean;
+}
+
+/**
+ * Admin freedom over WHEN players see the Room ID & Password:
+ *  - change the auto-reveal window (N minutes before match start), and/or
+ *  - press "Reveal Now" to make the published credentials visible immediately.
+ */
+export async function updateRoomReveal(
+  staffUser: AuthUser,
+  tournamentId: string,
+  input: UpdateRoomRevealInput,
+) {
+  const tournament = await prisma.tournament.findFirst({
+    where: { id: tournamentId, tenantId: staffUser.tenantId },
+  });
+  if (!tournament) throw ApiError.notFound('Tournament not found');
+  // Reveal timing is only meaningful before kick-off; finished/live matches keep
+  // their room state so history (and the payout queue) can never be inverted.
+  if (
+    !(['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as readonly string[]).includes(
+      tournament.status,
+    )
+  ) {
+    throw ApiError.conflict(
+      `Room reveal timing can only be changed before the match starts (status: ${tournament.status})`,
+    );
+  }
+
+  const hasCredentials = Boolean(tournament.roomId && tournament.roomPassword);
+  if (input.revealNow && !hasCredentials) {
+    throw ApiError.conflict('Publish the Room ID & Password first, then reveal it to players');
+  }
+
+  const now = Date.now();
+  const minutes =
+    input.roomRevealMinutes !== undefined
+      ? resolveRoomRevealMinutes(input.roomRevealMinutes)
+      : tournament.roomRevealMinutes;
+  const wasRevealed = Boolean(tournament.roomRevealedAt);
+  const autoWindowOpen =
+    hasCredentials && now >= roomRevealAt(tournament.matchTime, minutes).getTime();
+  const shouldReveal = Boolean(input.revealNow) || wasRevealed || autoWindowOpen;
+
+  const updated = await prisma.tournament.update({
+    where: { id: tournamentId },
+    data: {
+      roomRevealMinutes: minutes,
+      ...(shouldReveal
+        ? {
+            roomRevealedAt: tournament.roomRevealedAt ?? new Date(),
+            status: 'ROOM_REVEALED' as const,
+          }
+        : {}),
+    },
+  });
+
+  if (shouldReveal) {
+    await announceRoomReveal(staffUser.tenantId, updated, !wasRevealed);
+  }
+
+  return {
+    ...roomRevealMeta(updated, now),
+    id: updated.id,
+    title: updated.title,
+    status: updated.status,
+    hasCredentials,
     roomRevealedAt: updated.roomRevealedAt,
     room: { roomId: updated.roomId, roomPassword: updated.roomPassword },
   };
@@ -106,12 +223,16 @@ export interface RoomAccessResult {
   roomPassword: string;
   roomRevealedAt: Date | null;
   matchTime: Date;
+  roomRevealMinutes: number;
+  roomRevealsAt: string;
+  roomUnlocked: boolean;
   secondsUntilReveal: number;
 }
 
 /**
- * Player access with the 15-minute countdown lock.
- * Slot holders (or staff) may read credentials from T-15min onwards.
+ * Player access with the admin-controlled reveal gate.
+ * Slot holders (or staff) may read credentials once the reveal window opens
+ * or the admin pressed "Reveal Now".
  */
 export async function getRoomCredentials(user: AuthUser, tournamentId: string): Promise<RoomAccessResult> {
   const tournament = await prisma.tournament.findFirst({
@@ -134,17 +255,22 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
     throw ApiError.forbidden('Only confirmed participants can view room credentials');
   }
 
-  const unlockAt = new Date(tournament.matchTime.getTime() - ROOM_REVEAL_WINDOW_MS);
   const now = Date.now();
-  const secondsUntilReveal = Math.max(0, Math.ceil((unlockAt.getTime() - now) / 1000));
+  const unlocked = isRoomUnlocked(tournament, now);
+  const secondsUntilReveal = secondsUntilRoomReveal(tournament, now);
+  const unlockAt = roomRevealAt(tournament.matchTime, tournament.roomRevealMinutes);
 
-  // 2) Timed lock: players cannot see credentials before T-15.
-  if (!isStaff(user) && now < unlockAt.getTime()) {
-    throw ApiError.forbidden('Room ID will be revealed 15 minutes before match start', {
-      secondsUntilReveal,
-      unlockAt: unlockAt.toISOString(),
-      matchTime: tournament.matchTime.toISOString(),
-    });
+  // 2) Reveal gate: players cannot see credentials before the admin's window.
+  if (!isStaff(user) && !unlocked) {
+    throw ApiError.forbidden(
+      `Room ID will be revealed ${formatRevealWindowLabel(tournament.roomRevealMinutes)} before match start`,
+      {
+        secondsUntilReveal,
+        unlockAt: unlockAt.toISOString(),
+        matchTime: tournament.matchTime.toISOString(),
+        roomRevealMinutes: tournament.roomRevealMinutes,
+      },
+    );
   }
 
   return {
@@ -152,6 +278,9 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
     roomPassword: tournament.roomPassword,
     roomRevealedAt: tournament.roomRevealedAt,
     matchTime: tournament.matchTime,
+    roomRevealMinutes: tournament.roomRevealMinutes,
+    roomRevealsAt: unlockAt.toISOString(),
+    roomUnlocked: true,
     secondsUntilReveal,
   };
 }

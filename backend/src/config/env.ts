@@ -41,6 +41,40 @@ const envSchema = z.object({
 
   /** Firebase Project ID for public cert token verification. */
   FIREBASE_PROJECT_ID: z.string().default('deadesports-865d2'),
+
+  // ─── Online payment gateway (wallet top-up) ───────────────────────────
+  /** `mock` = no keys needed (demo), `razorpay` = real Indian gateway. */
+  PAYMENT_PROVIDER: z.enum(['mock', 'razorpay']).default('mock'),
+
+  /** Razorpay API key id (`rzp_test_*` / `rzp_live_*`). */
+  RAZORPAY_KEY_ID: z.string().optional(),
+
+  /** Razorpay API key secret — also used as the mock HMAC secret. */
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+
+  /** Razorpay webhook signing secret (dashboard -> Webhooks). */
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+
+  /** Minimum top-up in paise (default ₹10). */
+  PAYMENT_MIN_AMOUNT_PAISE: z.coerce.number().int().positive().default(1_000),
+
+  /** Maximum top-up in paise (default ₹10,000). */
+  PAYMENT_MAX_AMOUNT_PAISE: z.coerce.number().int().positive().default(1_000_000),
+
+  /** How long a checkout order stays payable (default 15 min). */
+  PAYMENT_ORDER_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+
+  /** Mock mode: auto-credit on "Pay now" (true) or leave PENDING (false). */
+  PAYMENT_MOCK_AUTO_CAPTURE: z
+    .string()
+    .default('true')
+    .transform((value) => value === 'true' || value === '1'),
+
+  /** Sweep interval that expires stale CREATED/PENDING orders (default 5 min). */
+  PAYMENT_EXPIRY_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
+
+  /** Public HTTPS base URL used for checkout callbacks / demo links. */
+  PUBLIC_BASE_URL: z.string().url().default('http://localhost:5000'),
 });
 
 /** Zod schema that transforms CORS_ORIGIN (CSV) into a clean string[]. */

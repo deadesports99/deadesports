@@ -82,7 +82,7 @@ fun AdminDashboardScreen(
         add(
             AdminFeature(
                 "Publish Room ID",
-                "Release custom room credentials (players see at T-15 min)",
+                "Release custom room credentials (players see at your chosen reveal time)",
                 Icons.Filled.MeetingRoom,
                 isAdmin || perms.canUpdateRoomId,
                 "room",
@@ -100,7 +100,7 @@ fun AdminDashboardScreen(
         add(
             AdminFeature(
                 "Manage Matches",
-                "Sweep lifecycle now • cancel a match & auto-refund all seats",
+                "Sweep lifecycle • full match history • cancel & auto-refund seats",
                 Icons.Filled.FactCheck,
                 isAdmin || perms.canCreateMatch,
                 "matches",

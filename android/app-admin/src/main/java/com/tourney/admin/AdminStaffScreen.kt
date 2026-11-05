@@ -383,7 +383,7 @@ private fun StaffFormDialog(
                 PermissionToggle(
                     emoji = "🔑",
                     title = "Can Update Room ID / Password",
-                    subtitle = "Publish custom room credentials (T-15 release)",
+                    subtitle = "Publish custom room credentials (admin-controlled reveal)",
                     checked = perms.canUpdateRoomId,
                     onCheckedChange = { perms = perms.copy(canUpdateRoomId = it) },
                 )

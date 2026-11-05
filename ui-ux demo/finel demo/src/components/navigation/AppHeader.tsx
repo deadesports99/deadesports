@@ -12,6 +12,7 @@ interface AppHeaderProps {
   onAddFunds: () => void;
   onNotify?: () => void;
   onSettings?: () => void;
+  hideBalance?: boolean;
 }
 
 export function AppHeader({
@@ -19,6 +20,7 @@ export function AppHeader({
   balance,
   onAddFunds,
   onSettings,
+  hideBalance,
 }: AppHeaderProps) {
   const isDark = theme === 'dark';
 
@@ -60,23 +62,25 @@ export function AppHeader({
           </button>
         )}
 
-        {/* Clean Wallet Balance Pill (Clickable) */}
-        <button
-          type="button"
-          onClick={onAddFunds}
-          aria-label="Open Wallet"
-          className={cx(
-            'flex h-8 items-center gap-2 rounded-lg border px-3 transition-all active:scale-95',
-            isDark
-              ? 'border-white/15 bg-[#0B1526] text-white hover:border-white/30'
-              : 'border-slate-300 bg-white text-slate-950 shadow-sm hover:border-slate-400'
-          )}
-        >
-          <Wallet className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-300' : 'text-slate-700')} />
-          <span className={cx('text-xs font-black tracking-tight leading-none', isDark ? 'text-white' : 'text-slate-950')}>
-            {formatINR(balance)}
-          </span>
-        </button>
+        {/* Clean Wallet Balance Pill (Hidden on Wallet Page) */}
+        {!hideBalance && (
+          <button
+            type="button"
+            onClick={onAddFunds}
+            aria-label="Open Wallet"
+            className={cx(
+              'flex h-8 items-center gap-2 rounded-lg border px-3 transition-all active:scale-95',
+              isDark
+                ? 'border-white/15 bg-[#0B1526] text-white hover:border-white/30'
+                : 'border-slate-300 bg-white text-slate-950 shadow-sm hover:border-slate-400'
+            )}
+          >
+            <Wallet className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-300' : 'text-slate-700')} />
+            <span className={cx('text-xs font-black tracking-tight leading-none', isDark ? 'text-white' : 'text-slate-950')}>
+              {formatINR(balance)}
+            </span>
+          </button>
+        )}
       </div>
     </header>
   );

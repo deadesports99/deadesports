@@ -16,6 +16,21 @@ const createTournamentSchema = z.object({
   perKillPrize: z.coerce.number().nonnegative('perKillPrize cannot be negative').optional(),
   matchTime: z.coerce.date({ error: 'matchTime must be a valid ISO date' }),
   totalSlots: z.coerce.number().int().min(1).max(48).optional(),
+  /** null/omitted = list immediately; N = hide from players until N hours before start. */
+  visibilityHours: z
+    .number({ error: 'visibilityHours must be a number or null' })
+    .int('visibilityHours must be a whole number')
+    .min(1, 'visibilityHours must be at least 1 hour')
+    .max(336, 'visibilityHours cannot exceed 336 hours (14 days)')
+    .nullable()
+    .optional(),
+  /** Admin-controlled Room ID & Password reveal window (minutes before start). */
+  roomRevealMinutes: z
+    .number({ error: 'roomRevealMinutes must be a number' })
+    .int('roomRevealMinutes must be a whole number')
+    .min(1, 'roomRevealMinutes must be at least 1 minute')
+    .max(10080, 'roomRevealMinutes cannot exceed 10080 minutes (7 days)')
+    .optional(),
 });
 
 const listQuerySchema = z.object({
@@ -24,6 +39,11 @@ const listQuerySchema = z.object({
     .optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
+  /** Admin "Publish Room ID" picker: only upcoming/open matches, no stale ones. */
+  publishable: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
 });
 
 const joinSchema = z.object({
@@ -54,6 +74,17 @@ const cancelSchema = z.object({
 const cloneSchema = z.object({
   matchTime: z.coerce.date({ error: 'matchTime must be a valid ISO date' }),
   title: z.string().trim().min(3, 'Title must be at least 3 characters').max(100).optional(),
+});
+
+/** Player-feed visibility window: null = always listed, N = last N hours only. */
+const visibilitySchema = z.object({
+  visibilityHours: z
+    .number({ error: 'visibilityHours must be a number or null' })
+    .int('visibilityHours must be a whole number')
+    .min(1, 'visibilityHours must be at least 1 hour')
+    .max(336, 'visibilityHours cannot exceed 336 hours (14 days)')
+    .nullable()
+    .optional(),
 });
 
 // ─── Handlers ────────────────────────────────────────────────────────────
@@ -144,6 +175,23 @@ export async function cloneTournament(req: Request, res: Response, next: NextFun
     const body = cloneSchema.parse(req.body);
     const tournament = await tournamentService.cloneTournament(req.user, String(req.params.id), body);
     sendResponse(res, 201, 'Tournament cloned', tournament);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Admin tunable player-feed visibility window: null = list immediately,
+ * N = hide from players until N hours before match start.
+ */
+export async function updateTournamentVisibility(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const body = visibilitySchema.parse(req.body);
+    const tournament = await tournamentService.updateTournamentVisibility(req.user, String(req.params.id), {
+      visibilityHours: body.visibilityHours ?? null,
+    });
+    sendResponse(res, 200, 'Match visibility updated', tournament);
   } catch (err) {
     next(err);
   }

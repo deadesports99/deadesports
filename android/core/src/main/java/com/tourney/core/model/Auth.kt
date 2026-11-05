@@ -31,6 +31,33 @@ data class RegisterRequest(
     @Json(name = "deviceId") val deviceId: String? = null,
 )
 
+@JsonClass(generateAdapter = true)
+data class SendEmailOtpRequest(
+    val tenantId: String,
+    val email: String,
+    val password: String,
+    val name: String? = null,
+    val type: String = "REGISTER",
+)
+
+@JsonClass(generateAdapter = true)
+data class EmailOtpResponse(
+    val message: String,
+    val email: String,
+    val debugOtp: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VerifyEmailOtpRequest(
+    val tenantId: String,
+    val email: String,
+    val code: String,
+    val password: String,
+    val name: String? = null,
+    val deviceId: String? = null,
+    val type: String = "REGISTER",
+)
+
 /** Response of login/register — `{ user, token }`. */
 @JsonClass(generateAdapter = true)
 data class AuthResponse(

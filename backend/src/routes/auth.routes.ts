@@ -20,6 +20,8 @@ export const authRouter: Router = Router();
 authRouter.post('/player/register', authRateLimiter, authController.registerPlayer);
 authRouter.post('/player/login', authRateLimiter, authController.loginWithPhone);
 authRouter.post('/player/google', authRateLimiter, authController.googleLogin);
+authRouter.post('/player/email/send-otp', authRateLimiter, authController.sendEmailOtp);
+authRouter.post('/player/email/verify-otp', authRateLimiter, authController.verifyEmailOtp);
 
 // ADMIN-only: staff management (owner hierarchy)
 authRouter.get('/admin/staff', authenticate, requireRole('ADMIN'), authController.listStaffMembers);

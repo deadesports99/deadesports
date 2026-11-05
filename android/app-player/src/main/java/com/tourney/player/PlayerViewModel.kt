@@ -8,12 +8,19 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tourney.core.datastore.SessionState
 import com.tourney.core.model.ApiException
+import com.tourney.core.model.CreatePaymentOrderRequest
 import com.tourney.core.model.DepositSubmitResponse
+import com.tourney.core.model.PaymentOrderCreated
+import com.tourney.core.model.PaymentGatewayInfo
+import com.tourney.core.model.VerifyPaymentRequest
 import com.tourney.core.model.LoginRequest
 import com.tourney.core.model.PlayerDepositsResponse
 import com.tourney.core.model.PlayerStats
 import com.tourney.core.model.TenantSettings
 import com.tourney.core.model.RegisterRequest
+import com.tourney.core.model.SendEmailOtpRequest
+import com.tourney.core.model.VerifyEmailOtpRequest
+import com.tourney.core.model.EmailOtpResponse
 import com.tourney.core.model.SubmitDepositRequest
 import com.tourney.core.model.TournamentListResponse
 import com.tourney.core.model.User
@@ -54,6 +61,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         loadDiskCache()
+        loadSettings()
         observeRealtimeEvents()
     }
 
@@ -260,6 +268,70 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun sendEmailOtp(
+        email: String,
+        password: String,
+        name: String? = null,
+        type: String = "REGISTER",
+        onSuccess: (EmailOtpResponse) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            try {
+                val res = apiCall {
+                    api.sendEmailOtp(
+                        SendEmailOtpRequest(
+                            tenantId = config.tenantId,
+                            email = email.trim(),
+                            password = password,
+                            name = name?.trim()?.takeIf { it.isNotBlank() },
+                            type = type,
+                        )
+                    )
+                }
+                onSuccess(res)
+            } catch (e: ApiException) {
+                onError(e.message)
+            } catch (e: Exception) {
+                onError("Network error — is the server running?")
+            }
+        }
+    }
+
+    fun verifyEmailOtp(
+        email: String,
+        code: String,
+        password: String,
+        name: String? = null,
+        type: String = "REGISTER",
+    ) {
+        authUi = UiState.Loading
+        viewModelScope.launch {
+            try {
+                val response = apiCall {
+                    api.verifyEmailOtp(
+                        VerifyEmailOtpRequest(
+                            tenantId = config.tenantId,
+                            email = email.trim(),
+                            code = code.trim(),
+                            password = password,
+                            name = name?.trim()?.takeIf { it.isNotBlank() },
+                            deviceId = DeviceIdProvider.androidId(getApplication()),
+                            type = type,
+                        )
+                    )
+                }
+                persistLogin(response)
+                authUi = UiState.Success(response.user)
+                prefetchData()
+            } catch (e: ApiException) {
+                authUi = UiState.Error(e.message)
+            } catch (e: Exception) {
+                authUi = UiState.Error("Network error — is the server running?")
+            }
+        }
+    }
+
     private suspend fun persistLogin(response: com.tourney.core.model.AuthResponse) {
         TourneyRealtimeClient.updateToken(response.token)
         session.saveSession(
@@ -318,7 +390,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun loadSettings() {
         viewModelScope.launch {
             settingsUi = try {
-                UiState.Success(apiCall { api.tenantSettings() })
+                UiState.Success(apiCall { api.tenantSettings(tenantId = config.tenantId) })
             } catch (e: ApiException) {
                 UiState.Error(e.message)
             } catch (e: Exception) {
@@ -496,6 +568,159 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             )
         )
         refreshWallet(silent = true)
+    }
+
+    // ─── Online wallet top-up (payment gateway) ──────────────────────────
+    /** Last created top-up order — survives the checkout round-trip. */
+    var activeTopUp by mutableStateOf<PaymentOrderCreated?>(null)
+        private set
+
+    /** Inline status line shown inside the Add Money sheet. */
+    var topUpMessage by mutableStateOf<String?>(null)
+        private set
+
+    /** True while creating / verifying / reconciling an order. */
+    var topUpBusy by mutableStateOf(false)
+        private set
+
+    /** True once the money is confirmed in the wallet. */
+    var topUpSettled by mutableStateOf(false)
+        private set
+
+    /** Public gateway info (provider + limits + demo flag). */
+    var gatewayInfo by mutableStateOf<PaymentGatewayInfo?>(null)
+        private set
+
+    fun loadGatewayInfo() {
+        if (gatewayInfo != null) return
+        viewModelScope.launch {
+            try {
+                gatewayInfo = apiCall { api.paymentGatewayInfo() }
+            } catch (_: Exception) {
+                // Non-fatal: the sheet falls back to tenant/bundled limits.
+            }
+        }
+    }
+
+    fun clearTopUp() {
+        activeTopUp = null
+        topUpMessage = null
+        topUpBusy = false
+        topUpSettled = false
+    }
+
+    /**
+     * Create a gateway order and hand it to the caller, which opens the
+     * checkout (native Razorpay SDK, or the mock checkout URL in a browser).
+     */
+    fun createTopUp(amountRupees: Int, onReady: (PaymentOrderCreated) -> Unit) {
+        if (topUpBusy) return
+        val amountPaise = amountRupees * 100
+        if (amountPaise < 100) {
+            topUpMessage = "Minimum top-up is ₹1."
+            return
+        }
+        topUpBusy = true
+        topUpMessage = null
+        topUpSettled = false
+        viewModelScope.launch {
+            try {
+                val order = apiCall { api.createPaymentOrder(CreatePaymentOrderRequest(amountPaise)) }
+                activeTopUp = order
+                onReady(order)
+            } catch (e: ApiException) {
+                topUpMessage = e.message
+            } catch (e: Exception) {
+                topUpMessage = "Could not start the payment. Check your connection."
+            } finally {
+                topUpBusy = false
+            }
+        }
+    }
+
+    /** Razorpay SDK success callback (MainActivity forwards it here). */
+    fun onGatewayPaymentSuccess(paymentId: String, signature: String?) {
+        val order = activeTopUp ?: return
+        if (signature.isNullOrBlank()) {
+            // Older SDK builds omit the signature — reconcile through the backend.
+            syncTopUp()
+            return
+        }
+        if (topUpBusy) return
+        topUpBusy = true
+        topUpMessage = "Verifying payment…"
+        viewModelScope.launch {
+            try {
+                val result = apiCall {
+                    api.verifyPayment(
+                        VerifyPaymentRequest(
+                            orderId = order.orderId,
+                            paymentId = paymentId,
+                            signature = signature,
+                        ),
+                    )
+                }
+                if (result.isCaptured) markTopUpSettled(order.amountRupees)
+                else topUpMessage = "Gateway has not captured this payment yet. Tap Check status."
+            } catch (e: ApiException) {
+                topUpMessage = e.message
+            } catch (e: Exception) {
+                topUpMessage = "Payment verification failed. Tap Check status to retry."
+            } finally {
+                topUpBusy = false
+            }
+        }
+    }
+
+    /** Razorpay SDK failure / user-cancelled checkout. */
+    fun onGatewayPaymentError(reason: String?) {
+        topUpMessage = reason?.takeIf { it.isNotBlank() } ?: "Payment cancelled."
+    }
+
+    /**
+     * Ask the server — and for Razorpay the gateway itself — whether the order
+     * was paid. Safe to tap repeatedly: server-side settlement is idempotent.
+     */
+    fun syncTopUp() {
+        val order = activeTopUp ?: return
+        if (topUpBusy) return
+        topUpBusy = true
+        topUpMessage = "Checking payment status…"
+        viewModelScope.launch {
+            try {
+                val local = apiCall { api.paymentOrder(order.orderId) }
+                if (local.isCaptured) {
+                    markTopUpSettled(order.amountRupees)
+                    return@launch
+                }
+
+                val synced = apiCall { api.syncPaymentOrder(order.orderId) }
+                if (synced.isCaptured) {
+                    markTopUpSettled(order.amountRupees)
+                } else {
+                    topUpMessage = when (local.status) {
+                        "PENDING" -> "Payment is still pending at the gateway. Try again in a minute."
+                        "FAILED" -> "Payment failed. You can try again."
+                        "EXPIRED" -> "This checkout expired. Create a new order."
+                        else -> "No payment received yet. Finish the checkout, then tap Check status."
+                    }
+                }
+            } catch (e: ApiException) {
+                topUpMessage = e.message
+            } catch (e: Exception) {
+                topUpMessage = "Could not check the payment. Try again."
+            } finally {
+                topUpBusy = false
+            }
+        }
+    }
+
+    private fun markTopUpSettled(rupees: Int) {
+        topUpSettled = true
+        topUpMessage = "✅ ₹$rupees added to your wallet."
+        refreshWallet(silent = true)
+        loadMyDeposits()
+        activeTopUp = null
     }
 
     // ─── Direct Match Joining (from Feed Bottom Sheet) ────────────────────

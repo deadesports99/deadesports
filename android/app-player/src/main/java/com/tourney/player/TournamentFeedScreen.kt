@@ -80,6 +80,7 @@ import com.tourney.core.ui.ModeBadge
 import com.tourney.core.ui.SlideToJoinButton
 import com.tourney.core.ui.StatusBadge
 import com.tourney.core.ui.TournamentArt
+import com.tourney.core.ui.formatDurationShort
 import com.tourney.core.ui.formatMatchTime
 import com.tourney.core.ui.formatMoney
 
@@ -117,6 +118,16 @@ fun TournamentFeedScreen(
         while (isActive) {
             delay(1000L)
             currentServerTimeMs = TimeAuthority.currentTimeMillis()
+        }
+    }
+
+    // Auto-refresh while the feed is open: a match whose admin visibility window
+    // opens (e.g. "show only in the last 10 hours") must appear automatically —
+    // without the player having to pull-to-refresh.
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(60_000L)
+            viewModel.refreshFeed(silent = true)
         }
     }
 
@@ -213,13 +224,33 @@ fun TournamentFeedScreen(
                     is UiState.Success -> {
                         val allMatches = state.data.items
 
-                        // 1. Completely hide COMPLETED and CANCELLED (admin paid/settled -> gone from view)
-                        val activeMatches = allMatches.filter {
-                            it.status != TournamentStatus.COMPLETED && it.status != TournamentStatus.CANCELLED
+                        // 1. Finished / stale matches must disappear from the player app.
+                        //    A match stays visible only until 3h after kickoff — the
+                        //    admin app keeps the full match history forever.
+                        val feedGraceMs = 3 * 60 * 60 * 1000L
+                        val activeMatches = allMatches.filter { t ->
+                            if (t.status == TournamentStatus.COMPLETED ||
+                                t.status == TournamentStatus.CANCELLED
+                            ) {
+                                return@filter false
+                            }
+                            val matchMs = runCatching {
+                                java.time.Instant.parse(t.matchTime).toEpochMilli()
+                            }.getOrNull()
+                            matchMs == null || matchMs >= currentServerTimeMs - feedGraceMs
+                        }
+
+                        // 1b. Honour the admin's player-list visibility window:
+                        //     a match scheduled 12h later with a 10h window stays hidden
+                        //     until only 10h remain. Already-joined matches never vanish.
+                        //     This uses the ticking server-authoritative clock, so a
+                        //     match appears automatically the moment its window opens.
+                        val visibleMatches = activeMatches.filter {
+                            it.isVisibleInPlayerFeed(currentServerTimeMs)
                         }
 
                         // 2. Sort: joined matches first so player never loses their match, then by matchTime ASC
-                        val sortedMatches = activeMatches.sortedWith(
+                        val sortedMatches = visibleMatches.sortedWith(
                             compareByDescending<Tournament> { it.mySlot != null }
                                 .thenBy { it.matchTime }
                         )
@@ -289,6 +320,7 @@ fun TournamentFeedScreen(
                             items(items, key = { it.id }) { t ->
                                 TournamentCard(
                                     tournament = t,
+                                    nowEpochMs = currentServerTimeMs,
                                     onJoinClick = { selectedTournamentForJoin = t },
                                     onViewSeatClick = { showJoinedDetailsDialog = t },
                                     onOpenRoom = { showRoomCredentialsDialogFor = t },
@@ -340,7 +372,7 @@ fun TournamentFeedScreen(
                         if (isWithinWindow) {
                             "⏳ Organizer is creating the Custom Room in Free Fire. The Room ID & Password will drop right here in a few moments!"
                         } else {
-                            "🔑 Room ID & Password will be revealed 15 minutes before match starts."
+                            "🔑 Room ID & Password will be revealed ${t.roomRevealLabel()}."
                         },
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -698,7 +730,7 @@ private fun EmptyLiveCard(onRefresh: () -> Unit) {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            "Matches will appear here automatically when custom room details are released or match starts. Check the Upcoming tab!",
+            "Matches appear here for up to 3 hours after kick-off (until the organizer settles them). Check the Upcoming tab!",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
@@ -741,6 +773,7 @@ private fun FeedChip(
 @Composable
 fun TournamentCard(
     tournament: Tournament,
+    nowEpochMs: Long = TimeAuthority.currentTimeMillis(),
     onJoinClick: () -> Unit,
     onViewSeatClick: () -> Unit,
     onOpenRoom: () -> Unit,
@@ -867,8 +900,12 @@ fun TournamentCard(
                 )
             }
 
+            val secondsToStart = tournament.secondsUntilMatch(nowEpochMs)
             Text(
-                "⏰ Match Time: ${formatMatchTime(tournament.matchTime)}",
+                buildString {
+                    append("⏰ Match Time: ${formatMatchTime(tournament.matchTime)}")
+                    if (secondsToStart > 0) append(" • starts in ${formatDurationShort(secondsToStart)}")
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
@@ -894,8 +931,13 @@ fun TournamentCard(
                             modifier = Modifier.weight(1f),
                         )
                     } else {
+                        val secondsToRoom = tournament.secondsUntilRoomReveal(nowEpochMs)
                         AppButton(
-                            text = "✅ Joined • Room at T-15m",
+                            text = if (secondsToRoom > 0L) {
+                                "✅ Joined • Room in ${formatDurationShort(secondsToRoom)}"
+                            } else {
+                                "✅ Joined • Waiting for Room ID"
+                            },
                             onClick = onViewSeatClick,
                             modifier = Modifier.weight(1f),
                         )

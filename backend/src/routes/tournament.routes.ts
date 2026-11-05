@@ -12,6 +12,9 @@ import { joinSlotRateLimiter } from '../middlewares/rateLimiter.js';
  *  GET    /:id/slots           authenticated -> seats with player IGN
  *  POST   /:id/join            authenticated + USER -> atomic slot booking
  *  POST   /:id/cancel          authenticated + canCreateMatch -> cancel + refund all
+ *  POST   /:id/clone           authenticated + canCreateMatch -> clone the match format
+ *  PATCH  /:id/visibility      authenticated + canCreateMatch -> player-feed window
+ *                              (null = list immediately, N = list only in the last N hours)
  *  POST   /sweep/states        authenticated + canCreateMatch -> run the time-based
  *                              lifecycle sweep now (T-15 reveal -> LIVE)
  */
@@ -58,4 +61,12 @@ tournamentRouter.post(
   authenticate,
   requirePermission('canCreateMatch'),
   tournamentController.cloneTournament,
+);
+
+// Phase 8 — player-feed visibility window (admin decides when the match lists).
+tournamentRouter.patch(
+  '/:id/visibility',
+  authenticate,
+  requirePermission('canCreateMatch'),
+  tournamentController.updateTournamentVisibility,
 );

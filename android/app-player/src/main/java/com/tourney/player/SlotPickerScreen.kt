@@ -537,7 +537,7 @@ fun SlotPickerScreen(
                     Text("Entry Fee: ₹${result.entryFee}")
                     Text("Remaining Balance: ₹${result.balanceAfter}")
                     Text(
-                        "Room ID and Password will be visible on the Room screen 15 minutes before match start.",
+                        "Room ID and Password will be visible on the Room screen at the organizer's reveal time (default 15 min before start).",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -126,5 +126,9 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+
+    // Instant wallet top-up: Razorpay Standard Checkout (UPI / cards / netbanking).
+    implementation(libs.razorpay.checkout)
+
     debugImplementation(libs.androidx.ui.tooling)
 }

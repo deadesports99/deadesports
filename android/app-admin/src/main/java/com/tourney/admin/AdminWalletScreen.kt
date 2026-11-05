@@ -32,12 +32,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.model.AdminDeposit
+import com.tourney.core.model.AdminPaymentOrder
 import com.tourney.core.model.AdminWithdrawal
 import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.AppTopBar
 import com.tourney.core.ui.ErrorState
 import com.tourney.core.ui.GlassCard
 import com.tourney.core.ui.LoadingState
+import com.tourney.core.ui.formatMatchTime
 import com.tourney.core.ui.formatMoney
 
 /**
@@ -48,14 +50,17 @@ import com.tourney.core.ui.formatMoney
  *    reject (auto-refunds the winning balance).
  *  • Deposits — player "Add Cash" claims. Verify the UTR then 1-click credit
  *    the deposit balance (double-entry ADD_MONEY ledger), or reject.
+ *  • Online (Razorpay / mock) — every in-app top-up with today's collection,
+ *    order status and a 1-tap "check with gateway" for stuck orders.
  */
 @Composable
 fun AdminWalletScreen(
     viewModel: AdminViewModel,
     onBack: () -> Unit,
 ) {
-    var tab by remember { mutableStateOf(0) } // 0 = Withdrawals, 1 = Deposits
+    var tab by remember { mutableStateOf(0) } // 0 = Withdrawals, 1 = Deposits, 2 = Online
     var statusFilter by remember { mutableStateOf("PENDING") }
+    var onlineFilter by remember { mutableStateOf("ALL") }
 
     var approveTarget by remember { mutableStateOf<AdminWithdrawal?>(null) }
     var rejectTarget by remember { mutableStateOf<AdminWithdrawal?>(null) }
@@ -65,9 +70,13 @@ fun AdminWalletScreen(
     var depositApproveTarget by remember { mutableStateOf<AdminDeposit?>(null) }
     var depositRejectTarget by remember { mutableStateOf<AdminDeposit?>(null) }
 
-    LaunchedEffect(tab, statusFilter) {
+    LaunchedEffect(tab, statusFilter, onlineFilter) {
         viewModel.clearWalletFeedback()
-        if (tab == 0) viewModel.loadWithdrawals(statusFilter) else viewModel.loadDeposits(statusFilter)
+        when (tab) {
+            0 -> viewModel.loadWithdrawals(statusFilter)
+            1 -> viewModel.loadDeposits(statusFilter)
+            else -> viewModel.loadPayments(onlineFilter)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -84,16 +93,26 @@ fun AdminWalletScreen(
                 onClick = { tab = 1 },
                 text = { Text("➕ Deposits", fontWeight = FontWeight.SemiBold) },
             )
+            Tab(
+                selected = tab == 2,
+                onClick = { tab = 2 },
+                text = { Text("⚡ Online", fontWeight = FontWeight.SemiBold) },
+            )
         }
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            listOf("PENDING", "APPROVED", "REJECTED").forEach { s ->
+            val chips = if (tab == 2) {
+                listOf("ALL", "CAPTURED", "PENDING", "FAILED")
+            } else {
+                listOf("PENDING", "APPROVED", "REJECTED")
+            }
+            chips.forEach { s ->
                 FilterChip(
-                    selected = statusFilter == s,
-                    onClick = { statusFilter = s },
+                    selected = if (tab == 2) onlineFilter == s else statusFilter == s,
+                    onClick = { if (tab == 2) onlineFilter = s else statusFilter = s },
                     label = { Text(s, fontSize = 11.sp) },
                 )
             }
@@ -102,7 +121,7 @@ fun AdminWalletScreen(
         viewModel.walletMessage?.let {
             Text(
                 it,
-                color = Color(0xFF1B5E20),
+                color = Color(0xFF66BB6A),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
@@ -142,6 +161,70 @@ fun AdminWalletScreen(
                                     onReject = { rejectTarget = w; reasonText = "" },
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        } else if (tab == 2) {
+            val state = viewModel.paymentsUi
+            when (state) {
+                AdminUi.Idle, AdminUi.Loading -> LoadingState("Loading online payments…")
+                is AdminUi.Error -> ErrorState(state.message) { viewModel.loadPayments(onlineFilter) }
+                is AdminUi.Success -> {
+                    val summary = state.data.summary
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        item {
+                            GlassCard(cornerRadius = 14.dp, modifier = Modifier.fillMaxWidth()) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        "Today ₹${formatMoney(summary.collectedTodayRupees)}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF66BB6A),
+                                    )
+                                    Text(
+                                        "Total collected ₹${formatMoney(summary.collectedTotalRupees)} • " +
+                                            "${summary.capturedCount} paid orders",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        "${summary.pendingCount} pending • ${summary.failedCount} failed",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    if (summary.demoMode) {
+                                        Text(
+                                            "⚠ DEMO gateway — these amounts are not real money",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFFF9A825),
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (state.data.payments.isEmpty()) {
+                            item {
+                                Text(
+                                    if (onlineFilter == "ALL") "No online payments yet." else "No $onlineFilter orders.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        items(state.data.payments, key = { it.id }) { p ->
+                            OnlinePaymentCard(
+                                p = p,
+                                busy = viewModel.walletBusy,
+                                onSync = { viewModel.syncPayment(p.id) },
+                            )
                         }
                     }
                 }
@@ -382,7 +465,7 @@ private fun WithdrawalCard(
             when {
                 w.status == "APPROVED" -> Text(
                     "✅ Paid • UTR ${w.utrNumber ?: "-"}",
-                    color = Color(0xFF1B5E20),
+                    color = Color(0xFF66BB6A),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -428,7 +511,7 @@ private fun DepositCard(
                     "₹${formatMoney(d.amountValue)}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = if (isPending) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isPending) Color(0xFF66BB6A) else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -442,7 +525,7 @@ private fun DepositCard(
             when {
                 d.status == "APPROVED" -> Text(
                     "✅ Credited to deposit balance",
-                    color = Color(0xFF1B5E20),
+                    color = Color(0xFF66BB6A),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -463,6 +546,93 @@ private fun DepositCard(
                         enabled = !busy,
                         onClick = onReject,
                         modifier = Modifier.weight(0.6f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnlinePaymentCard(
+    p: AdminPaymentOrder,
+    busy: Boolean,
+    onSync: () -> Unit,
+) {
+    val statusColor = when (p.status) {
+        "CAPTURED" -> Color(0xFF66BB6A)
+        "FAILED" -> MaterialTheme.colorScheme.error
+        "EXPIRED" -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> Color(0xFFF9A825)
+    }
+    GlassCard(cornerRadius = 14.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "${p.player.label} • UID ${p.player.inGameUid ?: "-"}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "Phone ${p.player.phoneNumber}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    "₹${formatMoney(p.amountRupees)}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor,
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(p.status, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = statusColor)
+                Text(
+                    if (p.isDemo) "DEMO" else p.provider.uppercase(),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C6BC0),
+                )
+                Text(
+                    formatMatchTime(p.createdAt),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            when {
+                p.status == "CAPTURED" -> Text(
+                    "✅ Credited to wallet${p.providerPaymentId?.let { " • $it" } ?: ""}",
+                    color = Color(0xFF66BB6A),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                p.status == "FAILED" -> Text(
+                    "❌ ${p.failureReason ?: "Payment failed"}",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                )
+                else -> {
+                    Text(
+                        if (p.status == "EXPIRED") {
+                            "Checkout window expired — player can retry."
+                        } else {
+                            "Waiting for the player to finish payment."
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    AppButton(
+                        text = if (busy) "Checking…" else "Check with gateway",
+                        enabled = !busy,
+                        onClick = onSync,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }

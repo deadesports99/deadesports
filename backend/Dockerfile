@@ -32,6 +32,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/prisma.config.ts ./prisma.config.ts
 
+# Static demo checkout page (mock provider) served from /api/payments/demo/checkout.
+COPY --chown=node:node public ./public
+
 USER node
 EXPOSE 5000
 

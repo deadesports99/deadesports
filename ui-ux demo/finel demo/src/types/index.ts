@@ -33,9 +33,19 @@ export interface TransactionItem {
   isCredit: boolean;
   category: 'Deposits' | 'Winnings' | 'Withdrawals' | 'Entries';
   badgeText: string;
-  badgeTone: 'slate' | 'emerald' | 'cyan';
+  badgeTone: 'slate' | 'emerald' | 'cyan' | 'amber';
   time: string;
   reference: string;
+  closingBalance?: number;
+  dateGroup?: string;
+  channel?: 'freefire_win' | 'freefire_entry' | 'phonepe' | 'paytm' | 'gpay' | 'bank';
+  matchName?: string;
+  matchMode?: 'Solo' | 'Duo' | 'Squad' | 'CS 4v4';
+  map?: string;
+  playerUid?: string;
+  gameResult?: string;
+  payoutMethod?: string;
+  status?: 'Success' | 'Processing' | 'Failed';
 }
 
 export interface EsportsGameTitle {

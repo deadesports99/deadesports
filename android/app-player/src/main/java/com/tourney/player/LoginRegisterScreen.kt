@@ -3,9 +3,6 @@ package com.tourney.player
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.OutlinedButton
-import com.tourney.core.firebase.GoogleAuthManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +14,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -39,9 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.PhoneAuthProvider
+import com.tourney.core.firebase.GoogleAuthManager
 import com.tourney.core.firebase.PhoneAuthListener
 import com.tourney.core.firebase.PhoneAuthManager
 import com.tourney.core.theme.LocalClientConfig
@@ -49,18 +51,23 @@ import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.GlassCard
 import kotlinx.coroutines.delay
 
+private enum class AuthMode {
+    PHONE,
+    EMAIL,
+}
+
 private enum class AuthStep {
-    PHONE_INPUT,
+    CREDENTIALS_INPUT,
     OTP_VERIFICATION,
 }
 
 /**
- * Login / Register — Firebase Phone + OTP Authentication.
- * Features:
- * - SMS OTP delivery via Firebase PhoneAuthProvider
- * - 60s resend timer
- * - Instant auto-retrieval / SMS Retriever support
- * - Secure backend token exchange
+ * Login / Register Screen — 3 dynamic authentication methods:
+ * 1. 📩 Phone Auth (Firebase SMS OTP)
+ * 2. ✉️ Email + Password + OTP (Backend verified)
+ * 3. 🚀 1-Tap Google Sign-In
+ *
+ * Configured live by the Admin in Settings without shipping a new APK.
  */
 @Composable
 fun LoginRegisterScreen(
@@ -71,14 +78,44 @@ fun LoginRegisterScreen(
     val activity = context as? Activity
     val config = LocalClientConfig.current
 
-    var tab by remember { mutableIntStateOf(0) } // 0 = Login, 1 = Register
-    var step by remember { mutableStateOf(AuthStep.PHONE_INPUT) }
-    var phone by remember { mutableStateOf("") }
-    var otpCode by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        viewModel.loadSettings()
+    }
 
+    val settings = viewModel.liveSettings
+    val allowPhoneAuth = settings.allowPhoneAuth
+    val allowEmailAuth = settings.allowEmailAuth
+    val allowGoogleAuth = settings.allowGoogleAuth
+
+    var selectedMode by remember {
+        mutableStateOf(if (allowPhoneAuth) AuthMode.PHONE else AuthMode.EMAIL)
+    }
+
+    // Auto-adjust selected mode if admin disables currently active mode
+    LaunchedEffect(allowPhoneAuth, allowEmailAuth) {
+        if (selectedMode == AuthMode.PHONE && !allowPhoneAuth && allowEmailAuth) {
+            selectedMode = AuthMode.EMAIL
+        } else if (selectedMode == AuthMode.EMAIL && !allowEmailAuth && allowPhoneAuth) {
+            selectedMode = AuthMode.PHONE
+        }
+    }
+
+    var tab by remember { mutableIntStateOf(0) } // 0 = Login, 1 = Register
+    var step by remember { mutableStateOf(AuthStep.CREDENTIALS_INPUT) }
+
+    // Phone state
+    var phone by remember { mutableStateOf("") }
     var verificationId by remember { mutableStateOf<String?>(null) }
     var resendToken by remember { mutableStateOf<PhoneAuthProvider.ForceResendingToken?>(null) }
+
+    // Email state
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    // Common state
+    var name by remember { mutableStateOf("") }
+    var otpCode by remember { mutableStateOf("") }
     var resendCountdown by remember { mutableIntStateOf(60) }
     var isTimerRunning by remember { mutableStateOf(false) }
 
@@ -214,113 +251,257 @@ fun LoginRegisterScreen(
             )
         }
 
-        if (step == AuthStep.PHONE_INPUT) {
-            TabRow(selectedTabIndex = tab) {
-                Tab(
-                    selected = tab == 0,
-                    onClick = { tab = 0; error = null; infoMessage = null },
-                    text = { Text("Login") },
-                )
-                Tab(
-                    selected = tab == 1,
-                    onClick = { tab = 1; error = null; infoMessage = null },
-                    text = { Text("Register") },
-                )
-            }
+        if (step == AuthStep.CREDENTIALS_INPUT) {
+            val hasCredentialsAuth = allowPhoneAuth || allowEmailAuth
 
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it.filter(Char::isDigit).take(10) },
-                label = { Text("Mobile Phone Number") },
-                placeholder = { Text("9999900003") },
-                leadingIcon = {
-                    Text(
-                        "+91 ",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 12.dp),
-                    )
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            if (tab == 1) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it.take(50) },
-                    label = { Text("Your Name (Optional)") },
-                    placeholder = { Text("e.g. Rahul Gamer") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    "🎮 Fast Registration: Free Fire UID is automatically asked when joining your first tournament.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                )
-            }
-
-            if (error != null) {
-                Text(error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-            }
-
-            AppButton(
-                text = if (busy) "Sending OTP..." else if (tab == 0) "Get OTP to Login" else "Get OTP to Register",
-                enabled = !busy && phone.trim().length == 10 && activity != null,
-                onClick = {
-                    if (activity == null) {
-                        error = "Unable to access Android Activity context"
-                        return@AppButton
+            if (hasCredentialsAuth) {
+                // If both Phone and Email are enabled, let user toggle between them
+                if (allowPhoneAuth && allowEmailAuth) {
+                    TabRow(
+                        selectedTabIndex = if (selectedMode == AuthMode.PHONE) 0 else 1,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Tab(
+                            selected = selectedMode == AuthMode.PHONE,
+                            onClick = {
+                                selectedMode = AuthMode.PHONE
+                                error = null
+                                infoMessage = null
+                            },
+                            text = { Text("📱 Phone (OTP)", fontWeight = FontWeight.SemiBold) },
+                        )
+                        Tab(
+                            selected = selectedMode == AuthMode.EMAIL,
+                            onClick = {
+                                selectedMode = AuthMode.EMAIL
+                                error = null
+                                infoMessage = null
+                            },
+                            text = { Text("✉️ Email (OTP)", fontWeight = FontWeight.SemiBold) },
+                        )
                     }
-                    error = null
-                    infoMessage = null
-                    busy = true
-                    PhoneAuthManager.sendOtp(
-                        activity = activity,
-                        phoneNumber = phone.trim(),
-                        listener = phoneAuthListener,
+                }
+
+                // Login vs Register Tab
+                TabRow(selectedTabIndex = tab) {
+                    Tab(
+                        selected = tab == 0,
+                        onClick = { tab = 0; error = null; infoMessage = null },
+                        text = { Text("Login") },
                     )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                HorizontalDivider(modifier = Modifier.weight(1f))
+                    Tab(
+                        selected = tab == 1,
+                        onClick = { tab = 1; error = null; infoMessage = null },
+                        text = { Text("Register") },
+                    )
+                }
+
+                if (selectedMode == AuthMode.PHONE && allowPhoneAuth) {
+                    // ─── PHONE AUTH INPUTS ────────────────────────────────────
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it.filter(Char::isDigit).take(10) },
+                        label = { Text("Mobile Phone Number") },
+                        placeholder = { Text("9999900003") },
+                        leadingIcon = {
+                            Text(
+                                "+91 ",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 12.dp),
+                            )
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (tab == 1) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it.take(50) },
+                            label = { Text("Your Name (Optional)") },
+                            placeholder = { Text("e.g. Rahul Gamer") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            "🎮 Fast Registration: Free Fire UID is automatically asked when joining your first tournament.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                        )
+                    }
+
+                    if (error != null) {
+                        Text(error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    }
+
+                    AppButton(
+                        text = if (busy) "Sending OTP..." else if (tab == 0) "📩 Get OTP to Login" else "📩 Get OTP to Register",
+                        enabled = !busy && phone.trim().length == 10 && activity != null,
+                        onClick = {
+                            if (activity == null) {
+                                error = "Unable to access Android Activity context"
+                                return@AppButton
+                            }
+                            error = null
+                            infoMessage = null
+                            busy = true
+                            PhoneAuthManager.sendOtp(
+                                activity = activity,
+                                phoneNumber = phone.trim(),
+                                listener = phoneAuthListener,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else if (selectedMode == AuthMode.EMAIL && allowEmailAuth) {
+                    // ─── EMAIL AUTH INPUTS ────────────────────────────────────
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it.trim() },
+                        label = { Text("Email Address") },
+                        placeholder = { Text("player@example.com") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password (min 6 characters)") },
+                        placeholder = { Text("••••••") },
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            Text(
+                                text = if (passwordVisible) "HIDE" else "SHOW",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .clickable { passwordVisible = !passwordVisible }
+                                    .padding(end = 12.dp),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (tab == 1) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it.take(50) },
+                            label = { Text("Your Name (Optional)") },
+                            placeholder = { Text("e.g. Rahul Gamer") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            "🎮 Fast Registration: Free Fire UID is automatically asked when joining your first tournament.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                        )
+                    }
+
+                    if (error != null) {
+                        Text(error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    }
+
+                    val emailValid = email.contains("@") && email.contains(".") && email.length >= 5
+                    val passwordValid = password.length >= 6
+
+                    AppButton(
+                        text = if (busy) "Sending OTP..." else if (tab == 0) "✉️ Get OTP to Login" else "✉️ Get OTP to Register",
+                        enabled = !busy && emailValid && passwordValid,
+                        onClick = {
+                            error = null
+                            infoMessage = null
+                            busy = true
+                            viewModel.sendEmailOtp(
+                                email = email.trim(),
+                                password = password,
+                                name = name.trim().takeIf { it.isNotBlank() },
+                                type = if (tab == 0) "LOGIN" else "REGISTER",
+                                onSuccess = { res ->
+                                    busy = false
+                                    step = AuthStep.OTP_VERIFICATION
+                                    infoMessage = if (res.debugOtp != null) {
+                                        "6-digit OTP sent to $email (Code: ${res.debugOtp})"
+                                    } else {
+                                        "6-digit OTP sent to $email"
+                                    }
+                                    resendCountdown = 60
+                                    isTimerRunning = true
+                                },
+                                onError = { errMsg ->
+                                    busy = false
+                                    error = errMsg
+                                },
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            } else {
+                // Both Phone and Email are disabled by Admin
                 Text(
-                    "  OR  ",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Mobile phone and email login are currently disabled. Please continue with your Google Account.",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 12.dp),
                 )
-                HorizontalDivider(modifier = Modifier.weight(1f))
+                if (error != null) {
+                    Text(error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
             }
 
-            OutlinedButton(
-                onClick = {
-                    if (activity != null) {
-                        error = null
-                        busy = true
-                        val client = GoogleAuthManager.getSignInClient(context)
-                        googleLauncher.launch(client.signInIntent)
+            // Google Sign-In Option
+            if (allowGoogleAuth) {
+                if (hasCredentialsAuth) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Text(
+                            "  OR  ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f))
                     }
-                },
-                enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(config.cornerRadius.dp),
-            ) {
-                Text("🚀 Continue with Google", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        if (activity != null) {
+                            error = null
+                            busy = true
+                            val client = GoogleAuthManager.getSignInClient(context)
+                            googleLauncher.launch(client.signInIntent)
+                        }
+                    },
+                    enabled = !busy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(config.cornerRadius.dp),
+                ) {
+                    Text("🚀 Continue with Google", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
             }
         } else {
-            // ─── STEP 2: OTP VERIFICATION ─────────────────────────────────
+            // ─── STEP 2: OTP VERIFICATION (PHONE OR EMAIL) ────────────────
+            val isPhone = selectedMode == AuthMode.PHONE
+
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Enter 6-Digit OTP",
+                    if (isPhone) "Enter SMS Verification Code" else "Enter Email Verification Code",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                 )
@@ -330,17 +511,17 @@ fun LoginRegisterScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Code sent to +91 $phone",
+                        if (isPhone) "Code sent to +91 $phone" else "Code sent to $email",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "Edit Number",
+                        if (isPhone) "Edit Number" else "Edit Email",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable {
-                            step = AuthStep.PHONE_INPUT
+                            step = AuthStep.CREDENTIALS_INPUT
                             otpCode = ""
                             error = null
                             infoMessage = null
@@ -364,6 +545,7 @@ fun LoginRegisterScreen(
                     infoMessage!!,
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
                 )
             }
 
@@ -373,20 +555,31 @@ fun LoginRegisterScreen(
 
             AppButton(
                 text = if (busy) "Verifying..." else if (tab == 0) "Verify & Login" else "Verify & Create Account",
-                enabled = !busy && otpCode.trim().length == 6 && verificationId != null,
+                enabled = !busy && otpCode.trim().length == 6 && (!isPhone || verificationId != null),
                 onClick = {
-                    val verId = verificationId
-                    if (verId == null) {
-                        error = "Verification session expired. Please resend OTP."
-                        return@AppButton
-                    }
                     error = null
                     busy = true
-                    PhoneAuthManager.verifyOtp(
-                        verificationId = verId,
-                        otpCode = otpCode.trim(),
-                        listener = phoneAuthListener,
-                    )
+                    if (isPhone) {
+                        val verId = verificationId
+                        if (verId == null) {
+                            error = "Verification session expired. Please resend OTP."
+                            busy = false
+                            return@AppButton
+                        }
+                        PhoneAuthManager.verifyOtp(
+                            verificationId = verId,
+                            otpCode = otpCode.trim(),
+                            listener = phoneAuthListener,
+                        )
+                    } else {
+                        viewModel.verifyEmailOtp(
+                            email = email.trim(),
+                            code = otpCode.trim(),
+                            password = password,
+                            name = name.trim().takeIf { it.isNotBlank() },
+                            type = if (tab == 0) "LOGIN" else "REGISTER",
+                        )
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -404,21 +597,44 @@ fun LoginRegisterScreen(
                     )
                 } else {
                     TextButton(
-                        enabled = !busy && activity != null,
+                        enabled = !busy && (isPhone && activity != null || !isPhone),
                         onClick = {
-                            if (activity != null) {
-                                busy = true
-                                error = null
-                                PhoneAuthManager.sendOtp(
-                                    activity = activity,
-                                    phoneNumber = phone.trim(),
-                                    listener = phoneAuthListener,
-                                    resendToken = resendToken,
+                            busy = true
+                            error = null
+                            if (isPhone) {
+                                if (activity != null) {
+                                    PhoneAuthManager.sendOtp(
+                                        activity = activity,
+                                        phoneNumber = phone.trim(),
+                                        listener = phoneAuthListener,
+                                        resendToken = resendToken,
+                                    )
+                                }
+                            } else {
+                                viewModel.sendEmailOtp(
+                                    email = email.trim(),
+                                    password = password,
+                                    name = name.trim().takeIf { it.isNotBlank() },
+                                    type = if (tab == 0) "LOGIN" else "REGISTER",
+                                    onSuccess = { res ->
+                                        busy = false
+                                        infoMessage = if (res.debugOtp != null) {
+                                            "New OTP sent to $email (Code: ${res.debugOtp})"
+                                        } else {
+                                            "New OTP sent to $email"
+                                        }
+                                        resendCountdown = 60
+                                        isTimerRunning = true
+                                    },
+                                    onError = { errMsg ->
+                                        busy = false
+                                        error = errMsg
+                                    },
                                 )
                             }
                         },
                     ) {
-                        Text("Resend OTP SMS", fontWeight = FontWeight.Bold)
+                        Text(if (isPhone) "Resend OTP SMS" else "Resend OTP Email", fontWeight = FontWeight.Bold)
                     }
                 }
             }

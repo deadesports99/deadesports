@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.tourney.core.datastore.SessionState
 import com.tourney.core.model.AckRequest
 import com.tourney.core.model.AdminDepositsResponse
+import com.tourney.core.model.AdminPaymentsResponse
 import com.tourney.core.model.ApiException
 import com.tourney.core.model.ApproveWithdrawalRequest
 import com.tourney.core.model.CancelMatchRequest
@@ -23,6 +24,7 @@ import com.tourney.core.model.PayoutResultInput
 import com.tourney.core.model.PublishRoomRequest
 import com.tourney.core.model.RejectWithdrawalRequest
 import com.tourney.core.model.RoomCredentials
+import com.tourney.core.model.RoomRevealRequest
 import com.tourney.core.model.SlotsResponse
 import com.tourney.core.model.StaffListResponse
 import com.tourney.core.model.StaffPermissions
@@ -33,11 +35,13 @@ import com.tourney.core.model.UpdateTenantSettingsRequest
 import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentListResponse
 import com.tourney.core.model.UpdateStaffRequest
+import com.tourney.core.model.UpdateVisibilityRequest
 import com.tourney.core.model.User
 import com.tourney.core.model.WithdrawalsResponse
 import com.tourney.core.network.ApiClient
 import com.tourney.core.network.apiCall
 import com.tourney.core.theme.ThemeMode
+import com.tourney.core.ui.formatMoney
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -117,6 +121,37 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ─── Publish Room ID picker: only still-relevant matches ─────────────
+    // Old LIVE/COMPLETED matches from previous days must not appear here
+    // (the player app hides them too).
+    var publishTargetsUi by mutableStateOf<AdminUi<TournamentListResponse>>(AdminUi.Idle)
+        private set
+
+    var isPublishTargetsRefreshing by mutableStateOf(false)
+        private set
+
+    fun loadPublishTargets() {
+        if (publishTargetsUi is AdminUi.Idle || publishTargetsUi is AdminUi.Error) {
+            publishTargetsUi = AdminUi.Loading
+        }
+        isPublishTargetsRefreshing = true
+        viewModelScope.launch {
+            try {
+                publishTargetsUi = AdminUi.Success(
+                    apiCall { api.listTournaments(status = null, limit = 50, publishable = true) }
+                )
+            } catch (e: ApiException) {
+                if (publishTargetsUi !is AdminUi.Success) publishTargetsUi = AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                if (publishTargetsUi !is AdminUi.Success) {
+                    publishTargetsUi = AdminUi.Error("Network error — is the server running?")
+                }
+            } finally {
+                isPublishTargetsRefreshing = false
+            }
+        }
+    }
+
     // ─── Create match (canCreateMatch) ───────────────────────────────────
     var createUi by mutableStateOf<AdminUi<Tournament>>(AdminUi.Idle)
         private set
@@ -138,13 +173,13 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
     var publishUi by mutableStateOf<AdminUi<RoomCredentials>>(AdminUi.Idle)
         private set
 
-    fun publishRoom(tournamentId: String, roomId: String, roomPassword: String) {
+    fun publishRoom(tournamentId: String, roomId: String, roomPassword: String, revealNow: Boolean = false) {
         publishUi = AdminUi.Loading
         viewModelScope.launch {
             try {
                 publishUi = AdminUi.Success(
                     apiCall {
-                        api.publishRoom(tournamentId, PublishRoomRequest(roomId, roomPassword))
+                        api.publishRoom(tournamentId, PublishRoomRequest(roomId, roomPassword, revealNow))
                     }
                 )
             } catch (e: ApiException) {
@@ -153,6 +188,61 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                 publishUi = AdminUi.Error("Network error — is the server running?")
             }
         }
+    }
+
+    // ─── Phase 9: admin-controlled Room ID & Password reveal ─────────────
+    var roomRevealBusyId by mutableStateOf<String?>(null)
+        private set
+
+    var roomRevealMessage by mutableStateOf<String?>(null)
+        private set
+
+    var roomRevealError by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Admin decides when players see the Room ID & Password:
+     * change the auto-reveal window (minutes before start) and/or reveal now.
+     */
+    fun updateRoomReveal(
+        tournamentId: String,
+        roomRevealMinutes: Int? = null,
+        revealNow: Boolean? = null,
+    ) {
+        if (roomRevealBusyId != null) return
+        roomRevealBusyId = tournamentId
+        roomRevealMessage = null
+        roomRevealError = null
+        viewModelScope.launch {
+            try {
+                val saved = apiCall {
+                    api.updateRoomReveal(
+                        tournamentId,
+                        RoomRevealRequest(roomRevealMinutes = roomRevealMinutes, revealNow = revealNow),
+                    )
+                }
+                roomRevealMessage = when {
+                    saved.roomUnlocked == true ->
+                        "Room ID & Password are now visible to joined players"
+                    saved.roomRevealMinutes != null ->
+                        "Saved — players see the room ${saved.roomRevealMinutes} min before start"
+                    else -> "Room reveal updated"
+                }
+                loadMatchOps()
+                loadTournaments()
+            } catch (e: ApiException) {
+                roomRevealError = e.message
+            } catch (e: Exception) {
+                roomRevealError = "Room reveal update failed — network error"
+            } finally {
+                roomRevealBusyId = null
+            }
+        }
+    }
+
+    fun clearRoomRevealFeedback() {
+        roomRevealMessage = null
+        roomRevealError = null
     }
 
     // ─── Spectator scorer (canDistributePrize) ───────────────────────────
@@ -394,6 +484,57 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ─── Online payments (Razorpay / mock top-ups) ───────────────────────
+    var paymentsUi by mutableStateOf<AdminUi<AdminPaymentsResponse>>(AdminUi.Idle)
+        private set
+
+    /** Last filter chosen by the screen; reused after a sync. */
+    private var paymentsFilter: String = "ALL"
+
+    fun loadPayments(status: String = "ALL") {
+        paymentsFilter = status
+        paymentsUi = AdminUi.Loading
+        viewModelScope.launch {
+            try {
+                paymentsUi = AdminUi.Success(
+                    apiCall { api.adminPayments(status = status, page = 1, limit = 30) },
+                )
+            } catch (e: ApiException) {
+                paymentsUi = AdminUi.Error(e.message)
+            } catch (e: Exception) {
+                paymentsUi = AdminUi.Error("Network error — is the server running?")
+            }
+        }
+    }
+
+    /** Ask the gateway what really happened and settle if money was captured. */
+    fun syncPayment(id: String) {
+        if (walletBusy) return
+        walletBusy = true
+        walletMessage = null
+        walletError = null
+        viewModelScope.launch {
+            try {
+                val result = apiCall { api.adminSyncPayment(id, AckRequest()) }
+                walletMessage = when {
+                    result.status == "CAPTURED" && result.alreadySettled ->
+                        "Already captured — wallet was credited earlier ✓"
+                    result.status == "CAPTURED" ->
+                        result.balanceAfter?.let { "Paid ✓ — wallet balance now ₹${formatMoney(it)}" }
+                            ?: "Paid ✓ — wallet credited"
+                    else -> "Gateway says: ${result.gatewayStatus ?: result.status} — not paid yet"
+                }
+                loadPayments(paymentsFilter)
+            } catch (e: ApiException) {
+                walletError = e.message
+            } catch (e: Exception) {
+                walletError = "Network error — is the server running?"
+            } finally {
+                walletBusy = false
+            }
+        }
+    }
+
     fun clearWalletFeedback() {
         walletMessage = null
         walletError = null
@@ -553,7 +694,7 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         isMatchOpsRefreshing = true
         viewModelScope.launch {
             try {
-                matchOpsUi = AdminUi.Success(apiCall { api.listTournaments(status = null, limit = 40) })
+                matchOpsUi = AdminUi.Success(apiCall { api.listTournaments(status = null, limit = 50) })
             } catch (e: ApiException) {
                 if (matchOpsUi !is AdminUi.Success) matchOpsUi = AdminUi.Error(e.message)
             } catch (e: Exception) {
@@ -697,6 +838,55 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         cloneError = null
     }
 
+    // ─── Phase 8: player-feed visibility window (timed listing) ──────────
+    var visibilityBusyMatchId by mutableStateOf<String?>(null)
+        private set
+
+    var visibilityMessage by mutableStateOf<String?>(null)
+        private set
+
+    var visibilityError by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Tune when players can see a match. null = listed immediately,
+     * N = lists only in the last N hours before start.
+     */
+    fun updateMatchVisibility(tournamentId: String, visibilityHours: Int?) {
+        if (visibilityBusyMatchId != null) return
+        visibilityBusyMatchId = tournamentId
+        visibilityMessage = null
+        visibilityError = null
+        viewModelScope.launch {
+            try {
+                apiCall {
+                    api.updateTournamentVisibility(
+                        tournamentId,
+                        UpdateVisibilityRequest(visibilityHours = visibilityHours),
+                    )
+                }
+                visibilityMessage = if (visibilityHours == null) {
+                    "Visibility updated — players see this match immediately"
+                } else {
+                    "Visibility updated — lists only in the last $visibilityHours hours"
+                }
+                loadMatchOps()
+                loadTournaments()
+            } catch (e: ApiException) {
+                visibilityError = e.message
+            } catch (e: Exception) {
+                visibilityError = "Visibility update failed — network error"
+            } finally {
+                visibilityBusyMatchId = null
+            }
+        }
+    }
+
+    fun clearVisibilityFeedback() {
+        visibilityMessage = null
+        visibilityError = null
+    }
+
     fun clearOpsFeedback() {
         opsMessage = null
         opsError = null
@@ -728,7 +918,15 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun saveSettings(upiId: String, upiName: String, supportWhatsapp: String, minDeposit: Int) {
+    fun saveSettings(
+        upiId: String,
+        upiName: String,
+        supportWhatsapp: String,
+        minDeposit: Int,
+        allowPhoneAuth: Boolean = true,
+        allowEmailAuth: Boolean = true,
+        allowGoogleAuth: Boolean = true,
+    ) {
         if (settingsSaving) return
         settingsSaving = true
         settingsMessage = null
@@ -742,6 +940,9 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                             upiName = upiName.trim(),
                             supportWhatsapp = supportWhatsapp.trim(),
                             minDeposit = minDeposit,
+                            allowPhoneAuth = allowPhoneAuth,
+                            allowEmailAuth = allowEmailAuth,
+                            allowGoogleAuth = allowGoogleAuth,
                         )
                     )
                 }

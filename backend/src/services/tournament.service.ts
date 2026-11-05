@@ -17,6 +17,11 @@ import {
 } from './slotLock.service.js';
 import { pushToTournamentParticipants } from './fcm.service.js';
 import { realtimeService } from './realtime.service.js';
+import {
+  isRoomUnlocked,
+  resolveRoomRevealMinutes,
+  roomRevealMeta,
+} from './roomReveal.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -29,8 +34,38 @@ const JOINABLE_STATUSES = ['UPCOMING', 'OPEN'] as const;
 /** Tournament statuses from which an admin may cancel + refund. */
 const CANCELLABLE_STATUSES = ['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
 
+/** Statuses whose visibility window can no longer be edited. */
+const VISIBILITY_EDITABLE_STATUSES = [
+  'DRAFT',
+  'UPCOMING',
+  'OPEN',
+  'SLOTS_FULL',
+  'ROOM_REVEALED',
+] as const;
+
+/** Player-list visibility window bounds (hours before match start). */
+const MIN_VISIBILITY_HOURS = 1;
+const MAX_VISIBILITY_HOURS = 336; // 14 days
+const HOUR_MS = 60 * 60 * 1000;
+
 /** Statuses set by the engine that may never be joined. */
 const getTeamSize = (matchType: string): number => TEAM_SIZE[matchType as 'SOLO' | 'DUO' | 'SQUAD'] ?? 1;
+
+/**
+ * Matches that are still relevant for "Publish Room ID": upcoming / open /
+ * rooms already out. Old LIVE or COMPLETED matches from previous days are not
+ * publishable and must never clutter the admin's publish picker.
+ */
+const PUBLISHABLE_STATUSES = ['UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
+
+/** Small grace so a match that just kicked off can still get its room published. */
+const PUBLISH_GRACE_MS = 60 * 60 * 1000;
+
+/**
+ * Player feed freshness window: a match disappears from the player app this
+ * long after kickoff (the admin app keeps the full history forever).
+ */
+const PLAYER_FEED_GRACE_MS = 3 * 60 * 60 * 1000;
 
 // ─── Input types ─────────────────────────────────────────────────────────
 
@@ -44,12 +79,21 @@ export interface CreateTournamentInput {
   perKillPrize?: number;
   matchTime: Date;
   totalSlots?: number;
+  /** null = list immediately; N = hide from players until N hours before start. */
+  visibilityHours?: number | null;
+  /** Admin-chosen auto-reveal for Room ID & Password (minutes before start). */
+  roomRevealMinutes?: number;
 }
 
 export interface ListTournamentsQuery {
   status?: string;
   page?: number;
   limit?: number;
+  /**
+   * Admin "Publish Room ID" picker: only still-relevant matches
+   * (UPCOMING/OPEN/SLOTS_FULL/ROOM_REVEALED and not long past kickoff).
+   */
+  publishable?: boolean;
 }
 
 // ─── Sanitizers ──────────────────────────────────────────────────────────
@@ -58,15 +102,62 @@ type TournamentWithMeta = Prisma.TournamentGetPayload<{
   include: { _count: { select: { slots: true } } };
 }>;
 
+/**
+ * Turn the admin's "show in list N hours before start" choice into the stored
+ * window. null/undefined = list immediately; otherwise visibleFrom is
+ * matchTime - N hours (a timestamp in the past means it is already listed).
+ */
+function resolveVisibilityWindow(
+  matchTime: Date,
+  rawHours: number | null | undefined,
+): { visibilityHours: number | null; visibleFrom: Date | null } {
+  if (rawHours === null || rawHours === undefined) {
+    return { visibilityHours: null, visibleFrom: null };
+  }
+  const hours = Math.round(Number(rawHours));
+  if (!Number.isFinite(hours) || hours < MIN_VISIBILITY_HOURS || hours > MAX_VISIBILITY_HOURS) {
+    throw ApiError.badRequest(
+      `visibilityHours must be between ${MIN_VISIBILITY_HOURS} and ${MAX_VISIBILITY_HOURS} hours`,
+    );
+  }
+  return { visibilityHours: hours, visibleFrom: new Date(matchTime.getTime() - hours * HOUR_MS) };
+}
+
+/** True once the match has crossed its visibleFrom threshold (null = always listed). */
+function isListedForPlayersNow(visibleFrom: Date | null, nowMs: number): boolean {
+  return !visibleFrom || visibleFrom.getTime() <= nowMs;
+}
+
+/** IST label used in "registration opens at ..." API messages. */
+function formatIstDateTimeForMessage(date: Date): string {
+  return date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 /** Hide room credentials unless the caller is staff (admin/sub-admin). */
 function sanitizeTournament(
   t: TournamentWithMeta,
   visibleCredentials: boolean,
+  nowMs: number = Date.now(),
 ): Record<string, unknown> {
   const { roomId, roomPassword, ...rest } = t;
+  const listedNow = isListedForPlayersNow(t.visibleFrom, nowMs);
   return {
     ...rest,
+    // Admin-controlled Room ID & Password reveal metadata (same rule everywhere).
+    ...roomRevealMeta(t, nowMs),
     slotsBooked: t._count.slots,
+    /** Whether the player feed should show this match right now. */
+    isListedNow: listedNow,
+    secondsUntilListed:
+      listedNow || !t.visibleFrom ? 0 : Math.max(0, Math.ceil((t.visibleFrom.getTime() - nowMs) / 1000)),
     room: visibleCredentials ? { roomId, roomPassword } : undefined,
   };
 }
@@ -86,6 +177,12 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
     throw ApiError.badRequest('Free Fire tournaments use exactly 48 slots');
   }
 
+  // Admin's player-feed visibility window ("listed only in the last N hours").
+  const visibility = resolveVisibilityWindow(data.matchTime, data.visibilityHours);
+
+  // Admin's Room ID & Password reveal window (default 15 minutes before start).
+  const roomRevealMinutes = resolveRoomRevealMinutes(data.roomRevealMinutes);
+
   const tournament = await prisma.tournament.create({
     data: {
       tenantId: creator.tenantId,
@@ -98,6 +195,8 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
       perKillPrize: data.perKillPrize ?? 0,
       totalSlots,
       matchTime: data.matchTime,
+      ...visibility,
+      roomRevealMinutes,
       status: 'OPEN',
     },
     include: { _count: { select: { slots: true } } },
@@ -131,9 +230,46 @@ export async function listTournaments(
   const page = Math.max(1, query.page ?? 1);
   const limit = Math.min(50, Math.max(1, query.limit ?? 10));
 
+  const now = new Date();
+  const nowMs = now.getTime();
+  const isStaff = Boolean(viewer && (viewer.role === 'ADMIN' || viewer.role === 'SUB_ADMIN'));
+
+  // Players only see matches inside their admin-configured visibility window.
+  // Staff (admin console) always see every scheduled match. A player who has
+  // already booked a seat keeps seeing "their" match even if it is hidden from
+  // the generic feed (e.g. the admin shortened the window afterwards).
+  const visibilityFilter: Prisma.TournamentWhereInput = isStaff
+    ? {}
+    : {
+        OR: [
+          { visibleFrom: null },
+          { visibleFrom: { lte: now } },
+          ...(viewer?.userId ? [{ slots: { some: { userId: viewer.userId } } }] : []),
+        ],
+      };
+
   const where: Prisma.TournamentWhereInput = {
     tenantId,
-    ...(query.status ? { status: query.status as TournamentStatus } : {}),
+    ...(query.publishable
+      ? {
+          // Publish Room ID picker: hide yesterday's LIVE/COMPLETED matches.
+          status: { in: [...PUBLISHABLE_STATUSES] as TournamentStatus[] },
+          matchTime: { gte: new Date(nowMs - PUBLISH_GRACE_MS) },
+        }
+      : query.status
+        ? { status: query.status as TournamentStatus }
+        : {}),
+    ...visibilityFilter,
+    // Player feed only: never let yesterday's finished/abandoned matches fill
+    // the page (they are hidden by the client too, but pagination must stay
+    // correct so fresh matches are always reachable). Admin/staff keep the full
+    // history; explicit status queries (COMPLETED etc.) also bypass this.
+    ...(isStaff || query.status
+      ? {}
+      : {
+          matchTime: { gte: new Date(nowMs - PLAYER_FEED_GRACE_MS) },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] as TournamentStatus[] },
+        }),
   };
 
   const [total, items] = await Promise.all([
@@ -161,21 +297,18 @@ export async function listTournaments(
     }
   }
 
-  const nowMs = Date.now();
-  const isStaff = Boolean(viewer && (viewer.role === 'ADMIN' || viewer.role === 'SUB_ADMIN'));
-
   return {
     items: items.map((t) => {
       const mySlot = mySlotByTournamentId.get(t.id);
       const isConfirmedPlayer = mySlot !== undefined;
-      const isWithin15Min = nowMs >= (t.matchTime.getTime() - 15 * 60 * 1000);
+      const roomUnlocked = isRoomUnlocked(t, nowMs);
       const hasCreds = Boolean(t.roomId && t.roomPassword);
-      const canSeeCreds = isStaff || (isConfirmedPlayer && isWithin15Min && hasCreds);
+      const canSeeCreds = isStaff || (isConfirmedPlayer && roomUnlocked && hasCreds);
 
       return {
-        ...sanitizeTournament(t, canSeeCreds),
+        ...sanitizeTournament(t, canSeeCreds, nowMs),
         hasRoomCredentials: hasCreds,
-        isRoomReady: isWithin15Min && hasCreds,
+        isRoomReady: roomUnlocked && hasCreds,
         mySlotNumber: mySlot ?? null,
         mySlot: mySlot !== undefined ? { slotNumber: mySlot } : null,
       };
@@ -197,9 +330,11 @@ export async function getTournamentDetails(
   });
   if (!tournament) throw ApiError.notFound('Tournament not found');
 
-  // Room credentials only for staff; players see them post-reveal (Phase 4).
+  // Room credentials only for staff; players see them once the admin's reveal
+  // window opens (or the admin pressed "Reveal Now").
   const isStaff = Boolean(viewer && (viewer.role === 'ADMIN' || viewer.role === 'SUB_ADMIN'));
-  const visibleCredentials = isStaff || tournament.status === 'ROOM_REVEALED' || tournament.status === 'LIVE';
+  const nowMs = Date.now();
+  const visibleCredentials = isStaff || isRoomUnlocked(tournament, nowMs);
 
   let mySlot: { slotNumber: number; teamId: string | null } | null = null;
   if (viewer) {
@@ -212,6 +347,14 @@ export async function getTournamentDetails(
     mySlot = slot;
   }
 
+  // Matches outside the admin's visibility window stay hidden from players
+  // (unless that player already booked a seat, or is staff).
+  const hiddenFromPlayers =
+    Boolean(tournament.visibleFrom && tournament.visibleFrom.getTime() > nowMs);
+  if (hiddenFromPlayers && !isStaff && !mySlot) {
+    throw ApiError.notFound('This match has not been listed yet');
+  }
+
   const liveOccupied = await getOccupiedSlots(tournamentId);
   if (Object.keys(liveOccupied).length === 0 && tournament._count.slots > 0) {
     // Redis cold (TTL/crash) — re-warm from the DB.
@@ -222,7 +365,10 @@ export async function getTournamentDetails(
     await hydrateSlotsFromDb(tournamentId, seats);
   }
 
-  return { ...sanitizeTournament(tournament, visibleCredentials), mySlot };
+  return {
+    ...sanitizeTournament(tournament, visibleCredentials, nowMs),
+    mySlot,
+  };
 }
 
 // ─── 4. TOURNAMENT SLOTS ─────────────────────────────────────────────────
@@ -281,6 +427,15 @@ export async function joinTournament(
     where: { id: tournamentId, tenantId: user.tenantId },
   });
   if (!tournament) throw ApiError.notFound('Tournament not found');
+
+  // Registration only opens once the admin's visibility window is reached.
+  if (tournament.visibleFrom && tournament.visibleFrom.getTime() > Date.now()) {
+    throw ApiError.conflict(
+      `Registration is not open yet — this match appears in the list from ` +
+        `${formatIstDateTimeForMessage(tournament.visibleFrom)} IST`,
+    );
+  }
+
   if (!(JOINABLE_STATUSES as readonly string[]).includes(tournament.status)) {
     throw ApiError.conflict(`Tournament is not accepting entries (status: ${tournament.status})`);
   }
@@ -626,6 +781,10 @@ export async function cloneTournament(
 
   const newTitle = input.title?.trim() || `${original.title} (Next)`;
 
+  // The clone inherits the admin's visibility preference, re-anchored to the
+  // new match time (so "show only in the last 10h" keeps working).
+  const visibility = resolveVisibilityWindow(input.matchTime, original.visibilityHours);
+
   const cloned = await prisma.tournament.create({
     data: {
       tenantId: creator.tenantId,
@@ -638,6 +797,8 @@ export async function cloneTournament(
       perKillPrize: original.perKillPrize,
       totalSlots: original.totalSlots,
       matchTime: input.matchTime,
+      ...visibility,
+      roomRevealMinutes: original.roomRevealMinutes,
       status: 'OPEN',
     },
     include: { _count: { select: { slots: true } } },
@@ -645,4 +806,43 @@ export async function cloneTournament(
 
   clearFeedCache();
   return sanitizeTournament(cloned, true);
+}
+
+// ─── 7. UPDATE PLAYER-FEED VISIBILITY WINDOW ─────────────────────────────
+
+export interface UpdateVisibilityInput {
+  /** null = list immediately; N = list only in the last N hours. */
+  visibilityHours: number | null;
+}
+
+/**
+ * Admin can tune when a match becomes visible to players after creation
+ * (e.g. hide an evening match until 6 hours before start).
+ */
+export async function updateTournamentVisibility(
+  adminUser: AuthUser,
+  tournamentId: string,
+  input: UpdateVisibilityInput,
+) {
+  const tournament = await prisma.tournament.findFirst({
+    where: { id: tournamentId, tenantId: adminUser.tenantId },
+  });
+  if (!tournament) throw ApiError.notFound('Tournament not found');
+
+  if (!(VISIBILITY_EDITABLE_STATUSES as readonly string[]).includes(tournament.status)) {
+    throw ApiError.conflict(
+      `Cannot change visibility for a match in status ${tournament.status}`,
+    );
+  }
+
+  const window = resolveVisibilityWindow(tournament.matchTime, input.visibilityHours);
+
+  const updated = await prisma.tournament.update({
+    where: { id: tournamentId },
+    data: window,
+    include: { _count: { select: { slots: true } } },
+  });
+
+  clearFeedCache();
+  return sanitizeTournament(updated, true);
 }

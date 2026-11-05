@@ -16,6 +16,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.razorpay.Checkout
+import com.razorpay.PaymentData
+import com.razorpay.PaymentResultWithDataListener
 import com.tourney.core.datastore.SessionState
 import com.tourney.core.fcm.TourneyMessagingService
 import com.tourney.core.theme.ClientConfig
@@ -27,15 +30,21 @@ import com.tourney.core.theme.ThemeMode
  * based on the DataStore session (reactively). Also consumes FCM deep links
  * (tap on a push notification jumps straight to Room / Scoreboard).
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 
     /** (pushType, tournamentId) queued from a notification tap. */
     private var pendingPush by mutableStateOf<Pair<String, String>?>(null)
+
+    /** Set once the Compose tree builds the ViewModel; used by the SDK callback. */
+    private var playerViewModelRef: PlayerViewModel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
+
+        // Razorpay: warm up checkout resources early so the sheet opens fast.
+        runCatching { Checkout.preload(applicationContext) }
 
         val config = ClientConfig.load(applicationContext)
 
@@ -60,6 +69,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val playerViewModel: PlayerViewModel = viewModel()
+                playerViewModelRef = playerViewModel
                 val session: SessionState by playerViewModel.sessionFlow.collectAsState(initial = SessionState())
 
                 LaunchedEffect(session.userId) {
@@ -98,5 +108,22 @@ class MainActivity : ComponentActivity() {
         if (type != null && tournamentId != null) {
             pendingPush = type to tournamentId
         }
+    }
+
+    // ─── Razorpay Standard Checkout callbacks ───────────────────────────
+    override fun onPaymentSuccess(razorpayPaymentId: String?, paymentData: PaymentData?) {
+        val vm = playerViewModelRef ?: return
+        val paymentId = razorpayPaymentId ?: paymentData?.paymentId ?: return
+        vm.onGatewayPaymentSuccess(paymentId, paymentData?.signature)
+    }
+
+    override fun onPaymentError(code: Int, response: String?, paymentData: PaymentData?) {
+        // code 0/2 = user cancelled / network; the raw response is gateway JSON.
+        val reason = when (code) {
+            0 -> "Payment cancelled."
+            2 -> "Network error during payment. Try again."
+            else -> "Payment failed (code $code). Try again."
+        }
+        playerViewModelRef?.onGatewayPaymentError(reason)
     }
 }

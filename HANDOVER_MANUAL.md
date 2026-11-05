@@ -116,6 +116,22 @@ password to leak). Staff are created from inside the app (Staff Management).
 - Note the public URL — it goes into `backend.api_base_url` (must end with `/api/v1`).
 - The in-process match sweep runs automatically every 60s; no separate cron needed.
 
+### A5. Online payments (wallet top-up) — optional but recommended
+- Config keys live in `backend/.env` (see `backend/.env.example` and
+  [PAYMENT_GATEWAY.md](file:///C:/Free%20Fire%20turnament/docs/PAYMENT_GATEWAY.md)):
+  `PAYMENT_PROVIDER`, `PAYMENT_MIN_AMOUNT_PAISE`, `PAYMENT_MAX_AMOUNT_PAISE`,
+  `PAYMENT_ORDER_TTL_SECONDS`, `PAYMENT_MOCK_AUTO_CAPTURE`, `PUBLIC_BASE_URL`,
+  `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
+- **Demo/dev:** `PAYMENT_PROVIDER=mock` → the player's **Add Money → Continue to demo
+  checkout** opens a fake gateway page (no real money). The server **refuses to boot**
+  production + mock.
+- **Live:** create a Razorpay account, paste `RAZORPAY_KEY_ID/KEY_SECRET`, set
+  `PAYMENT_PROVIDER=razorpay`, and add the webhook
+  `https://<api-host>/api/v1/payments/webhook` with the webhook secret. Orders settle
+  into the same double-entry wallet ledger (idempotent — replay can never double-credit).
+- Players can still use the manual **UPI + UTR** flow (tenant UPI ID in App Settings) —
+  online payments are an addition, not a replacement.
+
 ---
 
 ## 5. Part B — Client's Firebase (5 minutes, for SMS OTP Login & Push)
@@ -209,9 +225,16 @@ if you keep the config external. **Bump `version_code` for every upload.**
 
 1. **Login** with the owner phone number → Dashboard.
 2. **Staff Management** → Hire room manager / scorer / cashier with only the needed permissions.
-3. **Create Match** (map, mode, entry fee, prize pool, per-kill, time) → 48 slots open.
+3. **Create Match** (map, mode, entry fee, prize pool, per-kill, date & time in **IST with AM/PM**).
+   Optionally set **Player List Visibility** — “Always visible” or “Only near start” (e.g. a match
+   12h away with a 10-hour window stays hidden from players until only 10h remain; joined players
+   always keep seeing it). Visibility can be changed later from **Manage Matches → 👁️ Player Visibility Window**.
+   Also set **Room ID & Password Reveal** — default 15 minutes before start, or any custom window
+   (5m…24h). The code is only shown to joined players when that window opens.
 4. **Wallet Console → Deposits**: approve player "Add Cash" requests after checking the UTR in the bank/UPI app (1 tap = deposit balance credited, ledger written).
-5. **Publish Room ID** before kick-off (players see it at T-15 min only).
+5. **Publish Room ID** before kick-off. Players see it automatically at the reveal time you set, or
+   press **🔑 Reveal to players now** (Publish Room screen) / **🔑 Reveal Room ID to Players Now**
+   (Manage Matches) to release the code immediately.
 6. **Spectator Scorer**: sit in the custom room's spectator slot, enter verified kills + rank, flag hackers with a reason → **Distribute Prize & Complete Match** (atomic payout to winning balances).
 7. **Wallet Console → Withdrawals**: pay the player's UPI, paste the payout UTR → mark paid (reject auto-refunds).
 8. **Verify**: player app scoreboard shows Booyah, top fragger and the full ranking.
