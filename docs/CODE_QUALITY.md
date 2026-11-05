@@ -39,6 +39,10 @@ both modes analyse the same files.
 
 ### What is analysed
 
+Saved browser page dumps are not source and are kept out of the repo (a 1.5 MB
+`video_page.html` YouTube snapshot once tripped duplicate-id and unlabelled-input
+rules before it was untracked).
+
 `sonar.sources` / `sonar.exclusions` only include code that actually ships:
 
 - analysed: `backend/src/**` (except `generated/` + dev scripts), `android/*/src/main`
