@@ -38,6 +38,10 @@ function matches(row: Row, where: Row | undefined): boolean {
   return Object.entries(where).every(([key, condition]) => {
     if (key === 'AND') return (condition as Row[]).every((c) => matches(row, c));
     if (key === 'OR') return (condition as Row[]).some((c) => matches(row, c));
+    // Compound unique key, e.g. `{ tournamentId_userId: { tournamentId, userId } }`.
+    if (key.includes('_') && !(key in row) && condition && typeof condition === 'object') {
+      return matches(row, condition as Row);
+    }
     const value = row[key];
     if (condition === null || typeof condition !== 'object' || condition instanceof Date) {
       return value instanceof Date && condition instanceof Date
@@ -125,7 +129,8 @@ export class FakePrisma {
     return {
       findUnique: async (args: any = {}) => {
         this.log(model, 'findUnique', args);
-        return project(this.rows(model).find((r) => matches(r, args.where)) ?? null, args.select);
+        const found = this.rows(model).find((r) => matches(r, args.where)) ?? null;
+        return this.withIncludes(model, project(found, args.select), args.include);
       },
       findFirst: async (args: any = {}) => {
         this.log(model, 'findFirst', args);
@@ -158,11 +163,35 @@ export class FakePrisma {
         const out = rows.map((r) => project(r, args.select) as Row);
         const skip = typeof args.skip === 'number' ? args.skip : 0;
         const taken = typeof args.take === 'number' ? out.slice(skip, skip + args.take) : out.slice(skip);
-        return taken;
+        return args.include ? taken.map((r) => this.withIncludes(model, r, args.include) as Row) : taken;
       },
       count: async (args: any = {}) => {
         this.log(model, 'count', args);
         return this.rows(model).filter((r) => matches(r, args.where)).length;
+      },
+      aggregate: async (args: any = {}) => {
+        this.log(model, 'aggregate', args);
+        const rows = this.rows(model).filter((r) => matches(r, args.where));
+        const out: Row = {};
+        const sum = args._sum as Row | undefined;
+        if (sum) {
+          out._sum = {} as Row;
+          for (const [field, enabled] of Object.entries(sum)) {
+            if (!enabled) continue;
+            (out._sum as Row)[field] = rows.reduce((acc, r) => acc + (Number(r[field]) || 0), 0);
+          }
+        }
+        if (args._count) out._count = rows.length;
+        if (args._avg) {
+          out._avg = {} as Row;
+          for (const [field, enabled] of Object.entries(args._avg as Row)) {
+            if (!enabled) continue;
+            (out._avg as Row)[field] = rows.length
+              ? rows.reduce((acc, r) => acc + (Number(r[field]) || 0), 0) / rows.length
+              : null;
+          }
+        }
+        return out;
       },
       create: async (args: any = {}) => {
         this.log(model, 'create', args);
@@ -206,15 +235,17 @@ export class FakePrisma {
   get matchResult() { return this.delegate('matchResult'); }
 
   /** Resolve `where: { user: { inGameUid } }` style relation filters. */
+  private static readonly RELATIONAL: readonly ModelName[] = ['tournamentSlot', 'matchResult'];
+
   private resolveRelations(model: ModelName, row: Row, where: Row | undefined): Row {
-    if (!where || model !== 'tournamentSlot' || !where.user) return row;
+    if (!where || !FakePrisma.RELATIONAL.includes(model) || !where.user) return row;
     const owner = this.store.user.find((u) => u.id === row.userId);
     return { ...row, user: owner };
   }
 
   /** Resolve `include: { user: true }`. */
   private withIncludes(model: ModelName, row: Row | null, include: Row | undefined): Row | null {
-    if (!row || !include || model !== 'tournamentSlot' || !include.user) return row;
+    if (!row || !include || !FakePrisma.RELATIONAL.includes(model) || !include.user) return row;
     const owner = this.store.user.find((u) => u.id === row.userId);
     return { ...row, user: owner };
   }
