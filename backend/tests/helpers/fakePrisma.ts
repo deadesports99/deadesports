@@ -95,6 +95,7 @@ function project(row: Row | null, select?: Row): Row | null {
 
 export class FakePrisma {
   store: Store;
+  private idSeq = 0;
   /** Every write recorded, so tests can assert "no second ledger row", etc. */
   calls: { model: string; op: string; args: any; at: number }[] = [];
 
@@ -165,7 +166,8 @@ export class FakePrisma {
       },
       create: async (args: any = {}) => {
         this.log(model, 'create', args);
-        const row = { createdAt: new Date(), ...args.data };
+        // The real schema generates ids server-side; mirror that here.
+        const row = { id: `${model}-${++this.idSeq}`, createdAt: new Date(), ...args.data };
         this.rows(model).push(row);
         return project(row, args.select);
       },
