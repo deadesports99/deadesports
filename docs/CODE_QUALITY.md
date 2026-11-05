@@ -28,6 +28,15 @@ Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0).
 - Duplication 10 % → 0 %: shared `QueueCardHeader` / `RejectionLine` composables in
   the admin wallet console, plus analysis scope limited to shipped code.
 
+### Analysis runs automatically (Automatic Analysis)
+
+The GitHub app runs **Automatic Analysis** on every push to `main`, so nobody has to
+install a scanner. Because automatic analysis does not execute the test suite, the
+`new_coverage` condition is not evaluated in that run — coverage is only reported when
+the scanner runs with `backend/coverage/lcov.info` (manual scan or CI). The exclusion
+list below is stored both in `sonar-project.properties` and in the project settings, so
+both modes analyse the same files.
+
 ### What is analysed
 
 `sonar.sources` / `sonar.exclusions` only include code that actually ships:
