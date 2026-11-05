@@ -11,7 +11,7 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | 46.4 % | ❌ (test backlog) |
+| new_coverage | ≥ 80 % | 62.2 % | ❌ (test backlog) |
 
 Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0).
 
@@ -81,7 +81,8 @@ Suggested ratchet (raise the threshold only after the suite catches up):
 | done | 23 % | wallet / deposit / withdrawal / settlement services (Prisma mocked) |
 | done | 33 % | auth (hash/JWT/register), tournament join fee, prize payout |
 | done | 46 % | HTTP end-to-end (auth, deposit, join, withdraw, online top-up, RBAC, 404) |
-| next | 60 % | admin console services, settlement report, match sweep + room reveal |
+| done | 62 % | cancel + refund, lifecycle sweep, admin online payments, room reveal, 1-click payout |
+| next | 75 % | auth login/OTP, player + tenant settings, daily settlement report, cache layer |
 | later | 50 % | auth + tournament + result services, API route tests via supertest |
 | goal | 80 % | Kotlin unit tests (JUnit + JaCoCo) + full service coverage |
 
@@ -106,4 +107,8 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `joinTournament.test.ts` — entry-fee debit (deposit first, then winning), JOIN_FEE ledger, no debit on failure, seat release, SLOTS_FULL flip, visibility window
 - `finishMatchPayout.test.ts` — 50% pool + per-kill prize into WINNING balance, kills clamp 0..99, zero-prize case, no double payout, cancelled/already-completed guards
 - `api.e2e.test.ts` — real Express app on an ephemeral port: health, 401/403/404 envelopes, wallet summary, Add-Cash + duplicate UTR, validation details, tournament join (fee debited, seat stored), insufficient balance, withdrawal hold, admin RBAC, server-time header, online top-up order → verify (single credit, no double credit), forged signature, cross-player order access
+- `cancelRefund.test.ts` — cancelled match refunds every participant to the balance the fee came from, REFUND ledger rows, no double refund, tenant isolation
+- `matchSweep.test.ts` — reveal window (default + per-match), kickoff to LIVE, 2h to UNDER_REVIEW, credential delivery, tenant scoping, no double reveal
+- `adminPayments.test.ts` — collected today vs all time, status filters, page-size clamps, player join, demo-mode flag
+- `resultLifecycle.test.ts` — publish/reveal credentials (timer + Reveal Now + staff bypass), player access gate, 50/30/20 payout, DQ gets zero, single payout, scoreboard order
 - `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators + relations, increment/decrement, updateMany, upsert, orderBy/skip/take, includes, `$queryRaw`, `$transaction`)
