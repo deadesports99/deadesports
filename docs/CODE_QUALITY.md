@@ -11,7 +11,7 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | 22.8 % | ❌ (test backlog) |
+| new_coverage | ≥ 80 % | 32.8 % | ❌ (test backlog) |
 
 Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0).
 
@@ -75,7 +75,8 @@ Suggested ratchet (raise the threshold only after the suite catches up):
 | --- | --- | --- |
 | now | 10 % | pure utils, config, gateway, room reveal, rate limiter, error handler |
 | done | 23 % | wallet / deposit / withdrawal / settlement services (Prisma mocked) |
-| next | 35 % | auth + tournament + result services, API routes via supertest |
+| done | 33 % | auth (hash/JWT/register), tournament join fee, prize payout |
+| next | 45 % | controllers/routes via supertest, settlement report, admin services |
 | later | 50 % | auth + tournament + result services, API route tests via supertest |
 | goal | 80 % | Kotlin unit tests (JUnit + JaCoCo) + full service coverage |
 
@@ -96,4 +97,7 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `depositService.test.ts` — UTR submit rules, tenant minimum, duplicate/banned/cap guards, approve credits once, reject never credits
 - `withdrawalService.test.ts` — winning-balance hold, ledger DEBIT/WITHDRAWAL, no-deposit-money rule, approve marks paid, reject refunds once
 - `walletService.test.ts` — balances/total formatting, ledger ordering, pagination clamps, cross-tenant 404
-- `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators, increment/decrement, updateMany, orderBy/skip/take, `$transaction`)
+- `authService.test.ts` — scrypt hashing (unique salt, no plaintext), JWT claims, `sanitizeUser` secret stripping, registration rules (tenant/phone/UID/device cap/OTP)
+- `joinTournament.test.ts` — entry-fee debit (deposit first, then winning), JOIN_FEE ledger, no debit on failure, seat release, SLOTS_FULL flip, visibility window
+- `finishMatchPayout.test.ts` — 50% pool + per-kill prize into WINNING balance, kills clamp 0..99, zero-prize case, no double payout, cancelled/already-completed guards
+- `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators + relations, increment/decrement, updateMany, upsert, orderBy/skip/take, includes, `$queryRaw`, `$transaction`)
