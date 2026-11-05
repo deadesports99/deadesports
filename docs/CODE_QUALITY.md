@@ -11,7 +11,7 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | 32.8 % | ❌ (test backlog) |
+| new_coverage | ≥ 80 % | 46.4 % | ❌ (test backlog) |
 
 Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0).
 
@@ -76,7 +76,8 @@ Suggested ratchet (raise the threshold only after the suite catches up):
 | now | 10 % | pure utils, config, gateway, room reveal, rate limiter, error handler |
 | done | 23 % | wallet / deposit / withdrawal / settlement services (Prisma mocked) |
 | done | 33 % | auth (hash/JWT/register), tournament join fee, prize payout |
-| next | 45 % | controllers/routes via supertest, settlement report, admin services |
+| done | 46 % | HTTP end-to-end (auth, deposit, join, withdraw, online top-up, RBAC, 404) |
+| next | 60 % | admin console services, settlement report, match sweep + room reveal |
 | later | 50 % | auth + tournament + result services, API route tests via supertest |
 | goal | 80 % | Kotlin unit tests (JUnit + JaCoCo) + full service coverage |
 
@@ -100,4 +101,5 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `authService.test.ts` — scrypt hashing (unique salt, no plaintext), JWT claims, `sanitizeUser` secret stripping, registration rules (tenant/phone/UID/device cap/OTP)
 - `joinTournament.test.ts` — entry-fee debit (deposit first, then winning), JOIN_FEE ledger, no debit on failure, seat release, SLOTS_FULL flip, visibility window
 - `finishMatchPayout.test.ts` — 50% pool + per-kill prize into WINNING balance, kills clamp 0..99, zero-prize case, no double payout, cancelled/already-completed guards
+- `api.e2e.test.ts` — real Express app on an ephemeral port: health, 401/403/404 envelopes, wallet summary, Add-Cash + duplicate UTR, validation details, tournament join (fee debited, seat stored), insufficient balance, withdrawal hold, admin RBAC, server-time header, online top-up order → verify (single credit, no double credit), forged signature, cross-player order access
 - `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators + relations, increment/decrement, updateMany, upsert, orderBy/skip/take, includes, `$queryRaw`, `$transaction`)
