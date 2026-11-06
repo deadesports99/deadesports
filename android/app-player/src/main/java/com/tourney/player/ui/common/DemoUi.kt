@@ -73,37 +73,6 @@ fun DemoBackground(content: @Composable () -> Unit) {
     }
 }
 
-/** The shield crest next to the app name (demo draws it as inline SVG). */
-@Composable
-fun SpartanCrest(size: Dp = 30.dp) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(RoundedCornerShape(9.dp))
-            .background(DemoColors.CardElevated)
-            .border(1.dp, DemoColors.Cyan.copy(alpha = 0.55f), RoundedCornerShape(9.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("⚔", fontSize = (size.value * 0.5f).sp, color = DemoColors.TextPrimary)
-            Box(
-                modifier = Modifier
-                    .padding(top = 1.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(DemoColors.Gold)
-                    .padding(horizontal = 2.dp),
-            ) {
-                Text(
-                    "EGA",
-                    fontSize = (size.value * 0.22f).sp,
-                    fontWeight = FontWeight.Black,
-                    color = DemoColors.OnGold,
-                )
-            }
-        }
-    }
-}
-
 /** Header balance pill — tap opens the wallet, exactly like the demo. */
 @Composable
 fun BalancePill(amount: String, onClick: () -> Unit) {

@@ -1,5 +1,12 @@
 package com.tourney.player.ui.matches
-
+import androidx.annotation.DrawableRes
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,11 +22,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -32,15 +41,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentStatus
 import com.tourney.core.ui.formatMoney
 import com.tourney.player.PlayerViewModel
+import com.tourney.player.R
 import com.tourney.player.UiState
 import com.tourney.player.ui.common.BalancePill
 import com.tourney.player.ui.common.DemoChip
@@ -57,13 +71,19 @@ import java.time.Instant
  */
 private val FEED_FILTERS = listOf("All Matches", "Solo", "Duo", "Squad", "Clash Squad (CS)")
 
-private data class GameTitle(val name: String, val tag: String, val active: Boolean, val emoji: String)
+// Same order, tags and artwork as the demo's ESPORTS_GAMES list.
+private data class GameTitle(
+    val name: String,
+    val tag: String,
+    val active: Boolean,
+    @DrawableRes val logo: Int,
+)
 
 private val GAME_TITLES = listOf(
-    GameTitle("FREE FIRE", "LIVE NOW", true, "🔥"),
-    GameTitle("BGMI", "SOON", false, "🎯"),
-    GameTitle("COD MOBILE", "SOON", false, "🎮"),
-    GameTitle("VALORANT M", "LOCKED", false, "🔒"),
+    GameTitle("FREE FIRE", "LIVE", true, R.drawable.game_freefire),
+    GameTitle("BGMI", "SOON", false, R.drawable.game_bgmi),
+    GameTitle("COD MOBILE", "SOON", false, R.drawable.game_codm),
+    GameTitle("VALORANT M", "LOCKED", false, R.drawable.game_valorant),
 )
 
 /** Matches still worth showing in the lobby (finished/cancelled ones leave). */
@@ -297,44 +317,95 @@ fun MatchesScreen(
 
 @Composable
 private fun GameTitleCard(game: GameTitle, selected: Boolean, onClick: () -> Unit) {
+    // demo: h-[52px] min-w-[155px] rounded-xl border px-3 py-1.5 gap-2.5
     Row(
         modifier = Modifier
-            .width(155.dp)
+            .widthIn(min = 155.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(DemoRadius.Field))
-            .background(if (selected) DemoColors.CardElevated else DemoColors.Card.copy(alpha = 0.6f))
+            .background(
+                if (selected) DemoColors.CardElevated else DemoColors.Card.copy(alpha = 0.6f)
+            )
+            .alpha(if (selected) 1f else 0.45f)
             .border(
                 width = if (selected) 2.dp else 1.dp,
                 color = if (selected) DemoColors.TextPrimary else DemoColors.BorderSoft,
                 shape = RoundedCornerShape(DemoRadius.Field),
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // 32dp rounded logo tile, demo: h-8 w-8 rounded-lg bg-black/20 object-cover
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White.copy(alpha = 0.08f)),
-            contentAlignment = Alignment.Center,
+                .background(Color.Black.copy(alpha = 0.2f)),
         ) {
-            Text(game.emoji, fontSize = 13.sp)
+            Image(
+                painter = painterResource(id = game.logo),
+                contentDescription = game.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
-        Spacer(Modifier.width(8.dp))
-        Column {
+
+        Column(modifier = Modifier.weight(1f, fill = false)) {
             Text(
                 game.name,
-                fontSize = DemoText.Tiny,
+                fontSize = DemoText.Small,
                 fontWeight = FontWeight.Black,
-                color = if (selected) DemoColors.TextPrimary else DemoColors.TextMuted,
+                color = if (selected) DemoColors.TextPrimary else DemoColors.TextSecondary,
+                letterSpacing = (-0.2).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                game.tag,
-                fontSize = DemoText.Micro,
-                fontWeight = FontWeight.Bold,
-                color = if (selected) DemoColors.Gold else DemoColors.TextFaint,
-            )
+            Row(
+                modifier = Modifier.padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (game.active) {
+                    val pulse = rememberInfiniteTransition(label = "livePulse")
+                    val alpha by pulse.animateFloat(
+                        initialValue = 1f,
+                        targetValue = 0.25f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(900, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "liveDot",
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .alpha(alpha)
+                            .clip(RoundedCornerShape(50))
+                            .background(DemoColors.Success),
+                    )
+                    Text(
+                        "LIVE NOW",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black,
+                        color = DemoColors.Success,
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.Lock,
+                        contentDescription = null,
+                        tint = DemoColors.TextMuted,
+                        modifier = Modifier.size(8.dp),
+                    )
+                    Text(
+                        game.tag,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DemoColors.TextMuted,
+                    )
+                }
+            }
         }
     }
 }
