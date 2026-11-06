@@ -51,9 +51,13 @@ export function isRoomUnlocked(t: RoomRevealFields, _nowMs: number = Date.now())
   return Boolean(t.roomRevealedAt);
 }
 
-/** No countdown exists any more: 0 means "already published", not "about to". */
-export function secondsUntilRoomReveal(t: RoomRevealFields, nowMs: number = Date.now()): number {
-  return isRoomUnlocked(t, nowMs) ? 0 : 0;
+/**
+ * No countdown exists any more — a published room is visible immediately and an
+ * unpublished one has no scheduled drop. Kept (always 0) so the payload shape and
+ * older clients that render a countdown stay quiet instead of counting down to nothing.
+ */
+export function secondsUntilRoomReveal(_t: RoomRevealFields, _nowMs?: number): number {
+  return 0;
 }
 
 /** "15 minutes", "2 hours", "1 hour 30 minutes" — used in API messages/UI. */
