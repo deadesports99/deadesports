@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.Icon
@@ -38,7 +38,7 @@ private val DemoRadiusPill: RoundedCornerShape = RoundedCornerShape(percent = 50
 enum class DemoTab(val route: String, val label: String, val icon: ImageVector) {
     MATCHES("feed", "Tournaments", Icons.Filled.SportsEsports),
     WALLET("wallet", "Wallet", Icons.Filled.Wallet),
-    PROFILE("profile", "Profile", Icons.Filled.Person),
+    SETTINGS("settings", "Settings", Icons.Filled.Settings),
 }
 
 /**

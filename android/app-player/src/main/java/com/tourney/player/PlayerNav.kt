@@ -29,7 +29,7 @@ import com.tourney.player.ui.nav.DemoBottomBar
 private enum class PlayerTab(val route: String) {
     MATCHES("feed"),
     WALLET("wallet"),
-    PROFILE("profile"),
+    SETTINGS("settings"),
 }
 
 @Composable
@@ -102,12 +102,12 @@ fun PlayerNavHost(
                         onToast = { message -> playerNavToast = message },
                     )
                 }
-                composable(PlayerTab.PROFILE.route) {
-                    com.tourney.player.ui.profile.ProfileScreen(
+                composable(PlayerTab.SETTINGS.route) {
+                    com.tourney.player.ui.settings.SettingsScreen(
                         viewModel = playerViewModel,
                         themeMode = themeMode,
                         onSetThemeMode = onSetThemeMode,
-                        onLogout = {
+                        onSignOut = {
                             playerViewModel.logout()
                             matchViewModel.resetSession()
                         },
