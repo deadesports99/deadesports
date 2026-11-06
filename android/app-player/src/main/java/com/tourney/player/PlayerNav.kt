@@ -97,7 +97,10 @@ fun PlayerNavHost(
                     )
                 }
                 composable(PlayerTab.WALLET.route) {
-                    WalletScreen(viewModel = playerViewModel, onBack = { navController.popBackStack() })
+                    com.tourney.player.ui.wallet.WalletScreen(
+                        viewModel = playerViewModel,
+                        onToast = { message -> playerNavToast = message },
+                    )
                 }
                 composable(PlayerTab.PROFILE.route) {
                     ProfileScreen(
