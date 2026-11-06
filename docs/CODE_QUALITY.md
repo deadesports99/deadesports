@@ -11,7 +11,7 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | 62.2 % | ❌ (test backlog) |
+| new_coverage | ≥ 80 % | 70.0 % | ❌ (test backlog) |
 
 Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0).
 
@@ -82,7 +82,8 @@ Suggested ratchet (raise the threshold only after the suite catches up):
 | done | 33 % | auth (hash/JWT/register), tournament join fee, prize payout |
 | done | 46 % | HTTP end-to-end (auth, deposit, join, withdraw, online top-up, RBAC, 404) |
 | done | 62 % | cancel + refund, lifecycle sweep, admin online payments, room reveal, 1-click payout |
-| next | 75 % | auth login/OTP, player + tenant settings, daily settlement report, cache layer |
+| done | 70 % | phone/Google/email login, staff management, player stats, admin players, tenant settings, daily settlement |
+| next | 80 % | admin HTTP routes (create match, room, payout, settlement CSV), Firebase token fallback |
 | later | 50 % | auth + tournament + result services, API route tests via supertest |
 | goal | 80 % | Kotlin unit tests (JUnit + JaCoCo) + full service coverage |
 
@@ -111,4 +112,7 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `matchSweep.test.ts` — reveal window (default + per-match), kickoff to LIVE, 2h to UNDER_REVIEW, credential delivery, tenant scoping, no double reveal
 - `adminPayments.test.ts` — collected today vs all time, status filters, page-size clamps, player join, demo-mode flag
 - `resultLifecycle.test.ts` — publish/reveal credentials (timer + Reveal Now + staff bypass), player access gate, 50/30/20 payout, DQ gets zero, single payout, scoreboard order
+- `authFlows.test.ts` — phone OTP login (unknown/banned/disabled), Google one-tap register + login, email OTP send/verify (wrong/expired/replayed codes, hashed password), staff hire/update/deactivate, profile + push token
+- `playersAndTenant.test.ts` — career stats (booyahs, kills, winnings, best rank, DQ ignored), game profile conflict, admin search by 5 fields, ban/unban, tenant UPI/WhatsApp/min-deposit validation, auth switches
+- `settlementReport.test.ts` — daily P&L (deposits in, withdrawals out, per-match revenue, prizes, platform cut), empty day, date validation, CSV export contents
 - `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators + relations, increment/decrement, updateMany, upsert, orderBy/skip/take, includes, `$queryRaw`, `$transaction`)
