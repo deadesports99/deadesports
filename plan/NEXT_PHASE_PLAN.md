@@ -274,3 +274,55 @@ Owner feedback: "create match me sirf match ki setting rakho, room ID ki cheez r
 Device-verified: created `#18` with the new match-only form (₹25 / ₹250), then in Publish Room ID
 tapped `30m` → card became "Room Reveal — 30 min before start", row label "reveal 30 min",
 message "✅ Saved — players see the room 30 min before start", then set it back to 15m.
+
+### Room ID is published, never scheduled — plus the 1-minute join cutoff ✅ (`957e3c3`, `0cb8dd4`)
+
+Owner rules (all implemented and device-verified): players get the Room ID **only** when an
+admin/sub-admin publishes it; the room must be **editable** after publishing; joining must stop
+**1 minute before kickoff** ("6:00 PM match → no joining from 5:59 PM") instead of only hiding the
+room; at kickoff the match must move to **LIVE** by itself; and a match must be cancellable
+**from the Room ID section**.
+
+Backend
+- `roomReveal.ts`: `isRoomUnlocked()` is `Boolean(roomRevealedAt)` only, `secondsUntilRoomReveal()`
+  is always `0`, `roomRevealMeta()` reports `roomRevealsAt: null`. `roomRevealAt()` is deprecated.
+- `matchSweep.service.ts`: the whole auto-reveal step (window, status flip, FCM push) is gone.
+  The sweep now only does `DRAFT/UPCOMING/OPEN/SLOTS_FULL/ROOM_REVEALED → LIVE` at kickoff
+  (published or not) and `LIVE → UNDER_REVIEW` after 2 h.
+- `result.service.ts`: publishing **is** the reveal — `updateRoomCredentials` always stamps
+  `roomRevealedAt` and `status: ROOM_REVEALED`, announces the room only the first time
+  (re-publishing edits it silently); `getRoomCredentials` gates on `isRoomUnlocked` and says
+  "Room ID & Password are not published yet".
+- `tournament.service.ts`: `JOIN_CUTOFF_MS = 60_000` → `409 Entry closed — joining stops 1 minute
+  before the match starts` for the money path.
+- Tests rewritten for the new rule (`roomReveal`, `matchSweep`, `resultLifecycle`) plus a new
+  cutoff case in `joinTournament` → **284 pass**.
+
+Android
+- `Tournament.isRoomUnlockedNow()` no longer falls back to `matchTime - roomRevealMinutes`; that
+  local fallback was the real reason the code leaked before publishing. Added `isJoinClosed()`.
+- Player feed: `🔑 Get Room ID & Password` only when published, otherwise
+  `✅ Joined • Waiting for Room ID`; the join button turns into a **disabled**
+  "⏱ Entry closed — joining stops 1 min before start" in the final minute.
+- `RoomScreen`: no countdown and no auto-unlock — "Room ID not published yet", a
+  *🔄 Check again* button and a 15 s silent re-poll.
+- Admin `PublishRoomScreen`: dropped the timing chips and "reveal now" switch; the card states
+  ✅ Published / 🕒 Saved but not published / 🔒 Not published yet, the saved code is **prefilled
+  for editing**, publishing always means "players can see it now", a **🚫 Cancel this match &
+  refund players** button lives in the section, the picker has a 🔄 Refresh, and cancel feedback
+  is shown above the picker (the cancelled match leaves the list immediately).
+- New `TournamentRoomTest` (6 tests) → **79 Kotlin tests green**.
+
+Device evidence (realme P3 5G, real backend)
+- Published `#23` from the admin app → player card flipped to "🔑 Get Room ID & Password" →
+  room sheet showed `55221199 / ffnew1`.
+- Edited the published room to `ffedited9` → the player sheet showed the new password (no timer).
+- Tried joining at 65 s left (allowed) and again at <60 s → `409 Entry closed …`.
+- Cancelled `#24`/`#25` from the Room ID section → "✅ Match cancelled — ₹0.00 refunded to 0
+  player(s)", row gone from the list; cancelling `#23` with a booked seat → DB `CANCELLED`,
+  ledger `CREDIT ₹10 REFUND "Refund for cancelled tournament: Match cancelled by organiser"`,
+  balance back to ₹900.
+- `#20`, `#21`, `#22` (never published) flipped to **LIVE** on their own at kickoff.
+
+Sonar gate re-verified: **GATE OK**, new coverage 93.0 %, 0 issues, 0 duplication, hotspots 100 %
+(one reliability bug the scan caught — a dead ternary in `roomReveal.ts` — was fixed in `0cb8dd4`).
