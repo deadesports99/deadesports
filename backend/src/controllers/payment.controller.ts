@@ -7,6 +7,7 @@ import { prisma } from '../config/prisma.js';
 import { paymentConfig } from '../config/payment.js';
 import { paymentGateway } from '../services/paymentGateway.service.js';
 import { settleCapturedPayment } from '../services/payment.settlement.js';
+import { listMyPayments } from '../services/paymentHistory.service.js';
 
 function requireUser(req: Request) {
   if (!req.user) throw new ApiError(401, 'Authentication required');
@@ -277,6 +278,24 @@ export async function syncOrder(req: Request, res: Response, next: NextFunction)
       alreadySettled: settled.alreadySettled,
       balanceAfter: settled.balanceAfter,
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /payments/my — the caller's own top-ups (read-only, never settles).
+ * Optional `status` filter + bounded pagination for the Wallet screen list.
+ */
+export async function getMyPayments(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = requireUser(req);
+    const result = await listMyPayments(user.userId, user.tenantId, {
+      status: req.query.status as string | undefined,
+      page: req.query.page as unknown as number,
+      limit: req.query.limit as unknown as number,
+    });
+    sendResponse(res, 200, 'Your payments', result);
   } catch (err) {
     next(err);
   }

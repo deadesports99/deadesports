@@ -7,6 +7,7 @@ import { createRateLimiter } from '../middlewares/rateLimiter.js';
  * Payment routes — mounted at /api/payments (and /api/v1/payments).
  *
  *  POST /orders                 authenticated -> create gateway order
+ *  GET  /my                     authenticated -> the caller's own top-up history
  *  GET  /orders/:id             authenticated -> poll order status
  *  POST /verify                 authenticated -> verify checkout signature + settle
  *  POST /webhook                public        -> Razorpay webhook (HMAC verified)
@@ -47,6 +48,8 @@ const demoRateLimiter = createRateLimiter({
 
 // ── Authenticated player endpoints ──────────────────────────────────────
 paymentRouter.get('/config', paymentController.getGatewayInfo);
+// Player's own top-up history (read-only; the Wallet screen lists it).
+paymentRouter.get('/my', authenticate, paymentVerifyRateLimiter, paymentController.getMyPayments);
 paymentRouter.post('/orders', authenticate, paymentOrderRateLimiter, paymentController.createOrder);
 paymentRouter.get('/orders/:id', authenticate, paymentController.getOrder);
 paymentRouter.post('/orders/:id/sync', authenticate, paymentVerifyRateLimiter, paymentController.syncOrder);

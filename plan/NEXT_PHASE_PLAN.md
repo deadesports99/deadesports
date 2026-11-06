@@ -18,7 +18,7 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 | A3b | `TopUpController` (pure) + 17 money-path tests | ✅ |
 | A4 | `AdminPaymentsController` + 13 admin tests | ✅ |
 | A5 | JaCoCo XML into Sonar, Android back in coverage | ⬜ |
-| B1 | Backend `GET /payments/my` | ⬜ |
+| B1 | Backend `GET /payments/my` | ✅ |
 | B2 | Wallet screen "Recent top-ups" list | ⬜ |
 | C1 | Auto-reconcile sweep | ⬜ |
 | D1 | Live Razorpay run (needs keys) | ⬜ |
@@ -81,10 +81,12 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 
 ## B. Player payment history
 
-**B1 — backend (45 min)**
-- [ ] `GET /api/v1/payments/my` — own orders only, paginated, `{ items, pagination }`.
-- [ ] Tests: own-only, cross-player 404, page clamps. Reuse `FakePrisma`, no new test file
-      unless the existing `api.e2e.test.ts` is the wrong home.
+**B1 — backend (45 min)** — ✅ done
+- [x] `src/services/paymentHistory.service.ts` + `GET /api/v1/payments/my?status=&page=&limit=`
+      (auth, read-only, own orders only, newest first, limit clamped to 50, `demoMode` flag).
+- [x] 8 HTTP tests appended to `api.e2e.test.ts` (no new file): 401, empty history, newest-first with
+      rupees, PENDING/CAPTURED/FAILED filters, unknown filter 400, cross-player isolation, paging
+      clamps + totalPages, and "listing never credits" (balance + ledger untouched).
 
 **B2 — Android (45 min)**
 - [ ] Wallet screen: "Recent top-ups (5)" list + tap for detail + **Re-check** (reconcile).

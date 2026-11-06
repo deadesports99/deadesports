@@ -332,3 +332,119 @@ describe('online top-up over HTTP (mock gateway)', () => {
     assert.equal(asAdmin.status, 403);
   });
 });
+
+describe('player payment history over HTTP (GET /payments/my)', () => {
+  beforeEach(() => seed());
+
+  async function createOrder(amountPaise = 20_000) {
+    const res = await call('/api/v1/payments/orders', { method: 'POST', body: { amountPaise } });
+    assert.equal(res.status, 201);
+    return res.body.data as { orderId: string; providerOrderId: string };
+  }
+
+  it('requires a token', async () => {
+    const res = await call('/api/v1/payments/my', { auth: false });
+    assert.equal(res.status, 401);
+  });
+
+  it('returns an empty, well-shaped history for a new player', async () => {
+    const res = await call('/api/v1/payments/my');
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.data.items, []);
+    assert.deepEqual(res.body.data.pagination, { page: 1, limit: 10, total: 0, totalPages: 1 });
+    assert.equal(typeof res.body.data.demoMode, 'boolean');
+  });
+
+  it('lists the player own top-ups newest first, with rupees for display', async () => {
+    const first = await createOrder(50_000);
+    const second = await createOrder(10_000);
+
+    const res = await call('/api/v1/payments/my');
+    assert.equal(res.status, 200);
+    const items = res.body.data.items;
+    assert.equal(items.length, 2);
+    assert.equal(items[0].id, second.orderId, 'newest first');
+    assert.equal(items[1].id, first.orderId);
+    assert.equal(items[1].amountPaise, 50_000);
+    assert.equal(items[1].amountRupees, 500);
+    assert.equal(items[1].status, 'CREATED');
+    assert.equal(items[1].currency, 'INR');
+    assert.equal(items[1].provider, 'mock');
+    assert.equal(items[1].providerOrderId, first.providerOrderId);
+  });
+
+  it('filters by status groups the player actually cares about', async () => {
+    const pending = await createOrder(20_000);
+    const paid = await createOrder(30_000);
+
+    const { paymentGateway } = await import('../src/services/paymentGateway.service.js');
+    const signature = paymentGateway.mockSignature(paid.providerOrderId, 'pay_hist_1');
+    await call('/api/v1/payments/verify', {
+      method: 'POST',
+      body: { orderId: paid.orderId, paymentId: 'pay_hist_1', signature },
+    });
+
+    const pendingOnly = await call('/api/v1/payments/my?status=PENDING');
+    assert.equal(pendingOnly.status, 200);
+    assert.deepEqual(pendingOnly.body.data.items.map((i: any) => i.id), [pending.orderId]);
+
+    const capturedOnly = await call('/api/v1/payments/my?status=CAPTURED');
+    assert.equal(capturedOnly.status, 200);
+    assert.deepEqual(capturedOnly.body.data.items.map((i: any) => i.id), [paid.orderId]);
+    assert.ok(capturedOnly.body.data.items[0].capturedAt, 'captured orders carry the timestamp');
+
+    const failedOnly = await call('/api/v1/payments/my?status=FAILED');
+    assert.deepEqual(failedOnly.body.data.items, []);
+  });
+
+  it('rejects an unknown status filter instead of guessing', async () => {
+    const res = await call('/api/v1/payments/my?status=WHATEVER');
+    assert.equal(res.status, 400);
+    assert.match(res.body.message, /Unknown status filter/i);
+  });
+
+  it('never shows another player orders', async () => {
+    await createOrder(20_000);
+
+    const asAdmin = await call('/api/v1/payments/my', { as: adminId, role: 'ADMIN' });
+    assert.equal(asAdmin.status, 200);
+    assert.deepEqual(asAdmin.body.data.items, []);
+    assert.equal(asAdmin.body.data.pagination.total, 0);
+  });
+
+  it('clamps paging so a huge limit cannot dump the table', async () => {
+    await createOrder(20_000);
+    await createOrder(20_000);
+    await createOrder(20_000);
+
+    const huge = await call('/api/v1/payments/my?limit=5000&page=1');
+    assert.equal(huge.status, 200);
+    assert.equal(huge.body.data.pagination.limit, 50);
+
+    const page1 = await call('/api/v1/payments/my?limit=2&page=1');
+    assert.equal(page1.body.data.items.length, 2);
+    assert.equal(page1.body.data.pagination.totalPages, 2);
+
+    const page2 = await call('/api/v1/payments/my?limit=2&page=2');
+    assert.equal(page2.body.data.items.length, 1);
+
+    const zeroPage = await call('/api/v1/payments/my?page=0&limit=0');
+    assert.equal(zeroPage.body.data.pagination.page, 1);
+    assert.equal(zeroPage.body.data.pagination.limit, 10);
+  });
+
+  it('is read-only: listing never credits or settles anything', async () => {
+    const order = await createOrder(40_000);
+    const balanceBefore = fake.rowsOf('user')[0].depositBalance;
+    const ledgerBefore = fake.rowsOf('walletLedger').length;
+
+    await call('/api/v1/payments/my');
+    await call('/api/v1/payments/my?status=PENDING');
+
+    assert.equal(fake.rowsOf('user')[0].depositBalance, balanceBefore);
+    assert.equal(fake.rowsOf('walletLedger').length, ledgerBefore);
+
+    const stored = fake.rowsOf('paymentOrder').find((o: any) => o.id === order.orderId) as any;
+    assert.equal(stored.status, 'CREATED', 'still pending, untouched');
+  });
+});
