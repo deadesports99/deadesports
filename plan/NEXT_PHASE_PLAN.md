@@ -275,7 +275,7 @@ Device-verified: created `#18` with the new match-only form (₹25 / ₹250), th
 tapped `30m` → card became "Room Reveal — 30 min before start", row label "reveal 30 min",
 message "✅ Saved — players see the room 30 min before start", then set it back to 15m.
 
-### Room ID is published, never scheduled — plus the 1-minute join cutoff ✅ (`957e3c3`, `0cb8dd4`)
+### Room ID is published, never scheduled — plus the 1-minute join cutoff ✅ (`957e3c3`, `9fd3a57`)
 
 Owner rules (all implemented and device-verified): players get the Room ID **only** when an
 admin/sub-admin publishes it; the room must be **editable** after publishing; joining must stop
@@ -325,4 +325,4 @@ Device evidence (realme P3 5G, real backend)
 - `#20`, `#21`, `#22` (never published) flipped to **LIVE** on their own at kickoff.
 
 Sonar gate re-verified: **GATE OK**, new coverage 93.0 %, 0 issues, 0 duplication, hotspots 100 %
-(one reliability bug the scan caught — a dead ternary in `roomReveal.ts` — was fixed in `0cb8dd4`).
+(one reliability bug the scan caught — a dead ternary in `roomReveal.ts` — was fixed in `9fd3a57`).
