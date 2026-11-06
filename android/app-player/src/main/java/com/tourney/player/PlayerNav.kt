@@ -103,7 +103,7 @@ fun PlayerNavHost(
                     )
                 }
                 composable(PlayerTab.PROFILE.route) {
-                    ProfileScreen(
+                    com.tourney.player.ui.profile.ProfileScreen(
                         viewModel = playerViewModel,
                         themeMode = themeMode,
                         onSetThemeMode = onSetThemeMode,
@@ -111,6 +111,7 @@ fun PlayerNavHost(
                             playerViewModel.logout()
                             matchViewModel.resetSession()
                         },
+                        onToast = { message -> playerNavToast = message },
                     )
                 }
                 composable("slots/{id}/{type}/{fee}") { entry ->
