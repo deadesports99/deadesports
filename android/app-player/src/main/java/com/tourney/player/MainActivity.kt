@@ -54,6 +54,21 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 .collectAsState(initial = ThemeMode.DARK)
             val systemDark = isSystemInDarkTheme()
 
+            // One source of truth: the demo palette follows the in-app switcher so
+            // every ported screen flips between the demo's dark and light looks.
+            val darkNow = themeMode.isDark(systemDark)
+            com.tourney.player.ui.theme.DemoColors.setTheme(darkNow)
+
+            // Status/navigation bar icons must invert with the app theme, otherwise
+            // white clock icons sit on the demo's light canvas.
+            val rootView = androidx.compose.ui.platform.LocalView.current
+            androidx.compose.runtime.SideEffect {
+                val window = (rootView.context as? android.app.Activity)?.window ?: return@SideEffect
+                val controller = androidx.core.view.WindowCompat.getInsetsController(window, rootView)
+                controller.isAppearanceLightStatusBars = !darkNow
+                controller.isAppearanceLightNavigationBars = !darkNow
+            }
+
             ClientTheme(config = config, darkTheme = themeMode.isDark(systemDark)) {
                 // Android 13+ notification permission (high-priority FCM alerts).
                 val notifLauncher = rememberLauncherForActivityResult(

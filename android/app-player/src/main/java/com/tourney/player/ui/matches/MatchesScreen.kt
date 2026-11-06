@@ -324,7 +324,7 @@ private fun GameTitleCard(game: GameTitle, selected: Boolean, onClick: () -> Uni
             .height(52.dp)
             .clip(RoundedCornerShape(DemoRadius.Field))
             .background(
-                if (selected) DemoColors.CardElevated else DemoColors.Card.copy(alpha = 0.6f)
+                if (selected) DemoColors.CardElevated else DemoColors.CardMuted
             )
             .alpha(if (selected) 1f else 0.45f)
             .border(

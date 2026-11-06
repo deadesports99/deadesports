@@ -1,5 +1,8 @@
 package com.tourney.player.ui.theme
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -10,40 +13,56 @@ import androidx.compose.ui.unit.sp
  * from here so the app and the browser preview cannot drift apart.
  */
 object DemoColors {
-    /** App canvas — the near-black navy behind everything. */
-    val Canvas = Color(0xFF050B14)
+    /**
+     * Demo `theme === 'dark'` flag. Screens read the colours below as getters, so
+     * flipping this recomposes every surface exactly like the demo's Tailwind
+     * classes do (dark: slate-950 canvas + #0B1526 cards, light: #F8FAFC canvas +
+     * white cards, slate-950 text, slate-200 borders).
+     */
+    var isDark by mutableStateOf(true)
+        private set
+
+    fun setTheme(dark: Boolean) {
+        isDark = dark
+    }
+
+    /** App canvas — near-black navy in dark, slate-50 in light. */
+    val Canvas: Color get() = if (isDark) Color(0xFF050B14) else Color(0xFFF8FAFC)
 
     /** Card surface used by match cards, sheets and info blocks. */
-    val Card = Color(0xFF0B1526)
-    val CardElevated = Color(0xFF0F1E36)
+    val Card: Color get() = if (isDark) Color(0xFF0B1526) else Color(0xFFFFFFFF)
+    val CardElevated: Color get() = if (isDark) Color(0xFF0F1E36) else Color(0xFFFFFFFF)
+
+    /** Muted surface (dimmed chips, inner strips): dark card vs slate-100. */
+    val CardMuted: Color get() = if (isDark) Color(0xFF0B1526) else Color(0xFFF1F5F9)
 
     /** Deepest surface: input fields, inner stat strips. */
-    val Field = Color(0xFF060B14)
+    val Field: Color get() = if (isDark) Color(0xFF060B14) else Color(0xFFF8FAFC)
 
-    val BorderSoft = Color(0x1AFFFFFF)   // white/10
-    val BorderStrong = Color(0x26FFFFFF) // white/15
-    val BorderFaint = Color(0x0DFFFFFF)  // white/5
+    val BorderSoft: Color get() = if (isDark) Color(0x1AFFFFFF) else Color(0x1A0F172A)   // white/10 : slate-900/10
+    val BorderStrong: Color get() = if (isDark) Color(0x26FFFFFF) else Color(0x330F172A) // white/15 : slate-300
+    val BorderFaint: Color get() = if (isDark) Color(0x0DFFFFFF) else Color(0x0D0F172A)  // white/5 : slate-900/5
 
-    /** The single accent: cyber gold. */
-    val Gold = Color(0xFFFFD000)
-    val GoldHover = Color(0xFFFFDA29)
-    val OnGold = Color(0xFF020617)
+    /** The single accent: cyber gold (identical in both themes, like the demo). */
+    val Gold: Color = Color(0xFFFFD000)
+    val GoldHover: Color = Color(0xFFFFDA29)
+    val OnGold: Color = Color(0xFF020617)
 
     /** Secondary accent used only by the map chip icon + crest. */
-    val Cyan = Color(0xFF00C2FF)
+    val Cyan: Color = Color(0xFF00C2FF)
 
-    val TextPrimary = Color(0xFFFFFFFF)
-    val TextSecondary = Color(0xFFCBD5E1) // slate-300
-    val TextMuted = Color(0xFF94A3B8)     // slate-400
-    val TextFaint = Color(0xFF64748B)     // slate-500
+    val TextPrimary: Color get() = if (isDark) Color(0xFFFFFFFF) else Color(0xFF020617) // white : slate-950
+    val TextSecondary: Color get() = if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155) // slate-300 : slate-700
+    val TextMuted: Color get() = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)     // slate-400 : slate-500
+    val TextFaint: Color get() = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)     // slate-500 : slate-400
 
-    val Success = Color(0xFF10B981)
-    val Danger = Color(0xFFF43F5E)
-    val Warning = Color(0xFFF59E0B)
+    val Success: Color get() = if (isDark) Color(0xFF10B981) else Color(0xFF059669)
+    val Danger: Color get() = if (isDark) Color(0xFFF43F5E) else Color(0xFFE11D48)
+    val Warning: Color get() = if (isDark) Color(0xFFF59E0B) else Color(0xFFD97706)
 
     /** Ambient glows behind the canvas (top-right cyan, left violet). */
-    val GlowCyan = Color(0x3300C2FF)
-    val GlowViolet = Color(0x2E7C3AED)
+    val GlowCyan: Color get() = if (isDark) Color(0x3300C2FF) else Color(0x1F38BDF8)
+    val GlowViolet: Color get() = if (isDark) Color(0x2E7C3AED) else Color(0x1F8B5CF6)
 }
 
 object DemoRadius {

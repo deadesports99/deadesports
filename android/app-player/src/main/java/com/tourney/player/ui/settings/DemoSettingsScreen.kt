@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tourney.core.theme.ThemeMode
+import com.tourney.player.ui.theme.DemoColors
 import com.tourney.player.UiState
 import com.tourney.player.ui.common.DemoBackground
 import com.tourney.player.PlayerViewModel
@@ -59,22 +60,32 @@ import com.tourney.player.PlayerViewModel
  * play modals, log out row and the version footnote).
  */
 private object S {
-    val Card = Color(0xFF0C121E)
-    val Slate950 = Color(0xFF020617)
-    val Slate900 = Color(0xFF0F172A)
-    val Slate400 = Color(0xFF94A3B8)
-    val Slate500 = Color(0xFF64748B)
-    val White10 = Color(0x1AFFFFFF)
-    val White15 = Color(0x26FFFFFF)
-    val White5 = Color(0x0DFFFFFF)
+    private val dark get() = DemoColors.isDark
+
+    val Card get() = if (dark) Color(0xFF0C121E) else Color(0xFFFFFFFF)
+    val ModalBg get() = if (dark) Color(0xFF0F172A) else Color(0xFFFFFFFF)
+    val Inner get() = if (dark) Color(0xFF020617) else Color(0xFFF8FAFC)
+    val SegmentedBg get() = if (dark) Color(0xFF020617) else Color(0xFFF1F5F9)
+    val Text get() = if (dark) Color(0xFFFFFFFF) else Color(0xFF020617)
+    val TextSecondary get() = if (dark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val TextFaint get() = if (dark) Color(0xFF64748B) else Color(0xFF94A3B8)
+    val BorderSoft get() = if (dark) Color(0x1AFFFFFF) else Color(0x1A0F172A)
+    val BorderStrong get() = if (dark) Color(0x26FFFFFF) else Color(0x330F172A)
+    val Divider get() = if (dark) Color(0x0DFFFFFF) else Color(0xFFF1F5F9)
+    val ToggleOff get() = if (dark) Color(0xFF334155) else Color(0xFFCBD5E1)
+    val SelectedSegBg get() = if (dark) Color(0xFFFFFFFF) else Color(0xFF020617)
+    val SelectedSegText get() = if (dark) Color(0xFF020617) else Color(0xFFFFFFFF)
+    val UnselectedSegText get() = if (dark) Color(0xFF94A3B8) else Color(0xFF64748B)
+
+    // Icon badge colours are brand colours and stay identical in both themes.
     val Blue = Color(0xFF2AABEE)
     val Violet = Color(0xFF8B5CF6)
     val Red = Color(0xFFEF4444)
     val Amber = Color(0xFFF59E0B)
     val Green = Color(0xFF22C55E)
     val Emerald = Color(0xFF10B981)
-    val Rose500 = Color(0xFFF43F5E)
-    val Amber400 = Color(0xFFFBBF24)
+    val Rose500 get() = if (dark) Color(0xFFF43F5E) else Color(0xFFE11D48)
+    val Amber400 get() = if (dark) Color(0xFFFBBF24) else Color(0xFFF59E0B)
 }
 
 @Composable
@@ -109,7 +120,7 @@ fun SettingsScreen(
             "Settings",
             fontSize = 24.sp,
             fontWeight = FontWeight.Black,
-            color = Color.White,
+            color = S.Text,
             letterSpacing = (-0.5).sp,
             modifier = Modifier.padding(top = 2.dp, bottom = 0.dp),
         )
@@ -120,7 +131,7 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(S.Card)
-                .border(1.dp, S.White10, RoundedCornerShape(16.dp)),
+                .border(1.dp, S.BorderSoft, RoundedCornerShape(16.dp)),
         ) {
             SettingsRow(
                 badgeColor = S.Blue,
@@ -154,12 +165,12 @@ fun SettingsScreen(
                         )
                     }
                     Column(modifier = Modifier.padding(start = 14.dp)) {
-                        Text("Appearance", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Appearance", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = S.Text)
                         Text(
                             if (isDark) "Dark Mode" else "Light Mode",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = S.Slate400,
+                            color = S.TextSecondary,
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
@@ -169,8 +180,8 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(S.Slate950)
-                        .border(1.dp, S.White10, RoundedCornerShape(12.dp))
+                        .background(S.SegmentedBg)
+                        .border(1.dp, S.BorderSoft, RoundedCornerShape(12.dp))
                         .padding(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -212,12 +223,12 @@ fun SettingsScreen(
                         )
                     }
                     Column(modifier = Modifier.padding(start = 14.dp)) {
-                        Text("Notifications", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Notifications", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = S.Text)
                         Text(
                             "Match Alerts & Room ID",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = S.Slate400,
+                            color = S.TextSecondary,
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
@@ -235,7 +246,7 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(S.Card)
-                .border(1.dp, S.White10, RoundedCornerShape(16.dp)),
+                .border(1.dp, S.BorderSoft, RoundedCornerShape(16.dp)),
         ) {
             SettingsRow(
                 badgeColor = S.Amber,
@@ -262,7 +273,7 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(S.Card)
-                .border(1.dp, S.White10, RoundedCornerShape(16.dp)),
+                .border(1.dp, S.BorderSoft, RoundedCornerShape(16.dp)),
         ) {
             Row(
                 modifier = Modifier
@@ -302,7 +313,7 @@ fun SettingsScreen(
             "Spartan Esports Arena • v2.4.0 (Build 104)",
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = S.Slate500,
+            color = S.TextFaint,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 0.dp, bottom = 8.dp),
@@ -348,12 +359,12 @@ private fun SettingsRow(
                 .weight(1f)
                 .padding(start = 14.dp),
         ) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = S.Text)
             Text(
                 subtitle,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = S.Slate400,
+                color = S.TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp),
@@ -363,7 +374,7 @@ private fun SettingsRow(
             Icon(
                 Icons.Filled.ChevronRight,
                 contentDescription = null,
-                tint = S.Slate500,
+                tint = S.TextFaint,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -389,7 +400,7 @@ private fun SettingsDivider() {
             .fillMaxWidth()
             .padding(start = 62.dp)
             .height(1.dp)
-            .background(S.White5),
+            .background(S.Divider),
     )
 }
 
@@ -398,7 +409,7 @@ private fun ThemeSegment(label: String, icon: ImageVector, selected: Boolean, on
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) Color.White else Color.Transparent)
+            .background(if (selected) S.SelectedSegBg else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -407,14 +418,14 @@ private fun ThemeSegment(label: String, icon: ImageVector, selected: Boolean, on
         Icon(
             icon,
             contentDescription = null,
-            tint = if (selected) S.Slate950 else S.Slate400,
+            tint = if (selected) S.SelectedSegText else S.UnselectedSegText,
             modifier = Modifier.size(12.dp),
         )
         Text(
             label,
             fontSize = 11.sp,
             fontWeight = FontWeight.Black,
-            color = if (selected) S.Slate950 else S.Slate400,
+            color = if (selected) S.SelectedSegText else S.UnselectedSegText,
         )
     }
 }
@@ -427,7 +438,7 @@ private fun DemoToggle(checked: Boolean, onToggle: () -> Unit) {
             .width(44.dp)
             .height(24.dp)
             .clip(RoundedCornerShape(50))
-            .background(if (checked) S.Emerald else Color(0xFF334155))
+            .background(if (checked) S.Emerald else S.ToggleOff)
             .clickable(onClick = onToggle)
             .padding(2.dp),
         contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
@@ -464,8 +475,8 @@ private fun AccountModal(playerName: String, playerPhone: String, onClose: () ->
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(S.Slate950.copy(alpha = 0.4f))
-                    .border(1.dp, S.White10, RoundedCornerShape(12.dp))
+                    .background(S.Inner.copy(alpha = 0.4f))
+                    .border(1.dp, S.BorderSoft, RoundedCornerShape(12.dp))
                     .padding(12.dp),
             ) {
                 Icon(
@@ -479,7 +490,7 @@ private fun AccountModal(playerName: String, playerPhone: String, onClose: () ->
                 Text(
                     "For tournament anti-cheat and prize security, game accounts are permanently locked to this registered mobile number.",
                     fontSize = 11.sp,
-                    color = S.Slate400,
+                    color = S.TextSecondary,
                     lineHeight = 16.sp,
                     modifier = Modifier.padding(start = 10.dp),
                 )
@@ -533,15 +544,15 @@ private fun RuleCard(title: String, titleColor: Color, body: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(S.Slate950.copy(alpha = 0.6f))
-            .border(1.dp, S.White10, RoundedCornerShape(12.dp))
+            .background(S.Inner.copy(alpha = 0.6f))
+            .border(1.dp, S.BorderSoft, RoundedCornerShape(12.dp))
             .padding(12.dp),
     ) {
         Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = titleColor)
         Text(
             body,
             fontSize = 11.sp,
-            color = Color(0xFFCBD5E1),
+            color = S.TextSecondary,
             lineHeight = 16.sp,
             modifier = Modifier.padding(top = 2.dp),
         )
@@ -554,22 +565,22 @@ private fun ModalField(label: String, value: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(S.Slate950.copy(alpha = 0.7f))
-            .border(1.dp, S.White10, RoundedCornerShape(12.dp))
+            .background(S.Inner.copy(alpha = 0.7f))
+            .border(1.dp, S.BorderSoft, RoundedCornerShape(12.dp))
             .padding(14.dp),
     ) {
         Text(
             label.uppercase(),
             fontSize = 10.sp,
             fontWeight = FontWeight.Black,
-            color = S.Slate400,
+            color = S.TextSecondary,
             letterSpacing = 0.6.sp,
         )
         Text(
             value,
             fontSize = 14.sp,
             fontWeight = FontWeight.Black,
-            color = Color.White,
+            color = S.Text,
             modifier = Modifier.padding(top = 2.dp),
         )
     }
@@ -599,8 +610,8 @@ private fun ModalHeader(
             Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
         }
         Column(modifier = Modifier.padding(start = 10.dp)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
-            Text(subtitle, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = S.Slate400)
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Black, color = S.Text)
+            Text(subtitle, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = S.TextSecondary)
         }
         Spacer(Modifier.weight(1f))
         Box(
@@ -609,14 +620,14 @@ private fun ModalHeader(
                 .clickable(onClick = onClose)
                 .padding(6.dp),
         ) {
-            Icon(Icons.Filled.Close, contentDescription = "Close", tint = S.Slate400, modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.Close, contentDescription = "Close", tint = S.TextSecondary, modifier = Modifier.size(16.dp))
         }
     }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(S.White10),
+            .background(S.BorderSoft),
     )
 }
 
@@ -631,7 +642,8 @@ private fun AmberButton(text: String, onClick: () -> Unit, modifier: Modifier = 
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Black, color = S.Slate950)
+        // text-slate-950 on amber-400 in both themes
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF020617))
     }
 }
 
@@ -653,8 +665,8 @@ private fun DemoModal(onDismiss: () -> Unit, content: @Composable () -> Unit) {
                     .fillMaxWidth()
                     .widthIn(max = 384.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(S.Slate900)
-                    .border(1.dp, S.White15, RoundedCornerShape(16.dp))
+                    .background(S.ModalBg)
+                    .border(1.dp, S.BorderStrong, RoundedCornerShape(16.dp))
                     .verticalScroll(rememberScrollState())
                     .padding(20.dp),
             ) { content() }
