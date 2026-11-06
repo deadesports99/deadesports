@@ -64,3 +64,12 @@ todo me ye tha 
 - Player app: no title — show map + Solo/Duo/Squad; show auto Player ID in profile
 - Build, install, device E2E test (create, join, end+pay, ban)
 - Regression suites + docs update
+
+
+
+&nbsp;
+
+Agla step (~75%): auth.service ka login/OTP/refresh path, player.service + tenant.service settings, aur       
+
+ settlement.service ka daily report (admin ka "aaj ka hisaab" CSV). Bolo to wahi uthata hoon.                  
+

@@ -23,9 +23,10 @@ export interface FakePrismaOptions {
   tournaments?: Row[];
   tournamentSlots?: Row[];
   matchResults?: Row[];
+  emailOtps?: Row[];
 }
 
-const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger', 'tournament', 'tournamentSlot', 'matchResult'] as const;
+const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger', 'tournament', 'tournamentSlot', 'matchResult', 'emailOtp'] as const;
 type ModelName = (typeof MODELS)[number];
 
 const plain = (v: unknown) => (typeof v === 'number' ? v : Number(String(v)));
@@ -64,15 +65,27 @@ function matches(row: Row, where: Row | undefined): boolean {
       return value !== notValue;
     }
     const ms = value instanceof Date ? value.getTime() : plain(value);
-    if ('lt' in ops) return ms < (ops.lt instanceof Date ? ops.lt.getTime() : plain(ops.lt));
-    if ('lte' in ops) return ms <= (ops.lte instanceof Date ? ops.lte.getTime() : plain(ops.lte));
-    if ('gt' in ops) return ms > (ops.gt instanceof Date ? ops.gt.getTime() : plain(ops.gt));
-    if ('gte' in ops) return ms >= (ops.gte instanceof Date ? ops.gte.getTime() : plain(ops.gte));
-    if ('equals' in ops) return value === ops.equals;
-    if ('startsWith' in ops) return String(value ?? '').startsWith(String(ops.startsWith));
-    if ('endsWith' in ops) return String(value ?? '').endsWith(String(ops.endsWith));
-    if ('contains' in ops) return String(value ?? '').includes(String(ops.contains));
-    return true;
+    const bound = (v: unknown) => (v instanceof Date ? v.getTime() : plain(v));
+    // Every operator present in the object must hold (Prisma ANDs them).
+    const checks: boolean[] = [];
+    if ('lt' in ops) checks.push(ms < bound(ops.lt));
+    if ('lte' in ops) checks.push(ms <= bound(ops.lte));
+    if ('gt' in ops) checks.push(ms > bound(ops.gt));
+    if ('gte' in ops) checks.push(ms >= bound(ops.gte));
+    if ('equals' in ops) checks.push(value === ops.equals);
+    if ('startsWith' in ops) checks.push(String(value ?? '').startsWith(String(ops.startsWith)));
+    if ('endsWith' in ops) checks.push(String(value ?? '').endsWith(String(ops.endsWith)));
+    if ('contains' in ops) {
+      const haystack = String(value ?? '');
+      const needle = String(ops.contains);
+      // Prisma supports `{ contains, mode: 'insensitive' }`.
+      checks.push(
+        (ops as Row).mode === 'insensitive'
+          ? haystack.toLowerCase().includes(needle.toLowerCase())
+          : haystack.includes(needle),
+      );
+    }
+    return checks.length === 0 || checks.every(Boolean);
   });
 }
 
@@ -114,6 +127,7 @@ export class FakePrisma {
       tournament: (options.tournaments ?? []).map((r) => ({ ...r })),
       tournamentSlot: (options.tournamentSlots ?? []).map((r) => ({ ...r })),
       matchResult: (options.matchResults ?? []).map((r) => ({ ...r })),
+      emailOtp: (options.emailOtps ?? []).map((r) => ({ ...r })),
     };
   }
 
@@ -160,10 +174,31 @@ export class FakePrisma {
             return 0;
           });
         }
-        const out = rows.map((r) => project(r, args.select) as Row);
+        let out = rows.map((r) => project(r, args.select) as Row);
+        // `distinct: ['referenceId']` keeps the first row per key (like Prisma).
+        if (Array.isArray(args.distinct)) {
+          const seen = new Set<string>();
+          out = out.filter((r) => {
+            const key = args.distinct.map((f: string) => String(r[f])).join('|');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        }
         const skip = typeof args.skip === 'number' ? args.skip : 0;
         const taken = typeof args.take === 'number' ? out.slice(skip, skip + args.take) : out.slice(skip);
-        return args.include ? taken.map((r) => this.withIncludes(model, r, args.include) as Row) : taken;
+        const withRelations = args.include
+          ? taken.map((r) => this.withIncludes(model, r, args.include) as Row)
+          : taken;
+        const countSelect = (args.select as Row | undefined)?._count as Row | undefined;
+        if (!countSelect) return withRelations;
+        // `select: { _count: { select: { slots: true } } }`
+        const relation = (countSelect.select as Row | undefined)?.slots;
+        if (!relation) return withRelations;
+        return withRelations.map((r) => ({
+          ...r,
+          _count: { slots: this.store.tournamentSlot.filter((s) => s.userId === r.id).length },
+        }));
       },
       count: async (args: any = {}) => {
         this.log(model, 'count', args);
@@ -181,7 +216,17 @@ export class FakePrisma {
             (out._sum as Row)[field] = rows.reduce((acc, r) => acc + (Number(r[field]) || 0), 0);
           }
         }
-        if (args._count) out._count = rows.length;
+        if (args._count === true) out._count = rows.length;
+        else if (args._count && typeof args._count === 'object') {
+          // `_count: { _all: true, field: true }` -> counts, like Prisma.
+          const spec = args._count as Row;
+          const counts: Row = { _all: rows.length };
+          for (const [field, enabled] of Object.entries(spec)) {
+            if (!enabled || field === '_all') continue;
+            counts[field] = rows.filter((r) => r[field] !== null && r[field] !== undefined).length;
+          }
+          out._count = counts;
+        }
         if (args._avg) {
           out._avg = {} as Row;
           for (const [field, enabled] of Object.entries(args._avg as Row)) {
@@ -215,6 +260,22 @@ export class FakePrisma {
         applyData(row, args.data);
         return project(row, args.select);
       },
+      delete: async (args: any = {}) => {
+        this.log(model, 'delete', args);
+        const rows = this.rows(model);
+        const idx = rows.findIndex((r) => matches(r, args.where));
+        if (idx === -1) throw new Error(`${model}.delete: not found`);
+        return rows.splice(idx, 1)[0];
+      },
+      deleteMany: async (args: any = {}) => {
+        this.log(model, 'deleteMany', args);
+        const rows = this.rows(model);
+        const keep = rows.filter((r) => !matches(r, args.where));
+        const removed = rows.length - keep.length;
+        rows.length = 0;
+        rows.push(...keep);
+        return { count: removed };
+      },
       updateMany: async (args: any = {}) => {
         this.log(model, 'updateMany', args);
         const rows = this.rows(model).filter((r) => matches(r, args.where));
@@ -232,10 +293,11 @@ export class FakePrisma {
   get walletLedger() { return this.delegate('walletLedger'); }
   get tournament() { return this.delegate('tournament'); }
   get tournamentSlot() { return this.delegate('tournamentSlot'); }
+  get emailOtp() { return this.delegate('emailOtp'); }
   get matchResult() { return this.delegate('matchResult'); }
 
   /** Resolve `where: { user: { inGameUid } }` style relation filters. */
-  private static readonly RELATIONAL: readonly ModelName[] = ['tournamentSlot', 'matchResult'];
+  private static readonly RELATIONAL: readonly ModelName[] = ['tournamentSlot', 'matchResult', 'walletLedger'];
 
   private resolveRelations(model: ModelName, row: Row, where: Row | undefined): Row {
     if (!where || !FakePrisma.RELATIONAL.includes(model) || !where.user) return row;
