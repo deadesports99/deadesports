@@ -216,3 +216,26 @@ request, and the ledger reads: +₹50 → −₹10 → +₹60 → −₹60 with 
 One UX note found while testing (not a bug): the UTR top-up is visible in the **Transactions** ledger
 but not in "Recent top-ups", which only lists gateway orders. Merging them (or labelling the section
 "Online top-ups") would make the manual flow easier to follow.
+
+### Spectator Scorer — two real bugs found on device, both fixed ✅
+
+1. **The console crashed the app.** `GET /tournaments/:id/slots` always answers with all 48 seats,
+   and empty seats come back as `player: null`. The roster mapped those to `userId = ""` and the
+   Compose list used `key = { it.userId }`, so 46 rows shared the key `""` →
+   `IllegalArgumentException: Key "" was already used` the moment a match was opened. The Admin app
+   closed instantly (nothing in the UI said why). Fix: new framework-free `scorerRoster()` in
+   `ScorerRoster.kt` keeps booked seats only, sorts by seat, ranks 1..n, and falls back to
+   `slot-<n>` for a blank id; the list now keys on `slotNumber`. 7 unit tests.
+2. **The "Distribute Prize & Complete Match" button was invisible.** The participant list used
+   `fillMaxSize()` inside a `Column`, so it ate all the height and pushed the sticky payout bar off
+   screen — a match could never be paid from this console. Fix: `weight(1f)`, plus a clear
+   "Nobody has booked a seat yet" line when a match has no players.
+
+Verified live on the Realme P3 after the fix: opened *Bermuda Squad #1* (2/48 booked), set kills,
+toggled the hacker flag (reason field appeared), un-toggled it, tapped payout →
+`Total paid ₹1650 • Players paid 2 • Match status COMPLETED`, and the DB agrees:
+`ywywy` rank1 2 kills `₹1050`, `ggggg` rank2 `₹600` (pool ₹2000 → 50% + 2×₹25, 30%), both
+`isApproved = true`. Winning balances: ₹1050 and ₹600.
+
+Also fixed while there: the scorer used to keep a stale *Network error* state forever when it was
+opened again — it now reloads unless it already has data.

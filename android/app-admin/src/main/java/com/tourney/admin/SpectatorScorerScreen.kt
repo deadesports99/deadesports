@@ -58,7 +58,8 @@ fun SpectatorScorerScreen(
     val slotsState = viewModel.scorerSlotsUi
     val payoutState = viewModel.payoutUi
 
-    LaunchedEffect(Unit) { if (listState is AdminUi.Idle) viewModel.loadTournaments() }
+    // Load on entry, and also self-heal a stale error state from a previous visit.
+    LaunchedEffect(Unit) { if (listState !is AdminUi.Success) viewModel.loadTournaments() }
 
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(
@@ -93,7 +94,8 @@ fun SpectatorScorerScreen(
                         val flagged = players.count { it.disqualified }
 
                         LazyColumn(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            // weight(1f), not fillMaxSize(): the sticky payout bar below must keep its space
+                            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
                         ) {
@@ -112,7 +114,7 @@ fun SpectatorScorerScreen(
                                     )
                                 }
                             }
-                            items(players, key = { it.userId }) { player ->
+                            items(players, key = { it.slotNumber }) { player ->
                                 ScorerRow(viewModel = viewModel, player = player)
                             }
                             item { Spacer(Modifier.height(4.dp)) }
@@ -120,6 +122,14 @@ fun SpectatorScorerScreen(
 
                         // Sticky bottom payout button
                         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                            if (players.isEmpty()) {
+                                Text(
+                                    "Nobody has booked a seat yet — there is nothing to score.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+                            }
                             when (payoutState) {
                                 is AdminUi.Error -> Text(payoutState.message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                                 else -> {}

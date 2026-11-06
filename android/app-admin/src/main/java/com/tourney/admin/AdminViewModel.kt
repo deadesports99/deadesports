@@ -270,19 +270,8 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val slots = apiCall { api.tournamentSlots(tournamentId) }
                 scorerSlotsUi = AdminUi.Success(slots)
-                scorerParticipants = slots.slots
-                    .sortedBy { it.slotNumber }
-                    .mapIndexed { index, slot ->
-                        ScorerPlayer(
-                            userId = slot.player?.id ?: "",
-                            slotNumber = slot.slotNumber,
-                            inGameName = slot.player?.inGameName ?: "Unknown",
-                            inGameUid = slot.player?.inGameUid ?: "-",
-                            verifiedKills = 0,
-                            rank = index + 1,
-                            disqualified = false,
-                        )
-                    }
+                // Only booked seats — empty ones carry no player and would share a blank id.
+                scorerParticipants = scorerRoster(slots.slots)
             } catch (e: ApiException) {
                 scorerSlotsUi = AdminUi.Error(e.message)
             } catch (e: Exception) {
