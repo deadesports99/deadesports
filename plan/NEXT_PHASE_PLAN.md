@@ -255,3 +255,22 @@ scroll could not reach it. The form now uses `imePadding()`.
 Verified on device: create → back to dashboard → *Create Match* opens again with a blank form → created
 `#16 (₹30 / ₹300)` and `#17 (₹40 / ₹400)` back to back, both listed correctly in Manage Matches under *Upcoming*,
 then cancelled (`₹0 refunded to 0 players`) to leave the demo data clean.
+
+### Create Match is match-only now; room timing lives only in Publish Room ID ✅
+
+Owner feedback: "create match me sirf match ki setting rakho, room ID ki cheez room section me hi rakho".
+
+- Removed from **Create Match**: the `🔑 Room ID & Password Reveal` block (5m…24h chips, the
+  "reveal this many minutes before start" field, the reveal-time preview card) and its validation.
+  The payload no longer sends `roomRevealMinutes`; the API default (15 min) applies.
+- In its place the form shows one line: *"🔑 Room ID & Password — not part of match creation.
+  After saving this match, open Publish Room ID …"*.
+- Create Match is now exactly: game mode, match type, map, entry fee, prize pool, per-kill,
+  schedule (date + time + quick chips), player-list visibility.
+- Fixed while verifying: changing the reveal window in **Publish Room ID** left the old value on
+  screen, because that screen renders from `publishTargetsUi` and only the matches/ops lists were
+  refreshed. `updateRoomReveal` now reloads publish targets too.
+
+Device-verified: created `#18` with the new match-only form (₹25 / ₹250), then in Publish Room ID
+tapped `30m` → card became "Room Reveal — 30 min before start", row label "reveal 30 min",
+message "✅ Saved — players see the room 30 min before start", then set it back to 15m.

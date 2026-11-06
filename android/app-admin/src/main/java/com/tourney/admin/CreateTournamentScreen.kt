@@ -106,9 +106,6 @@ fun CreateTournamentScreen(
     var visibilityMode by remember { mutableStateOf(VisibilityMode.ALWAYS) }
     var visibilityHoursText by remember { mutableStateOf("10") }
 
-    // ── Room ID & Password reveal window (admin-controlled) ──────────────
-    var roomRevealMinutesText by remember { mutableStateOf("15") }
-
     var error by remember { mutableStateOf<String?>(null) }
 
     val uiState = viewModel.createUi
@@ -130,7 +127,6 @@ fun CreateTournamentScreen(
     val matchEpochMs = istEpochMs(selectedDate, selectedTime)
     val matchInFuture = matchEpochMs > nowMs + 60_000L
     val secondsUntilStart = (matchEpochMs - nowMs).coerceAtLeast(0) / 1000L
-    val tooSoonForRoom = matchInFuture && secondsUntilStart < 15 * 60L
 
     val parsedVisibilityHours = visibilityHoursText.toIntOrNull()
     val visibilityValid = visibilityMode == VisibilityMode.ALWAYS ||
@@ -139,11 +135,6 @@ fun CreateTournamentScreen(
         ?.takeIf { it in MIN_VISIBILITY_HOURS..MAX_VISIBILITY_HOURS }
         ?.let { matchEpochMs - it * 3_600_000L }
     val windowAlreadyOpen = visibleFromEpochMs != null && visibleFromEpochMs <= nowMs
-
-    val parsedRoomRevealMinutes = roomRevealMinutesText.toIntOrNull()
-    val roomRevealValid = parsedRoomRevealMinutes != null && parsedRoomRevealMinutes in 1..10_080
-    val roomRevealAtMs = matchEpochMs - (parsedRoomRevealMinutes ?: 15).toLong() * 60_000L
-    val roomRevealAlreadyOpen = roomRevealValid && roomRevealAtMs <= nowMs
 
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(title = "Create Match", onBack = onBack)
@@ -255,7 +246,6 @@ fun CreateTournamentScreen(
             // IST preview of exactly when the match will start.
             val previewColor = when {
                 !matchInFuture -> MaterialTheme.colorScheme.error
-                tooSoonForRoom -> Color(0xFFFF9800)
                 else -> MaterialTheme.colorScheme.primary
             }
             GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
@@ -268,7 +258,6 @@ fun CreateTournamentScreen(
                 Text(
                     when {
                         !matchInFuture -> "❌ Match time must be in the future."
-                        tooSoonForRoom -> "⚠️ Less than 15 min away — check the room reveal timing below."
                         else -> "Starts in about ${formatDurationShort(secondsUntilStart)} (IST)."
                     },
                     fontSize = 11.sp,
@@ -366,80 +355,15 @@ fun CreateTournamentScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
-            // ── Room ID & Password reveal (admin-controlled) ─────────────
-            Text(
-                "🔑 Room ID & Password Reveal",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                "Players see the custom room code only when you decide — default 15 minutes before start. " +
-                    "You can change this later, or press Reveal Now from Publish Room / Manage Matches.",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-            ) {
-                listOf(
-                    5 to "5m", 15 to "15m", 30 to "30m", 60 to "1h",
-                    120 to "2h", 360 to "6h", 720 to "12h", 1440 to "24h",
-                ).forEach { (minutes, label) ->
-                    FilterChip(
-                        selected = parsedRoomRevealMinutes == minutes,
-                        onClick = { roomRevealMinutesText = minutes.toString() },
-                        label = { Text(label, fontSize = 11.sp) },
-                    )
-                }
-            }
-
-            OutlinedTextField(
-                value = roomRevealMinutesText,
-                onValueChange = { roomRevealMinutesText = it.filter(Char::isDigit).take(5) },
-                label = { Text("Reveal Room ID this many minutes before start") },
-                placeholder = { Text("15") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = !roomRevealValid,
-                supportingText = {
-                    Text(
-                        if (roomRevealValid) "1–10080 minutes (default 15 = old T-15 rule)"
-                        else "Enter 1 to 10080 minutes",
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            if (roomRevealValid) {
-                val revealMinutes = parsedRoomRevealMinutes ?: 15
-                GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
-                    Text(
-                        "🔑 Room ID & Password visible from: ${formatIstFullDateTime(roomRevealAtMs)} IST",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                    )
-                    Text(
-                        when {
-                            roomRevealAlreadyOpen ->
-                                "This reveal window is already open — the code shows to players as soon as you publish it."
-                            revealMinutes < 60 ->
-                                "Hidden until then • players see it $revealMinutes min before the match."
-                            revealMinutes % 60 == 0 ->
-                                "Hidden until then • players see it ${revealMinutes / 60}h before the match."
-                            else ->
-                                "Hidden until then • players see it ${revealMinutes / 60}h ${revealMinutes % 60}m before the match."
-                        },
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        "Admin can reveal it earlier anytime (Publish Room → “Reveal to players now”).",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            // Room ID & Password timing lives in the Room console only (Publish Room ID).
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
+                Text("🔑 Room ID & Password", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(
+                    "Not part of match creation. After saving this match, open Publish Room ID to set the " +
+                        "code, its password and when players can see it.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             if (error != null) {
@@ -450,7 +374,7 @@ fun CreateTournamentScreen(
                 text = if (uiState is AdminUi.Loading) "Creating…" else "Create Tournament",
                 enabled = (uiState !is AdminUi.Loading) &&
                     entryFee.toDoubleOrNull() != null && prizePool.toDoubleOrNull() != null &&
-                    matchInFuture && visibilityValid && roomRevealValid,
+                    matchInFuture && visibilityValid,
                 onClick = {
                     error = null
                     if (!matchInFuture) {
@@ -459,10 +383,6 @@ fun CreateTournamentScreen(
                     }
                     if (!visibilityValid) {
                         error = "Visibility window must be between 1 and 336 hours."
-                        return@AppButton
-                    }
-                    if (!roomRevealValid) {
-                        error = "Room reveal timing must be between 1 and 10080 minutes."
                         return@AppButton
                     }
                     val fee = entryFee.toDoubleOrNull() ?: 0.0
@@ -484,7 +404,6 @@ fun CreateTournamentScreen(
                             } else {
                                 parsedVisibilityHours
                             },
-                            roomRevealMinutes = parsedRoomRevealMinutes,
                         )
                     )
                 },
@@ -492,10 +411,7 @@ fun CreateTournamentScreen(
             )
 
             Text(
-                "Room ID & Password reveal: " +
-                    "${(parsedRoomRevealMinutes ?: 15).let { m ->
-                        if (m < 60) "$m min" else if (m % 60 == 0) "${m / 60}h" else "${m / 60}h ${m % 60}m"
-                    }} before start (admin can reveal anytime).",
+                "Room reveal timing: set it in Publish Room ID (default 15 min before start).",
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

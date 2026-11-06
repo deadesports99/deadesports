@@ -246,6 +246,9 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 loadMatchOps()
                 loadTournaments()
+                // The Publish Room screen renders from publishTargetsUi — refresh it too,
+                // otherwise the reveal chips keep showing the old window after a change.
+                loadPublishTargets()
             } catch (e: ApiException) {
                 roomRevealError = e.message
             } catch (e: Exception) {
