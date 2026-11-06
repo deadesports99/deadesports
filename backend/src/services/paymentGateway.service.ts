@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { paymentConfig, type PaymentProviderName } from '../config/payment.js';
 import { ApiError } from '../utils/ApiError.js';
+import { env } from '../config/env.js';
+import { stripTrailingSlashes } from '../utils/strings.js';
 
 /**
  * Gateway abstraction — the ONLY place that talks to a payment provider.
@@ -13,7 +15,8 @@ import { ApiError } from '../utils/ApiError.js';
  *            (Node 18+) is enough and keeps the dependency tree small.
  */
 
-const RAZORPAY_API_BASE = 'https://api.razorpay.com/v1';
+/** Real API by default; `RAZORPAY_API_BASE_URL` points it at a stub/proxy. */
+const RAZORPAY_API_BASE = stripTrailingSlashes(env.RAZORPAY_API_BASE_URL);
 
 export interface CreateOrderInput {
   amountPaise: number;

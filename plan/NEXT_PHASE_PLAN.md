@@ -162,3 +162,28 @@ Still needs a human / an account (not code):
 - [ ] Real **release keystore** — the release APK is currently `-unsigned`, which is safe but not shippable.
 - [ ] Do **not** run `prisma/seed.ts` against production; create the production tenant via the Phase 4 SQL template.
 - [ ] Ops flags on Render: `TRUST_PROXY=true`, no `BYPASS_OTP_FOR_TESTING`, monitoring + backups + rollback owner.
+
+---
+
+## D1 — live Razorpay (₹1/₹10 UPI) — 🔶 everything but the account
+
+Done without keys (all verified):
+- [x] `RAZORPAY_API_BASE_URL` is configurable (default = real API), so the gateway client can be
+      exercised against a faithful local stub or behind a proxy.
+- [x] `tests/razorpayHttp.e2e.test.ts` — **7 tests over real HTTP** against a local Razorpay-shaped
+      server: order create with Basic auth + money fields + gateway-side expiry + no secret in the
+      payload; checkout verify settles once and a retry never double-credits; forged signature →
+      400 + order FAILED + no ledger row; webhook settles from the RAW-body HMAC and a duplicate
+      delivery is a no-op; bad webhook signature → 400; gateway rejection → 502 with the draft order
+      closed; `/payments/config` reports real gateway mode and leaks no secret.
+- [x] `backend/src/scripts/razorpayLiveCheck.ts` — preflight that validates key shape, secret,
+      webhook secret, public URL and test/live-vs-NODE_ENV pairing, and can create a real ₹1 order
+      (`--create-order`) or print the expected checkout signature (`--sign o p`).
+- [x] `docs/RAZORPAY_LIVE_RUNBOOK.md` — the exact ₹10 UPI run: config, dashboard webhook, the five
+      money-safety checks (double-credit, webhook-only, sweep-only, expiry, failure), SQL spot-check,
+      refund, live-key swap, and the deliberate limits.
+
+Blocked on a human/account:
+- [ ] `rzp_test_*` keys in `backend/.env` → run `npx tsx src/scripts/razorpayLiveCheck.ts --create-order`.
+- [ ] One real ₹10 UPI payment on the device, then refund it.
+- [ ] Then repeat with `rzp_live_*` and a public HTTPS webhook URL.

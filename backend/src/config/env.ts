@@ -55,6 +55,12 @@ const envSchema = z.object({
   /** Razorpay webhook signing secret (dashboard -> Webhooks). */
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 
+  /**
+   * Razorpay REST base. Overridable so integration tests can run against a local
+   * stub and so a corporate proxy can be inserted. Defaults to the real API.
+   */
+  RAZORPAY_API_BASE_URL: z.string().url().default('https://api.razorpay.com/v1'),
+
   /** Minimum top-up in paise (default ₹10). */
   PAYMENT_MIN_AMOUNT_PAISE: z.coerce.number().int().positive().default(1_000),
 
