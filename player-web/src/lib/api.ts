@@ -164,8 +164,86 @@ export const auth = {
   logout: clearSession,
 };
 
+// ── Tournaments ──────────────────────────────────────────────────────────
+
+export interface ApiTournament {
+  id: string;
+  title: string;
+  matchNumber: number | null;
+  gameMode: 'BATTLE_ROYALE' | 'CLASH_SQUAD';
+  matchType: 'SOLO' | 'DUO' | 'SQUAD';
+  mapType: 'BERMUDA' | 'PURGATORY' | 'KALAHARI' | 'ALPINE' | 'NEXTERRA';
+  entryFee: string;
+  prizePool: string;
+  perKillPrize: string | null;
+  totalSlots: number;
+  slotsBooked: number;
+  matchTime: string;
+  status: 'DRAFT' | 'UPCOMING' | 'OPEN' | 'SLOTS_FULL' | 'ROOM_REVEALED' | 'LIVE' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
+  mySlot: { slotNumber: number; teamId: string | null } | null;
+  isListedNow?: boolean | null;
+  roomUnlocked?: boolean | null;
+  room?: { roomId: string | null; roomPassword: string | null } | null;
+  hasRoomCredentials?: boolean | null;
+}
+
+export interface ApiPaged<T> {
+  items: T[];
+  pagination: { page: number; limit: number; total: number; totalPages?: number };
+}
+
+export interface ApiJoinResult {
+  tournamentId: string;
+  slotNumber: number;
+  entryFee: string;
+  depositBalance: string;
+  winningBalance: string;
+}
+
+export interface ApiWallet {
+  depositBalance: string;
+  winningBalance: string;
+  totalBalance: string;
+  ledger: Array<{
+    id: string;
+    amount: string;
+    balanceType: 'DEPOSIT' | 'WINNING';
+    type: 'CREDIT' | 'DEBIT';
+    category: string;
+    balanceAfter: string;
+    referenceId: string | null;
+    notes: string | null;
+    createdAt: string;
+  }>;
+}
+
+export const tournaments = {
+  /** Player feed: only matches that are actually open to join right now. */
+  list: (status?: string) =>
+    request<ApiPaged<ApiTournament>>(
+      `/tournaments?limit=50${status ? `&status=${encodeURIComponent(status)}` : ''}`
+    ),
+
+  details: (id: string) => request<ApiTournament>(`/tournaments/${id}`),
+
+  join: (
+    id: string,
+    payload: { slotNumber?: number; inGameName?: string; inGameUid?: string; saveAsDefault?: boolean }
+  ) =>
+    request<ApiJoinResult>(`/tournaments/${id}/join`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+};
+
+export const wallet = {
+  summary: () => request<ApiWallet>('/wallet'),
+};
+
 export const api = {
   auth,
+  tournaments,
+  wallet,
   tenantId: TENANT_ID,
   baseUrl: API_BASE,
 };

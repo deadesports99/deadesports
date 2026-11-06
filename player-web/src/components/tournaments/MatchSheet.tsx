@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapPin, Clock3, X, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { MapPin, Clock3, X, CheckCircle2, User, Gamepad2 } from 'lucide-react';
 import { Theme, TournamentMatch } from '../../types';
 import { cx, formatINR } from '../../utils/formatters';
 
@@ -9,9 +9,21 @@ interface MatchSheetProps {
   balance: number;
   joined: boolean;
   onClose: () => void;
-  onJoin: () => void;
+  /** Carries the Free Fire identity the organiser needs to seat the player. */
+  onJoin: (identity: { inGameName: string; inGameUid: string }) => void;
   onTopUp: () => void;
+  /** Prefill from the saved profile (backend: /auth/me). */
+  defaultIgn?: string;
+  defaultUid?: string;
+  /** Server-side error from the join call. */
+  joinError?: string;
+  joining?: boolean;
+  /** Entry closes 1 minute before kickoff. */
+  joinClosed?: boolean;
 }
+
+const IGN_RE = /^[\s\S]{2,30}$/;
+const UID_RE = /^\d{6,12}$/;
 
 export function MatchSheet({
   theme,
@@ -21,8 +33,24 @@ export function MatchSheet({
   onClose,
   onJoin,
   onTopUp,
+  defaultIgn = '',
+  defaultUid = '',
+  joinError,
+  joining = false,
+  joinClosed = false,
 }: MatchSheetProps) {
   const isDark = theme === 'dark';
+  const [ign, setIgn] = useState(defaultIgn);
+  const [uid, setUid] = useState(defaultUid);
+
+  useEffect(() => {
+    setIgn(defaultIgn);
+    setUid(defaultUid);
+  }, [defaultIgn, defaultUid]);
+
+  const ignOk = IGN_RE.test(ign.trim());
+  const uidOk = UID_RE.test(uid.trim());
+  const identityOk = ignOk && uidOk;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
@@ -117,6 +145,62 @@ export function MatchSheet({
           </div>
         </div>
 
+        {/* Free Fire identity — who gets seated in the custom room */}
+        <div
+          className={cx(
+            'mt-2 rounded-xl border p-3',
+            isDark ? 'border-white/10 bg-[#0B1526]' : 'border-slate-200 bg-slate-50'
+          )}
+        >
+          <span className="text-[10px] font-bold uppercase text-slate-400">Your Free Fire Details</span>
+
+          <label className="mt-2 block">
+            <span className={cx('mb-1 flex items-center gap-1.5 text-[11px] font-bold', isDark ? 'text-slate-300' : 'text-slate-700')}>
+              <User className="h-3 w-3" /> In-Game Name (IGN)
+            </span>
+            <input
+              value={ign}
+              onChange={(event) => setIgn(event.target.value.slice(0, 30))}
+              placeholder="e.g. SpartanOP"
+              disabled={joined || joining}
+              className={cx(
+                'h-11 w-full rounded-lg border px-3 text-[13px] font-bold outline-none transition-all',
+                isDark
+                  ? 'border-white/15 bg-[#060B14] text-white placeholder:text-slate-600 focus:border-white'
+                  : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-black'
+              )}
+            />
+          </label>
+
+          <label className="mt-2 block">
+            <span className={cx('mb-1 flex items-center gap-1.5 text-[11px] font-bold', isDark ? 'text-slate-300' : 'text-slate-700')}>
+              <Gamepad2 className="h-3 w-3" /> Free Fire UID
+            </span>
+            <input
+              value={uid}
+              inputMode="numeric"
+              onChange={(event) => setUid(event.target.value.replace(/\D/g, '').slice(0, 12))}
+              placeholder="6-12 digit UID"
+              disabled={joined || joining}
+              className={cx(
+                'h-11 w-full rounded-lg border px-3 text-[13px] font-bold tracking-widest outline-none transition-all',
+                isDark
+                  ? 'border-white/15 bg-[#060B14] text-white placeholder:text-slate-600 focus:border-white'
+                  : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-black'
+              )}
+            />
+          </label>
+
+          {joinError && (
+            <p className="mt-2 text-[11px] font-semibold text-rose-500">{joinError}</p>
+          )}
+          {!identityOk && (ign.trim().length > 0 || uid.trim().length > 0) && (
+            <p className={cx('mt-2 text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              IGN needs 2-30 characters and the UID must be 6-12 digits.
+            </p>
+          )}
+        </div>
+
         {/* Entry fee & wallet balance */}
         <div
           className={cx(
@@ -155,14 +239,16 @@ export function MatchSheet({
         {/* Join button CTA */}
         <button
           type="button"
-          disabled={joined || balance < match.entryFee}
-          onClick={onJoin}
+          disabled={joined || joining || joinClosed || (!identityOk && balance >= match.entryFee) || balance < match.entryFee}
+          onClick={() => onJoin({ inGameName: ign.trim(), inGameUid: uid.trim() })}
           className={cx(
             'mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-black shadow-lg transition-all active:scale-[0.96]',
             joined
               ? 'bg-emerald-500 text-white'
+              : joinClosed
+              ? 'cursor-not-allowed bg-slate-300 text-slate-600'
               : balance >= match.entryFee
-              ? 'bg-[#FFD000] text-slate-950 shadow-amber-400/20 hover:bg-[#FFDA29]'
+              ? 'bg-[#FFD000] text-slate-950 shadow-amber-400/20 hover:bg-[#FFDA29] disabled:opacity-60'
               : 'cursor-not-allowed bg-slate-300 text-slate-600'
           )}
         >
@@ -170,6 +256,10 @@ export function MatchSheet({
             <>
               <CheckCircle2 className="h-4 w-4" /> Slot Already Secured
             </>
+          ) : joinClosed ? (
+            'Entry closed — joining stops 1 min before start'
+          ) : joining ? (
+            'Booking your slot...'
           ) : balance >= match.entryFee ? (
             'Confirm & Join Slot'
           ) : (

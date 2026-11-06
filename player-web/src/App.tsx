@@ -12,12 +12,11 @@ import {
   TransactionItem,
 } from './types';
 import {
-  HERO_MATCH,
-  INITIAL_MATCHES,
   INITIAL_TRANSACTIONS,
 } from './data/mockData';
 import { generateUTR } from './utils/formatters';
 import { api, ApiError, DEV_AUTH, getStoredUser } from './lib/api';
+import { isFeedMatch, isJoinClosed, toMatch } from './lib/mappers';
 
 // Common Components
 import { Ambient } from './components/common/Ambient';
@@ -80,9 +79,15 @@ export function App() {
   // Navigation & Screens state
   const [activeTab, setActiveTab] = useState<NavTab>('tournaments');
   const [selectedFilter, setSelectedFilter] = useState<FilterCategory>('All Matches');
-  const [matches, setMatches] = useState<TournamentMatch[]>(INITIAL_MATCHES);
+  const [matches, setMatches] = useState<TournamentMatch[]>([]);
   const [joinedIds, setJoinedIds] = useState<string[]>([]);
   const [heroJoined, setHeroJoined] = useState(false);
+  const [rawMatches, setRawMatches] = useState<Record<string, import('./lib/api').ApiTournament>>({});
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | undefined>(undefined);
+  const [profileIgn, setProfileIgn] = useState('');
+  const [profileUid, setProfileUid] = useState('');
 
   // Wallet state
   const [depositCash, setDepositCash] = useState(120);
@@ -118,6 +123,38 @@ export function App() {
 
   const balance = depositCash + winningsCash;
 
+  /** Pull the player feed + wallet from the API (called on sign-in and refresh). */
+  const loadFeed = async () => {
+    setFeedLoading(true);
+    try {
+      const [list, wallet, me] = await Promise.all([
+        api.tournaments.list(),
+        api.wallet.summary(),
+        api.auth.me().catch(() => null),
+      ]);
+
+      const feed = list.items.filter(isFeedMatch);
+      setRawMatches(Object.fromEntries(feed.map((t) => [t.id, t])));
+      setMatches(feed.map(toMatch));
+      setJoinedIds(feed.filter((t) => t.mySlot).map((t) => t.id));
+      setDepositCash(Number(wallet.depositBalance));
+      setWinningsCash(Number(wallet.winningBalance));
+      if (me) {
+        setProfileIgn(me.inGameName ?? '');
+        setProfileUid(me.inGameUid ?? '');
+      }
+    } catch (error) {
+      showToast(error instanceof ApiError ? error.message : 'Could not load the lobby', 'error');
+    } finally {
+      setFeedLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 'APP') void loadFeed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
     window.setTimeout(() => setToast(null), 2800);
@@ -140,7 +177,10 @@ export function App() {
     setStep('OTP');
   };
 
-  const joinMatch = (match: TournamentMatch) => {
+  const joinMatch = async (
+    match: TournamentMatch,
+    identity: { inGameName: string; inGameUid: string }
+  ) => {
     if (joinedIds.includes(match.id)) {
       showToast(`Already registered in ${match.title}`);
       return;
@@ -150,46 +190,29 @@ export function App() {
       return;
     }
 
-    const fromDeposit = Math.min(depositCash, match.entryFee);
-    setDepositCash((value) => value - fromDeposit);
-    setWinningsCash((value) => value - (match.entryFee - fromDeposit));
-    setJoinedIds((ids) => [...ids, match.id]);
+    setJoining(true);
+    setJoinError(undefined);
+    try {
+      // The API owns the money move: it debits the fee and books the seat.
+      await api.tournaments.join(match.id, {
+        slotNumber: rawMatches[match.id]?.mySlot?.slotNumber,
+        inGameName: identity.inGameName,
+        inGameUid: identity.inGameUid,
+        saveAsDefault: true,
+      });
 
-    if (match.id === HERO_MATCH.id) setHeroJoined(true);
-
-    setMatches((items) =>
-      items.map((item) =>
-        item.id === match.id
-          ? { ...item, filledSlots: Math.min(item.totalSlots, item.filledSlots + 1) }
-          : item
-      )
-    );
-
-    setTransactions((prev) => [
-      {
-        id: `tx-${Date.now()}`,
-        title: `Entry Fee | ${match.map}`,
-        amount: match.entryFee,
-        isCredit: false,
-        category: 'Entries',
-        channel: 'freefire_entry',
-        badgeText: 'Confirmed',
-        badgeTone: 'cyan',
-        time: 'Just now',
-        dateGroup: 'TODAY',
-        closingBalance: (depositCash + winningsCash) - match.entryFee,
-        reference: `REG-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        matchName: match.map,
-        matchMode: match.category as any,
-        map: match.map,
-        playerUid: '84920194',
-        status: 'Success',
-      },
-      ...prev,
-    ]);
-
-    setSelectedMatch(null);
-    showToast(`Slot Confirmed for ${match.title}! Room details arrive 15m prior.`);
+      setProfileIgn(identity.inGameName);
+      setProfileUid(identity.inGameUid);
+      setSelectedMatch(null);
+      showToast(`Slot confirmed for ${match.title}!`);
+      await loadFeed();
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : (error as Error).message;
+      setJoinError(message);
+      showToast(message, 'error');
+    } finally {
+      setJoining(false);
+    }
   };
 
   const handleDeposit = () => {
@@ -384,8 +407,13 @@ export function App() {
             onLockedGame={(name) =>
               showToast(`${name} scrims unlocking next season!`, 'error')
             }
+            loading={feedLoading}
+            onRefresh={() => void loadFeed()}
             heroJoined={heroJoined}
-            onHeroJoin={() => joinMatch(HERO_MATCH)}
+            onHeroJoin={() => {
+              const hero = matches[0];
+              if (hero) setSelectedMatch(hero);
+            }}
           />
         )}
 
@@ -440,8 +468,16 @@ export function App() {
           match={selectedMatch}
           balance={balance}
           joined={joinedIds.includes(selectedMatch.id)}
-          onClose={() => setSelectedMatch(null)}
-          onJoin={() => joinMatch(selectedMatch)}
+          defaultIgn={profileIgn}
+          defaultUid={profileUid}
+          joinError={joinError}
+          joining={joining}
+          joinClosed={rawMatches[selectedMatch.id] ? isJoinClosed(rawMatches[selectedMatch.id]) : false}
+          onClose={() => {
+            setSelectedMatch(null);
+            setJoinError(undefined);
+          }}
+          onJoin={(identity) => void joinMatch(selectedMatch, identity)}
           onTopUp={() => {
             setSelectedMatch(null);
             setActiveTab('wallet');

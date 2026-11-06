@@ -15,6 +15,10 @@ interface TournamentsScreenProps {
   onLockedGame: (name: string) => void;
   heroJoined?: boolean;
   onHeroJoin?: () => void;
+  /** True while the lobby is being fetched from the API. */
+  loading?: boolean;
+  /** Pull-to-refresh replacement: the small refresh chip above the list. */
+  onRefresh?: () => void;
 }
 
 export function TournamentsScreen({
@@ -25,6 +29,8 @@ export function TournamentsScreen({
   selectedFilter,
   onFilter,
   onLockedGame,
+  loading = false,
+  onRefresh,
 }: TournamentsScreenProps) {
   const isDark = theme === 'dark';
   const [selectedGame, setSelectedGame] = useState('FREE FIRE');
@@ -167,10 +173,38 @@ export function TournamentsScreen({
           >
             Upcoming Matches ({filtered.length})
           </h3>
-          <span className={cx('text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
-            Instant Room ID • Auto Payout
-          </span>
+          <button
+            type="button"
+            onClick={() => onRefresh?.()}
+            className={cx('text-[10px] font-bold', isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}
+          >
+            {loading ? 'Refreshing...' : '↻ Refresh'}
+          </button>
         </div>
+
+        {!loading && filtered.length === 0 && (
+          <div
+            className={cx(
+              'rounded-xl border p-4 text-center text-[11px]',
+              isDark ? 'border-white/10 bg-[#0B1526] text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+            )}
+          >
+            No open matches right now. New scrims show up here the moment the organiser creates
+            them — tap ↻ Refresh in a bit.
+          </div>
+        )}
+
+        {loading && filtered.length === 0 && (
+          <div
+            className={cx(
+              'animate-pulse rounded-xl border p-4 text-center text-[11px]',
+              isDark ? 'border-white/10 bg-[#0B1526] text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+            )}
+          >
+            Loading the lobby...
+          </div>
+        )}
+
         {filtered.map((match) => (
           <MatchCard
             key={match.id}

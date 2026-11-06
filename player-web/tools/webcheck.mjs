@@ -113,4 +113,59 @@ console.log(after.split('\n').slice(0, 10).join(' / '));
 const session = await evaluate(`localStorage.getItem('thunder.auth.token') ? 'TOKEN_SAVED' : 'NO_TOKEN'`);
 console.log('session:', session);
 
+// --- feed (real API data, not mock) ---
+const feed = await evaluate(`(() => {
+  const text = document.body.innerText;
+  return JSON.stringify({
+    hasHeading: /UPCOMING MATCHES/i.test(text),
+    lines: text.split(String.fromCharCode(10)).filter((l) => /match|slots|refresh|₹/i.test(l)).slice(0, 12),
+  });
+})()`);
+console.log('--- feed ---');
+console.log(feed);
+
+// --- open the first match card, check the IGN/UID fields exist ---
+await evaluate(`(() => {
+  const card = [...document.querySelectorAll('article[role="button"]')]
+    .find((el) => /ENTRY FEE/i.test(el.innerText));
+  if (card) card.click();
+  return card ? 'opened' : 'no-card';
+})()`);
+await sleep(700);
+const sheet = await evaluate(`(() => {
+  const text = document.body.innerText;
+  const labels = ['In-Game Name (IGN)', 'Free Fire UID', 'Entry Fee', 'Your Available Balance'];
+  return JSON.stringify({
+    labels: labels.map((l) => [l, text.includes(l)]),
+    inputs: document.querySelectorAll('input').length,
+    button: (() => {
+      const b = [...document.querySelectorAll('button')].find((x) => /Join Slot|Add Cash to Join|Entry closed|Booking your slot/i.test(x.innerText));
+      return b ? b.innerText + ' | disabled=' + b.disabled : 'none';
+    })(),
+  });
+})()`);
+console.log('--- join sheet ---');
+console.log(sheet);
+
+// --- fill IGN + UID and join for real ---
+const joinOutcome = await evaluate(`(async () => {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  const inputs = [...document.querySelectorAll('input')];
+  const ign = inputs.find((i) => /SpartanOP|In-Game/i.test(i.placeholder) || i.placeholder === 'e.g. SpartanOP');
+  const uid = inputs.find((i) => /UID/i.test(i.placeholder));
+  if (!ign || !uid) return 'no-identity-inputs';
+  setter.call(ign, 'DemoSlayer');
+  ign.dispatchEvent(new Event('input', { bubbles: true }));
+  setter.call(uid, '123456789');
+  uid.dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 300));
+  const btn = [...document.querySelectorAll('button')].find((x) => /Confirm & Join Slot/i.test(x.innerText));
+  if (!btn) return 'no-join-button';
+  btn.click();
+  await new Promise((r) => setTimeout(r, 3500));
+  return document.body.innerText.slice(0, 500);
+})()`);
+console.log('--- after join click ---');
+console.log(String(joinOutcome).split(String.fromCharCode(10)).slice(0, 8).join(' / '));
+
 ws.close();
