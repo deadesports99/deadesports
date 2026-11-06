@@ -393,6 +393,17 @@ CREATE TABLE wallet_transactions (
 
 ---
 
+### 📍 Phase 12: Next Steps (Planned)
+Full detail: `plan/NEXT_PHASE_PLAN.md`
+
+- [ ] **P1** Kotlin unit tests (JUnit + MockK + coroutines-test) + JaCoCo, then re-include `android/**` in the coverage metric.
+- [ ] **P2** Player payment history screen (`GET /payments/my` + Wallet list + per-order Re-check).
+- [ ] **P3** Auto-reconcile sweep for stale pending orders (webhook-independent recovery).
+- [ ] **P4** Live Razorpay verification with real `rzp_test_*` keys (₹1 UPI top-up, retry idempotency, one failure path).
+- [ ] **P5** Go-live hardening + cloud deployment (`plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md`, including Section V2 cleanup).
+
+---
+
 ## 🔗 6. Top GitHub Repositories & UI Kits to Reference
 
 Aapke research aur code references ke liye best open-source GitHub projects:
