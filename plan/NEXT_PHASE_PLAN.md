@@ -137,3 +137,28 @@ then deploy.
 Current audit: koi duplicate test file nahi mila. Merge candidates sirf
 `apiResponse.test.ts` (2 tests, envelope) hai — `utils.test.ts` me daal sakte hain,
 par value zero hai, isliye abhi chhod diya.
+
+---
+
+## E1 — go-live hardening (`PRODUCTION_CLOUD_EXECUTION_PLAN.md` V2) — 🔶 code side done
+
+Done (each item verified, not just edited):
+- [x] **V2-A** mock provider in production is now **fatal**, not a warning (`paymentConfigProblems`, 5 tests);
+      demo routes answer **404** instead of "this endpoint exists but is disabled";
+      `public/demo-checkout.*` and `src/scripts` excluded from the Docker image.
+- [x] **V2-B** `mock_otp_` / `mock_google_` bypasses **deleted** from `firebase.service.ts`
+      (test auth moved to `tests/helpers/fakeFirebase.ts`), `DEV_TEST_DEVICE_IDS` and
+      `DEV_UNLIMITED_DEVICE_ACCOUNTS` deleted, per-device debug `console.log` deleted.
+      Device policy is now one explicit `MAX_ACCOUNTS_PER_DEVICE = 2`, already covered by a test.
+- [x] **V2-D** one-off patch scripts deleted (`fixFeedTabs`, `patchResult/Sweep/TournamentService`,
+      `removeSpinners`, `hookAndroid`); `src/scripts` never ships.
+- [x] **V2-E** release gate in both apps: `assembleRelease`/`bundleRelease` fail unless the API URL is `https://`
+      (verified both ways). Realtime URL derived from the API base and unit-tested; **found and fixed a real bug**
+      where a host starting with `api.` was truncated to an empty origin by a naive `/api` split.
+- [x] Backend **274 tests**, Kotlin **66 tests**, all green; release APK built with the live-domain URL.
+
+Still needs a human / an account (not code):
+- [ ] Razorpay **live** keys in `.env.production` (D1).
+- [ ] Real **release keystore** — the release APK is currently `-unsigned`, which is safe but not shippable.
+- [ ] Do **not** run `prisma/seed.ts` against production; create the production tenant via the Phase 4 SQL template.
+- [ ] Ops flags on Render: `TRUST_PROXY=true`, no `BYPASS_OTP_FOR_TESTING`, monitoring + backups + rollback owner.

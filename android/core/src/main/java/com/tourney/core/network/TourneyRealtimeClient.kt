@@ -84,7 +84,12 @@ object TourneyRealtimeClient {
     private val isConnected = AtomicBoolean(false)
     private var reconnectAttempts = 0
 
-    private var baseUrl: String = "http://localhost:5000"
+    /**
+     * Configured by [init] from `ClientConfig.apiBaseUrl`. Deliberately blank by
+     * default: a hardcoded localhost here made realtime fail silently on real
+     * devices (PRODUCTION_CLOUD_EXECUTION_PLAN V2-E).
+     */
+    private var baseUrl: String = ""
     private var tenantId: String = ""
     private var tokenProvider: (() -> String?)? = null
 
@@ -108,22 +113,14 @@ object TourneyRealtimeClient {
 
         scope.launch {
             try {
-                // Convert http(s) URL to ws(s) URL
-                val trimmedBase = baseUrl.trimEnd('/')
-                val wsBase = if (trimmedBase.startsWith("https://", ignoreCase = true)) {
-                    trimmedBase.replaceFirst("https://", "wss://", ignoreCase = true)
-                } else {
-                    trimmedBase.replaceFirst("http://", "ws://", ignoreCase = true)
+                val wsUrl = RealtimeUrl.build(baseUrl, tenantId, tokenProvider?.invoke())
+                if (wsUrl == null) {
+                    // No usable base URL (e.g. release built without -PapiBaseUrl).
+                    // Stay quiet instead of retrying a connection to nowhere.
+                    Log.e(TAG, "Realtime disabled: no valid API base URL configured")
+                    isConnecting.set(false)
+                    return@launch
                 }
-                val wsOrigin = wsBase.substringBefore("/api").trimEnd('/')
-                val currentToken = tokenProvider?.invoke()
-
-                val urlBuilder = StringBuilder("$wsOrigin/ws?tenantId=$tenantId")
-                if (!currentToken.isNullOrBlank()) {
-                    urlBuilder.append("&token=").append(currentToken)
-                }
-
-                val wsUrl = urlBuilder.toString()
                 Log.d(TAG, "Connecting to WebSocket: $wsUrl")
 
                 val request = Request.Builder()

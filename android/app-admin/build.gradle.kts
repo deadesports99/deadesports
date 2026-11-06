@@ -106,6 +106,27 @@ android {
 
 tasks.named("preBuild").configure { dependsOn(generateApiConfig) }
 
+// 🚀 Launch gate: a RELEASE artifact must point at a real HTTPS API.
+// Debug builds keep using the bundled config, so `adb reverse` + localhost still works.
+val requireHttpsApiUrlForRelease = tasks.register("requireHttpsApiUrlForRelease") {
+    doLast {
+        val nested = (clientCfg["backend"] as? Map<*, *>)?.get("api_base_url") as? String
+        val effective = apiBaseUrlOverride
+            ?: nested
+            ?: (clientCfg["api_base_url"] as? String)
+            ?: ""
+        require(effective.startsWith("https://")) {
+            "Release builds need a real API URL: pass -PapiBaseUrl=https://api.<domain>/api/v1 " +
+                "(current: \"$effective\"). A release APK on localhost silently collects nothing."
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+    dependsOn(requireHttpsApiUrlForRelease)
+}
+
+
 dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

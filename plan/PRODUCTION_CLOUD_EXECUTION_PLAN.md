@@ -476,9 +476,10 @@ Use small test amounts and record IDs for cleanup/refund.
 | Mock signatures | `paymentGateway.mockSignature()` | Used by tests only - never call it from a production route. |
 | `demoMode` flag leak | `backend/src/controllers/payment.controller.ts`, `paymentAdmin.service.ts` | Keep it (admin needs to know), but confirm the Android Admin app shows a red "DEMO MODE - no real money" banner when true. |
 
-- [ ] `PAYMENT_PROVIDER=razorpay`, `RAZORPAY_KEY_ID/SECRET/WEBHOOK_SECRET` present in `.env.production`.
-- [ ] Demo routes unreachable (`curl -i .../api/payments/demo/checkout` returns 404).
-- [ ] `public/demo-checkout.*` not present in the running image.
+- [x] Code side done: **mock in production is fatal** (`paymentConfigProblems`, 5 tests) instead of a warning.
+      Ops side (real keys in `.env.production`) still needs the Razorpay account.
+- [x] Demo routes unreachable: they now answer **404** (not 400) when the provider is not mock.
+- [x] `public/demo-checkout.*` and `src/scripts` are in `.dockerignore` (never in the image).
 - [ ] Admin app shows the DEMO banner only when the API reports `demoMode: true`.
 
 ### B. OTP / login bypasses
@@ -491,9 +492,9 @@ Use small test amounts and record IDs for cleanup/refund.
 | Unlimited device accounts | `DEV_UNLIMITED_DEVICE_ACCOUNTS` env flag | Absent in `.env.production`. |
 | Debug logging | `backend/src/services/auth.service.ts:133` (`console.log` on every device check) | Remove or gate behind `env.NODE_ENV === 'development'` - it leaks device IDs into cloud logs. |
 
-- [ ] Both bypass branches physically deleted (not only disabled by env).
-- [ ] `DEV_TEST_DEVICE_IDS` empty and `DEV_UNLIMITED_DEVICE_ACCOUNTS` absent.
-- [ ] Device-limit policy decided and covered by a test.
+- [x] Both bypass branches **deleted** from `firebase.service.ts`; test auth uses `tests/helpers/fakeFirebase.ts`.
+- [x] `DEV_TEST_DEVICE_IDS`, the whitelist bypass and `DEV_UNLIMITED_DEVICE_ACCOUNTS` are gone.
+- [x] Policy = **max 2 accounts per device** (`MAX_ACCOUNTS_PER_DEVICE`), covered by `authService.test.ts`.
 
 ### C. Seeded demo data and demo tenants
 
@@ -519,7 +520,7 @@ Use small test amounts and record IDs for cleanup/refund.
 | Enumeration check script | `backend/src/utils/*` dev helpers | Confirm none are reachable from a route. |
 
 - [ ] `docker run <image> sh -c "ls src/scripts public tests"` shows nothing but production files.
-- [ ] One-off patch scripts deleted from the repo.
+- [x] Deleted `fixFeedTabs.js`, `patch*Service.js`, `removeSpinners.js`, `hookAndroid.js`.
 - [ ] `.dockerignore` still lists `tests`, `coverage`, `.env*`, `src/generated`.
 
 ### E. Android release build hygiene
@@ -533,8 +534,11 @@ Use small test amounts and record IDs for cleanup/refund.
 | Debug signing | `android/app-*/build.gradle.kts` | Signed with a real keystore for Play/APK distribution; debug keystore never on the store build. |
 | Razorpay test key | Android `Payment.kt` / checkout init | Key comes from the backend response (`keyId`); confirm it is the live key, not `rzp_test_*`. |
 
-- [ ] `./gradlew :app-player:assembleRelease -PapiBaseUrl=https://api.<domain>/api/v1` produces a build whose `BuildConfig.API_BASE_URL` is the live domain.
-- [ ] Realtime connects over `wss://` on a 4G device.
+- [x] Release gate added to both apps: `assembleRelease`/`bundleRelease` **fail** unless the API URL is `https://`.
+      Verified: localhost -> build fails with a clear message; `-PapiBaseUrl=https://api.thunderesports.in/api/v1` -> APK ships that URL.
+- [x] Realtime URL is derived from the API base (`wss://` for https, `ws://` for http) and is unit-tested;
+      an empty base URL now disables realtime instead of guessing localhost. Fixed a real bug where hosts
+      starting with `api.` were stripped to nothing by a naive `/api` split.
 - [ ] No debug keystore in the distributed artifact.
 
 ### F. Operational leftovers that look like demo code
