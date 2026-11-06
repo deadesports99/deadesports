@@ -15,12 +15,21 @@ function fakeFor(seed: ConstructorParameters<typeof FakePrisma>[0]) {
 type SettlementApi = typeof import('../src/services/payment.settlement.js');
 let api: SettlementApi;
 
+/** Controllable stand-in for the real gateway (provider + fetchPayment only). */
+const gatewayFake: { provider: string; fetchPayment: (id: string) => Promise<any> } = {
+  provider: 'mock',
+  fetchPayment: async () => null,
+};
+
 before(async () => {
   mock.module('../src/config/prisma.js', {
     namedExports: {
       prisma: new Proxy({} as any, { get: (_t, prop: string) => (fake as any)[prop] }),
       disconnectPrisma: async () => {},
     },
+  });
+  mock.module('../src/services/paymentGateway.service.js', {
+    namedExports: { paymentGateway: gatewayFake },
   });
   api = await import('../src/services/payment.settlement.js');
 });
@@ -112,6 +121,11 @@ describe('settleCapturedPayment', () => {
 });
 
 describe('expireStalePaymentOrders', () => {
+  beforeEach(() => {
+    gatewayFake.provider = 'mock';
+    gatewayFake.fetchPayment = async () => null;
+  });
+
   it('expires only unpaid orders past their TTL', async () => {
     fakeFor({
       paymentOrders: [
@@ -160,5 +174,143 @@ describe('reconcilePaymentOrder', () => {
       () => api.reconcilePaymentOrder({ tenantId: 'other-tenant', orderId: 'po-1' }),
       /not found/i,
     );
+  });
+});
+
+describe('reconcileStalePaymentOrders', () => {
+  const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
+  const minutesAhead = (m: number) => new Date(Date.now() + m * 60_000);
+
+  beforeEach(() => {
+    gatewayFake.provider = 'razorpay';
+    gatewayFake.fetchPayment = async (id: string) => ({
+      id,
+      orderId: 'order_rzp_1',
+      status: 'captured',
+      amountPaise: 25_000,
+    });
+    fakeFor({
+      users: [{ id: userId, tenantId, depositBalance: 0 }],
+      paymentOrders: [
+        {
+          ...baseOrder,
+          id: 'stale-1',
+          provider: 'razorpay',
+          providerOrderId: 'order_rzp_1',
+          providerPaymentId: 'pay_1',
+          createdAt: minutesAgo(10),
+          expiresAt: minutesAhead(5),
+        },
+      ],
+    });
+  });
+
+  it('settles a stale pending order the webhook missed', async () => {
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.deepEqual(result, { scanned: 1, settled: 1, stillPending: 0, failed: 0, skipped: false });
+    assert.equal(fake.rowsOf('paymentOrder')[0].status, 'CAPTURED');
+    assert.equal(fake.rowsOf('user')[0].depositBalance, 250);
+    assert.equal(fake.rowsOf('walletLedger').length, 1);
+  });
+
+  it('is a no-op on the mock provider (nothing remote to ask)', async () => {
+    gatewayFake.provider = 'mock';
+    gatewayFake.fetchPayment = async () => {
+      throw new Error('must not be called');
+    };
+
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.equal(result.skipped, true);
+    assert.equal(result.scanned, 0);
+    assert.equal(fake.rowsOf('paymentOrder')[0].status, 'PENDING');
+    assert.equal(fake.rowsOf('user')[0].depositBalance, 0);
+  });
+
+  it('leaves a checkout that is still fresh alone', async () => {
+    fake.rowsOf('paymentOrder')[0].createdAt = minutesAgo(1);
+
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.equal(result.scanned, 0);
+    assert.equal(fake.rowsOf('paymentOrder')[0].status, 'PENDING');
+  });
+
+  it('leaves orders whose window already expired to the expiry sweep', async () => {
+    fake.rowsOf('paymentOrder')[0].expiresAt = minutesAgo(1);
+
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.equal(result.scanned, 0);
+    assert.equal(fake.rowsOf('paymentOrder')[0].status, 'PENDING');
+  });
+
+  it('ignores orders the gateway has no payment id for', async () => {
+    fake.rowsOf('paymentOrder')[0].providerPaymentId = null;
+
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.equal(result.scanned, 0);
+  });
+
+  it('never touches settled or failed orders', async () => {
+    fake.rowsOf('paymentOrder')[0].status = 'CAPTURED';
+
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.equal(result.scanned, 0);
+    assert.equal(fake.rowsOf('user')[0].depositBalance, 0);
+  });
+
+  it('counts an order the gateway says is still unpaid', async () => {
+    gatewayFake.fetchPayment = async (id: string) => ({
+      id,
+      orderId: 'order_rzp_1',
+      status: 'authorized',
+      amountPaise: 25_000,
+    });
+
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.equal(result.stillPending, 1);
+    assert.equal(result.settled, 0);
+    assert.equal(fake.rowsOf('paymentOrder')[0].status, 'PENDING');
+  });
+
+  it('one broken order never stops the sweep', async () => {
+    fake.rowsOf('paymentOrder').push({
+      ...fake.rowsOf('paymentOrder')[0],
+      id: 'stale-2',
+      providerPaymentId: 'pay_2',
+      createdAt: minutesAgo(20),
+    });
+    gatewayFake.fetchPayment = async (id: string) => {
+      if (id === 'pay_1') throw new Error('gateway exploded');
+      return { id, orderId: 'order_rzp_1', status: 'captured', amountPaise: 25_000 };
+    };
+
+    const result = await api.reconcileStalePaymentOrders();
+
+    assert.equal(result.scanned, 2);
+    assert.equal(result.failed, 1);
+    assert.equal(result.settled, 1);
+    assert.equal(fake.rowsOf('user')[0].depositBalance, 250, 'the healthy one still settled');
+  });
+
+  it('honours the batch limit so a huge backlog cannot hammer the gateway', async () => {
+    for (let i = 2; i <= 6; i += 1) {
+      fake.rowsOf('paymentOrder').push({
+        ...fake.rowsOf('paymentOrder')[0],
+        id: `stale-${i}`,
+        status: 'PENDING',
+        providerPaymentId: `pay_${i}`,
+        createdAt: minutesAgo(30),
+      });
+    }
+
+    const result = await api.reconcileStalePaymentOrders({ limit: 3 });
+
+    assert.equal(result.scanned, 3);
   });
 });

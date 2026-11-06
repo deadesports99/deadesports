@@ -85,6 +85,19 @@ Statuses: `CREATED → PENDING → CAPTURED`, or `FAILED` / `EXPIRED`.
 Orders auto-expire after `PAYMENT_ORDER_TTL_SECONDS` (default 900) via a sweep
 in `server.ts` (every `PAYMENT_EXPIRY_SWEEP_INTERVAL_MS`, default 5 min).
 
+### Two sweeps, two different jobs
+
+| Sweep | Question it answers | Scope |
+| --- | --- | --- |
+| Expiry (`expireStalePaymentOrders`) | "Did the player never pay?" | `CREATED`/`PENDING` past `expiresAt` -> `EXPIRED` |
+| Reconcile (`reconcileStalePaymentOrders`) | "Did the player pay but the webhook never arrived?" | unpaid, **older than 5 min**, window still open, gateway knows a payment id |
+
+The reconcile sweep asks the gateway (`fetchPayment`) and settles through the
+same idempotent claim as `/verify` and the webhook, so racing any of them can
+never credit twice. It is a **no-op on the mock provider** (nothing remote to
+ask), batches at most 20 orders, and one broken order never stops the run. It is
+what makes "player paid, money never landed" self-healing instead of a support ticket.
+
 ## 4. Configuration
 
 See `backend/.env.payment.example`. Defaults are mock-safe:
@@ -99,6 +112,7 @@ PAYMENT_MAX_AMOUNT_PAISE=1000000 # ₹10,000
 PAYMENT_ORDER_TTL_SECONDS=900
 PAYMENT_MOCK_AUTO_CAPTURE=true
 PAYMENT_EXPIRY_SWEEP_INTERVAL_MS=300000
+PAYMENT_RECONCILE_SWEEP_INTERVAL_MS=300000 # 0 disables it
 PUBLIC_BASE_URL=http://localhost:5000
 ```
 

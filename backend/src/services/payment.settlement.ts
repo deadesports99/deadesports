@@ -230,3 +230,67 @@ export async function reconcilePaymentOrder(
     creditedPaise: settled.creditedPaise,
   };
 }
+
+/**
+ * Reconcile sweep: find orders that are still unpaid AFTER the player's
+ * checkout window had a chance to finish, ask the gateway what really happened
+ * and settle anything it captured. This is the safety net for a webhook that
+ * never arrived (proxy, cold start, misconfigured URL) — without it the money
+ * sits in PENDING until a human taps Sync.
+ *
+ * Deliberately narrow:
+ *  - only CREATED/PENDING (never touches a settled or expired order); a gateway-side
+ *    `authorized` payment still lives locally as PENDING, so it is covered,
+ *  - only orders older than `olderThanMs` (a checkout in progress is not stale),
+ *  - only orders whose checkout window is still open (expiry owns the rest),
+ *  - only orders the gateway knows a payment id for,
+ *  - mock mode is a no-op (nothing remote to ask).
+ *
+ * Settlement is idempotent, so racing the webhook or another sweep is safe.
+ */
+export interface ReconcileSweepResult {
+  scanned: number;
+  settled: number;
+  stillPending: number;
+  failed: number;
+  /** True when the gateway cannot be queried (mock provider). */
+  skipped: boolean;
+}
+
+export async function reconcileStalePaymentOrders(
+  options: { olderThanMs?: number; limit?: number; now?: Date } = {},
+): Promise<ReconcileSweepResult> {
+  const empty: ReconcileSweepResult = { scanned: 0, settled: 0, stillPending: 0, failed: 0, skipped: false };
+
+  if (paymentGateway.provider === 'mock') return { ...empty, skipped: true };
+
+  const olderThanMs = Math.max(60_000, options.olderThanMs ?? 5 * 60_000);
+  const limit = Math.min(50, Math.max(1, Math.floor(options.limit ?? 20)));
+  const now = options.now ?? new Date();
+
+  const orders = await prisma.paymentOrder.findMany({
+    where: {
+      status: { in: ['CREATED', 'PENDING'] },
+      createdAt: { lt: new Date(now.getTime() - olderThanMs) },
+      expiresAt: { gt: now },
+      providerPaymentId: { not: null },
+    },
+    orderBy: { createdAt: 'asc' },
+    take: limit,
+  });
+
+  const result: ReconcileSweepResult = { ...empty, scanned: orders.length };
+
+  for (const order of orders) {
+    try {
+      const reconciled = await reconcilePaymentOrder({ tenantId: order.tenantId, orderId: order.id });
+      if (reconciled.status === 'CAPTURED') result.settled += 1;
+      else result.stillPending += 1;
+    } catch (err) {
+      result.failed += 1;
+      console.error(`✖ Reconcile failed for payment order ${order.id}:`, err);
+    }
+  }
+
+  return result;
+}

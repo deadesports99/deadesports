@@ -4,7 +4,7 @@ import { assertPaymentConfig } from './config/payment.js';
 import { disconnectPrisma } from './config/prisma.js';
 import { disconnectRedis } from './config/redis.js';
 import { startMatchSweepScheduler, stopMatchSweepScheduler } from './services/matchSweep.service.js';
-import { expireStalePaymentOrders } from './services/payment.settlement.js';
+import { expireStalePaymentOrders, reconcileStalePaymentOrders } from './services/payment.settlement.js';
 import { realtimeService } from './services/realtime.service.js';
 
 // Fail fast before accepting traffic: a misconfigured gateway must never
@@ -47,6 +47,30 @@ const paymentSweepTimer = setInterval(() => {
 }, env.PAYMENT_EXPIRY_SWEEP_INTERVAL_MS);
 paymentSweepTimer.unref?.();
 
+// 💳 Auto-reconcile sweep: a webhook that never arrived must not leave a paid
+// order sitting in PENDING. Only asks the gateway (a no-op on the mock provider).
+let reconcileSweepRunning = false;
+const reconcileSweepTimer =
+  env.PAYMENT_RECONCILE_SWEEP_INTERVAL_MS > 0
+    ? setInterval(() => {
+        if (reconcileSweepRunning) return;
+        reconcileSweepRunning = true;
+        void reconcileStalePaymentOrders()
+          .then((summary) => {
+            if (summary.settled > 0) {
+              console.log(
+                `💳 Reconcile sweep: settled ${summary.settled}/${summary.scanned} stale payment order(s).`,
+              );
+            }
+          })
+          .catch((err) => console.error('✖ Payment reconcile sweep failed:', err))
+          .finally(() => {
+            reconcileSweepRunning = false;
+          });
+      }, env.PAYMENT_RECONCILE_SWEEP_INTERVAL_MS)
+    : null;
+reconcileSweepTimer?.unref?.();
+
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 let shuttingDown = false;
@@ -58,6 +82,7 @@ async function shutdown(signal: string): Promise<void> {
   console.log(`\n⚠ ${signal} received — shutting down gracefully...`);
   stopMatchSweepScheduler();
   clearInterval(paymentSweepTimer);
+  if (reconcileSweepTimer) clearInterval(reconcileSweepTimer);
   realtimeService.shutdown();
 
   // Hard fail-safe: force exit if connections refuse to close.

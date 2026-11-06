@@ -73,6 +73,12 @@ const envSchema = z.object({
   /** Sweep interval that expires stale CREATED/PENDING orders (default 5 min). */
   PAYMENT_EXPIRY_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
 
+  /**
+   * Auto-reconcile sweep: ask the gateway about stale unpaid orders. `0` disables
+   * the sweep (useful for hosts that reconcile externally or during incidents).
+   */
+  PAYMENT_RECONCILE_SWEEP_INTERVAL_MS: z.coerce.number().int().nonnegative().default(300_000),
+
   /** Public HTTPS base URL used for checkout callbacks / demo links. */
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:5000'),
 });

@@ -20,7 +20,7 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 | A5 | JaCoCo XML into Sonar, Android back in coverage | ⬜ |
 | B1 | Backend `GET /payments/my` | ✅ |
 | B2 | Wallet screen "Recent top-ups" + Re-check | ✅ |
-| C1 | Auto-reconcile sweep | ⬜ |
+| C1 | Auto-reconcile sweep | ✅ |
 | D1 | Live Razorpay run (needs keys) | ⬜ |
 | E1 | Go-live cleanup (Section V2) | ⬜ |
 
@@ -105,10 +105,16 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 
 ## C. Auto-reconcile sweep
 
-**C1 (45 min)**
-- [ ] `paymentReconcileSweep`: pending orders older than 5 min → `reconcilePaymentOrder`,
-      env on/off, same interval pattern as the expiry sweep.
-- [ ] Tests: reconciles once, skips fresh orders, no-op in mock mode.
+**C1 (45 min)** — ✅ done
+- [x] `reconcileStalePaymentOrders()` in `payment.settlement.ts`: unpaid orders **older than 5 min**,
+      window still open, gateway knows a payment id -> ask the gateway -> settle through the same
+      idempotent claim. Batches 20, one broken order never stops the run, mock provider is a no-op.
+- [x] `server.ts` schedules it (`PAYMENT_RECONCILE_SWEEP_INTERVAL_MS`, default 5 min, `0` disables),
+      with an overlap guard and cleaned up on shutdown.
+- [x] 9 tests in `paymentSettlement.test.ts`: settles a missed webhook (balance + ledger), mock no-op,
+      fresh checkout untouched, expired window left to the expiry sweep, no payment id, never touches
+      CAPTURED, gateway says still unpaid, broken order vs healthy order, batch limit.
+- [x] Documented: "two sweeps, two different jobs" table in `docs/PAYMENT_GATEWAY.md`. 271 backend tests.
 
 ## D. Live gateway (blocked on keys)
 
