@@ -236,14 +236,60 @@ export const tournaments = {
     }),
 };
 
+export interface ApiPaymentOrder {
+  orderId: string;
+  provider: 'razorpay' | 'mock';
+  providerOrderId: string;
+  amountPaise: number;
+  currency: string;
+  keyId: string | null;
+  checkoutUrl: string | null;
+  expiresAt: string;
+}
+
+export interface ApiOrderStatus {
+  id: string;
+  status: 'CREATED' | 'PENDING' | 'CAPTURED' | 'FAILED' | 'EXPIRED';
+  amountPaise: number;
+  providerPaymentId: string | null;
+  capturedAt: string | null;
+}
+
+export const payments = {
+  /** Creates a gateway order; mock provider also returns a checkout page URL. */
+  createOrder: (amountRupees: number) =>
+    request<ApiPaymentOrder>('/payments/orders', {
+      method: 'POST',
+      body: JSON.stringify({ amountPaise: Math.round(amountRupees * 100) }),
+    }),
+
+  status: (orderId: string) => request<ApiOrderStatus>(`/payments/orders/${orderId}`),
+
+  /** Mock provider only: simulate the player paying (or failing) in checkout. */
+  demoPay: (providerOrderId: string, outcome: 'success' | 'failure' = 'success') =>
+    request<{ orderId: string; status: string }>('/payments/demo/pay', {
+      method: 'POST',
+      body: JSON.stringify({ orderId: providerOrderId, outcome }),
+    }),
+
+  my: () => request<ApiPaged<Record<string, unknown>>>('/payments/my'),
+};
+
 export const wallet = {
-  summary: () => request<ApiWallet>('/wallet'),
+  summary: (page = 1, limit = 25) => request<ApiWallet>(`/wallet?page=${page}&limit=${limit}`),
+
+  withdraw: (amountRupees: number, upiId: string) =>
+    request<{ withdrawalId: string; amount: string; status: string }>('/wallet/withdraw', {
+      method: 'POST',
+      body: JSON.stringify({ amount: amountRupees, upiId }),
+    }),
 };
 
 export const api = {
   auth,
   tournaments,
   wallet,
+  payments,
   tenantId: TENANT_ID,
   baseUrl: API_BASE,
 };

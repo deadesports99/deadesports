@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Theme, WalletMode, TxFilter, TransactionItem } from '../types';
 import { cx, formatINR } from '../utils/formatters';
@@ -32,6 +32,10 @@ interface WalletScreenProps {
   txFilter: TxFilter;
   setTxFilter: (filter: TxFilter) => void;
   onDeposit: () => void;
+  /** True while the gateway order is being created / settled. */
+  paying?: boolean;
+  /** Increments after a successful deposit or withdrawal request. */
+  paymentDone?: number;
   onWithdraw: () => void;
   copiedReference: string | null;
   onCopy: (reference: string) => void;
@@ -54,6 +58,8 @@ export function WalletScreen({
   setTxFilter,
   onDeposit,
   onWithdraw,
+  paying = false,
+  paymentDone = 0,
   copiedReference,
   onCopy,
 }: WalletScreenProps) {
@@ -67,6 +73,14 @@ export function WalletScreen({
   // Popups state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+
+  // The server owns the money: once a deposit/withdraw lands, close the sheet.
+  useEffect(() => {
+    if (paymentDone > 0) {
+      setIsAddOpen(false);
+      setIsWithdrawOpen(false);
+    }
+  }, [paymentDone]);
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -428,6 +442,7 @@ export function WalletScreen({
       <AddCashModal
         theme={theme}
         isOpen={isAddOpen}
+        busy={paying}
         onClose={() => setIsAddOpen(false)}
         addAmount={addAmount}
         setAddAmount={setAddAmount}
@@ -437,6 +452,7 @@ export function WalletScreen({
       <WithdrawModal
         theme={theme}
         isOpen={isWithdrawOpen}
+        busy={paying}
         onClose={() => setIsWithdrawOpen(false)}
         winningsCash={winningsCash}
         upiId={upiId}

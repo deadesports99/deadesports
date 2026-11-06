@@ -15,6 +15,8 @@ interface WithdrawModalProps {
   theme: Theme;
   isOpen: boolean;
   onClose: () => void;
+  /** True while the withdrawal request is in flight. */
+  busy?: boolean;
   winningsCash: number;
   upiId: string;
   setUpiId: (val: string) => void;
@@ -29,6 +31,7 @@ export function WithdrawModal({
   theme,
   isOpen,
   onClose,
+  busy = false,
   winningsCash,
   upiId,
   setUpiId,
@@ -374,7 +377,7 @@ export function WithdrawModal({
         {/* Payout CTA (Black & White Theme - NO YELLOW) */}
         <button
           type="button"
-          disabled={!isEligible}
+          disabled={!isEligible || busy}
           onClick={handleWithdraw}
           className={cx(
             'mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-black transition-all active:scale-[0.98]',

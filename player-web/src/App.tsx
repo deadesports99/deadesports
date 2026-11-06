@@ -17,6 +17,7 @@ import {
 import { generateUTR } from './utils/formatters';
 import { api, ApiError, DEV_AUTH, getStoredUser } from './lib/api';
 import { isFeedMatch, isJoinClosed, toMatch } from './lib/mappers';
+import type { ApiWallet } from './lib/api';
 
 // Common Components
 import { Ambient } from './components/common/Ambient';
@@ -37,6 +38,41 @@ import { OtpScreen } from './screens/auth/OtpScreen';
 import { TournamentsScreen } from './screens/TournamentsScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+
+const LEDGER_LOOK: Record<string, { category: TransactionItem['category']; title: string; badge: string; tone: TransactionItem['badgeTone'] }> = {
+  ADD_MONEY: { category: 'Deposits', title: 'Added Cash', badge: 'Deposit', tone: 'emerald' },
+  JOIN_FEE: { category: 'Entries', title: 'Entry Fee', badge: 'Confirmed', tone: 'cyan' },
+  WINNING_PRIZE: { category: 'Winnings', title: 'Prize Payout', badge: 'Winnings', tone: 'amber' },
+  WITHDRAWAL: { category: 'Withdrawals', title: 'Withdrawal', badge: 'Processing', tone: 'slate' },
+  REFUND: { category: 'Deposits', title: 'Refund', badge: 'Refunded', tone: 'emerald' },
+};
+
+/** Backend ledger row → the row shape the demo wallet list already renders. */
+function toTransaction(entry: ApiWallet['ledger'][number]): TransactionItem {
+  const look = LEDGER_LOOK[entry.category] ?? {
+    category: 'Deposits' as const,
+    title: entry.category,
+    badge: entry.type === 'CREDIT' ? 'Credit' : 'Debit',
+    tone: 'slate' as const,
+  };
+  const when = new Date(entry.createdAt);
+  const isToday = when.toDateString() === new Date().toDateString();
+  return {
+    id: entry.id,
+    title: entry.notes?.trim() || look.title,
+    amount: Number(entry.amount),
+    isCredit: entry.type === 'CREDIT',
+    category: look.category,
+    badgeText: look.badge,
+    badgeTone: look.tone,
+    time: when.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
+    dateGroup: isToday ? 'TODAY' : when.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' }).toUpperCase(),
+    closingBalance: Number(entry.balanceAfter),
+    reference: entry.referenceId ?? entry.id.slice(0, 12).toUpperCase(),
+    status: 'Success',
+    channel: entry.category === 'WINNING_PRIZE' ? 'freefire_win' : entry.category === 'JOIN_FEE' ? 'freefire_entry' : 'gpay',
+  };
+}
 
 /** Sent to the backend as the Firebase token in local/dev builds. */
 function toPhone(identifier: string): string {
@@ -85,6 +121,9 @@ export function App() {
   const [rawMatches, setRawMatches] = useState<Record<string, import('./lib/api').ApiTournament>>({});
   const [feedLoading, setFeedLoading] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [paying, setPaying] = useState(false);
+  /** Bumped after a successful deposit/withdraw so the wallet sheet closes. */
+  const [paymentDone, setPaymentDone] = useState(0);
   const [joinError, setJoinError] = useState<string | undefined>(undefined);
   const [profileIgn, setProfileIgn] = useState('');
   const [profileUid, setProfileUid] = useState('');
@@ -123,13 +162,22 @@ export function App() {
 
   const balance = depositCash + winningsCash;
 
+  /** Wallet balances + the real ledger, used by the Wallet screen. */
+  const loadWallet = async () => {
+    const summary = await api.wallet.summary(1, 25);
+    setDepositCash(Number(summary.depositBalance));
+    setWinningsCash(Number(summary.winningBalance));
+    setTransactions(summary.ledger.map(toTransaction));
+    return summary;
+  };
+
   /** Pull the player feed + wallet from the API (called on sign-in and refresh). */
   const loadFeed = async () => {
     setFeedLoading(true);
     try {
       const [list, wallet, me] = await Promise.all([
         api.tournaments.list(),
-        api.wallet.summary(),
+        api.wallet.summary(1, 25),
         api.auth.me().catch(() => null),
       ]);
 
@@ -139,6 +187,7 @@ export function App() {
       setJoinedIds(feed.filter((t) => t.mySlot).map((t) => t.id));
       setDepositCash(Number(wallet.depositBalance));
       setWinningsCash(Number(wallet.winningBalance));
+      setTransactions(wallet.ledger.map(toTransaction));
       if (me) {
         setProfileIgn(me.inGameName ?? '');
         setProfileUid(me.inGameUid ?? '');
@@ -215,36 +264,48 @@ export function App() {
     }
   };
 
-  const handleDeposit = () => {
+  const handleDeposit = async () => {
     const amount = Number(addAmount);
     if (!amount || amount < 10) {
       showToast('Minimum deposit is ₹10.', 'error');
       return;
     }
-    setDepositCash((value) => value + amount);
-    setTransactions((prev) => [
-      {
-        id: `tx-${Date.now()}`,
-        title: 'Added Cash via UPI',
-        amount,
-        isCredit: true,
-        category: 'Deposits',
-        channel: 'phonepe',
-        badgeText: 'Deposit',
-        badgeTone: 'emerald',
-        time: 'Just now',
-        dateGroup: 'TODAY',
-        closingBalance: (depositCash + winningsCash) + amount,
-        reference: generateUTR(),
-        payoutMethod: 'Instant UPI',
-        status: 'Success',
-      },
-      ...prev,
-    ]);
-    showToast(`Successfully added ₹${amount} via UPI!`);
+    if (paying) return;
+
+    setPaying(true);
+    try {
+      // The API owns the money move: create the gateway order, then settle it.
+      const order = await api.payments.createOrder(amount);
+
+      if (order.provider === 'mock') {
+        // Local demo: the mock checkout is simulated instantly (no real money).
+        await api.payments.demoPay(order.providerOrderId, 'success');
+      } else if (order.checkoutUrl) {
+        window.open(order.checkoutUrl, '_blank', 'noopener');
+      }
+
+      // Poll until the webhook/settlement flips the order to CAPTURED.
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const status = await api.payments.status(order.orderId);
+        if (status.status === 'CAPTURED') break;
+        if (status.status === 'FAILED' || status.status === 'EXPIRED') {
+          throw new Error(`Payment ${status.status.toLowerCase()}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+
+      await loadWallet();
+      setPaymentDone((n) => n + 1);
+      setAddAmount('');
+      showToast(`₹${amount} added to your wallet.`);
+    } catch (error) {
+      showToast(error instanceof ApiError ? error.message : (error as Error).message, 'error');
+    } finally {
+      setPaying(false);
+    }
   };
 
-  const handleWithdrawal = () => {
+  const handleWithdrawal = async () => {
     const amount = Number(withdrawAmount);
     if (!upiId.includes('@')) {
       showToast('Please enter a valid UPI VPA (e.g. name@oksbi).', 'error');
@@ -255,31 +316,23 @@ export function App() {
       return;
     }
     if (amount > winningsCash) {
-      showToast('Withdrawal exceeds your available Winnings cash balance.', 'error');
+      showToast('Withdrawal exceeds your Winnings cash balance.', 'error');
       return;
     }
+    if (paying) return;
 
-    setWinningsCash((value) => value - amount);
-    setTransactions((prev) => [
-      {
-        id: `tx-${Date.now()}`,
-        title: `Withdrawal to ${upiId}`,
-        amount,
-        isCredit: false,
-        category: 'Withdrawals',
-        channel: 'paytm',
-        badgeText: 'Transferred',
-        badgeTone: 'emerald',
-        time: 'Just now',
-        dateGroup: 'TODAY',
-        closingBalance: (depositCash + winningsCash) - amount,
-        reference: generateUTR(),
-        payoutMethod: `${upiId} (IMPS)`,
-        status: 'Success',
-      },
-      ...prev,
-    ]);
-    showToast(`₹${amount} transferred to ${upiId} instantly!`);
+    setPaying(true);
+    try {
+      await api.wallet.withdraw(amount, upiId);
+      await loadWallet();
+      setPaymentDone((n) => n + 1);
+      setWithdrawAmount('');
+      showToast(`₹${amount} withdrawal requested — admin will approve it.`);
+    } catch (error) {
+      showToast(error instanceof ApiError ? error.message : (error as Error).message, 'error');
+    } finally {
+      setPaying(false);
+    }
   };
 
   const handleCopy = (reference: string) => {
@@ -435,6 +488,8 @@ export function App() {
             setTxFilter={setTxFilter}
             onDeposit={handleDeposit}
             onWithdraw={handleWithdrawal}
+            paying={paying}
+            paymentDone={paymentDone}
             copiedReference={copiedReference}
             onCopy={handleCopy}
           />

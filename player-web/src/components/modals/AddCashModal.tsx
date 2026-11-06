@@ -33,6 +33,8 @@ interface AddCashModalProps {
   theme: Theme;
   isOpen: boolean;
   onClose: () => void;
+  /** True while the gateway order is being created / settled. */
+  busy?: boolean;
   addAmount: string;
   setAddAmount: (val: string) => void;
   onDeposit: () => void;
@@ -60,6 +62,7 @@ export function AddCashModal({
   theme,
   isOpen,
   onClose,
+  busy = false,
   addAmount,
   setAddAmount,
   onDeposit,
@@ -584,7 +587,7 @@ export function AddCashModal({
         {/* 4. Pay CTA (Black & White Theme - NO YELLOW) */}
         <button
           type="button"
-          disabled={amountNum < 10}
+          disabled={amountNum < 10 || busy}
           onClick={handlePay}
           className={cx(
             'mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-black transition-all active:scale-[0.98]',

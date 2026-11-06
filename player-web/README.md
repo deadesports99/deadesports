@@ -42,11 +42,21 @@ The backend needs `DEV_FAKE_FIREBASE=true` (already set in `backend/.env`) while
   * Prod: send a Firebase ID token through `api.auth.loginWithToken(phone, idToken)`.
 - **Session** — JWT + user in `localStorage`; the app reopens straight into the dashboard.
 - **Sign out** — clears the stored session.
+- **Tournaments** — `GET /tournaments` (joinable/live only), real prize pool, per-kill,
+  entry fee and seat counts; `↻ Refresh` re-fetches.
+- **Join** — the bottom sheet asks for **IGN + Free Fire UID**, calls
+  `POST /tournaments/:id/join`; the server debits the fee and books the seat.
+- **Wallet** — balances and passbook come from `GET /wallet` (deposit vs winning ledger).
+  **Add Cash** creates a gateway order (`POST /payments/orders`); with the mock provider it
+  settles through `/payments/demo/pay` and polls `GET /payments/orders/:id` until CAPTURED.
+  Real keys swap the same call for the Razorpay checkout URL.
+- **Withdraw** — `POST /wallet/withdraw` (winnings only, min ₹50), admin approves it.
+- **Settings** — shows the signed-in player from `GET /auth/me`.
 
 ## What is still mock
 
-Tournaments feed, match join, wallet balances, transactions, settings. Each one gets
-swapped to real data in the same order the user asked for (feed → join → wallet).
+Only decoration: payment-app logos, the notification badge and the demo marketing copy.
+Every number, list and money action on the screens above is live API data.
 
 ## Headless check
 
