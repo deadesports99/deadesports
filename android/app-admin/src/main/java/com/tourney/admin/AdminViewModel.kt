@@ -725,6 +725,8 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
                     "refunded to ${result.refundedPlayers} player(s)"
                 loadMatchOps()
                 loadTournaments()
+                // Publish Room ID lists live matches: drop the cancelled one immediately.
+                loadPublishTargets()
             } catch (e: ApiException) {
                 opsError = e.message
             } catch (e: Exception) {

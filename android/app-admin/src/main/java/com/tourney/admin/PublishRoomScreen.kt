@@ -10,7 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,11 +39,12 @@ import com.tourney.core.util.TimeAuthority
 import java.time.Instant
 
 /**
- * Publish Room ID (canUpdateRoomId).
+ * Publish Room ID (canUpdateRoomId) — the ONE place the custom room lives.
  *
- * Phase 9 — the admin decides WHEN players see the custom Room ID & Password:
- *   • auto-reveal N minutes before match start (default 15 = old T-15 rule)
- *   • or “Reveal to players now” / “Reveal immediately” at publish time
+ * Owner's rule: players receive the Room ID & Password only when an admin or
+ * sub-admin publishes them. There is no clock and no automatic drop, so this
+ * screen both publishes and edits an already published room, and it can
+ * cancel the match (full auto-refund) without leaving the section.
  */
 @Composable
 fun PublishRoomScreen(
@@ -52,8 +54,8 @@ fun PublishRoomScreen(
     var selectedId by remember { mutableStateOf<String?>(null) }
     var roomId by remember { mutableStateOf("") }
     var roomPassword by remember { mutableStateOf("") }
-    var revealNowOnPublish by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
+    var cancelTarget by remember { mutableStateOf<Tournament?>(null) }
 
     // Dedicated "publishable" list from the backend: only upcoming/open matches.
     // Old LIVE/COMPLETED matches from previous days never appear here.
@@ -79,7 +81,33 @@ fun PublishRoomScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Select tournament", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            // Cancel feedback lives above the picker: the cancelled match disappears
+            // from the list immediately, so the message must not be inside its card.
+            viewModel.opsMessage?.let {
+                Text(
+                    "✅ $it",
+                    fontSize = 12.sp,
+                    color = Color(0xFF00C853),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            viewModel.opsError?.let {
+                Text("⚠️ $it", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    "Select tournament",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextButton(onClick = { viewModel.loadPublishTargets() }) {
+                    Text("🔄 Refresh", fontSize = 12.sp)
+                }
+            }
 
             when (listState) {
                 AdminUi.Idle, AdminUi.Loading -> LoadingState("Loading tournaments…")
@@ -120,9 +148,11 @@ fun PublishRoomScreen(
                                 selected = t.id == selectedId,
                                 onClick = {
                                     selectedId = t.id
+                                    // Editing an existing room: prefill what players already see.
+                                    roomId = t.room?.roomId.orEmpty()
+                                    roomPassword = t.room?.roomPassword.orEmpty()
                                     viewModel.clearRoomRevealFeedback()
                                     done = false
-                                    revealNowOnPublish = false
                                 },
                             )
                         }
@@ -131,76 +161,43 @@ fun PublishRoomScreen(
             }
 
             if (selected != null) {
-                // ── Admin-controlled reveal timing ───────────────────────
-                val matchEpochMs = runCatching { Instant.parse(selected.matchTime).toEpochMilli() }.getOrNull()
-                val revealAtMs = selected.roomRevealAtEpochMs()
-                val statusText = when {
-                    selected.hasRoomCredentials != true -> "🔒 Room ID & Password not published yet"
-                    selected.roomUnlocked == true -> "✅ Visible to joined players right now"
-                    revealAtMs != null -> "🕒 Hidden — players see it at ${formatIstFullDateTime(revealAtMs)} IST"
-                    else -> "🕒 Hidden until the reveal window"
-                }
+                val matchEpochMs = runCatching { Instant.parse(selected.matchTime) }.getOrNull()
+                    ?.toEpochMilli()
+                // Staff always receive `room`, so "published" must come from the
+                // server flag (roomRevealedAt) — not from room != null.
+                val published = selected.roomUnlocked == true ||
+                    selected.status == com.tourney.core.model.TournamentStatus.ROOM_REVEALED
 
                 GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
-                    Text(
-                        "🔑 Room Reveal — ${selected.roomRevealLabel()}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                    )
+                    Text("🔑 Room ID & Password", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     matchEpochMs?.let {
                         Text("Match starts: ${formatIstFullDateTime(it)} IST", fontSize = 11.sp)
                     }
                     Text(
-                        statusText,
+                        when {
+                            published -> "✅ Published — joined players can see the code right now"
+                            selected.hasRoomCredentials == true ->
+                                "🕒 Saved but not published yet — players cannot see it"
+                            else -> "🔒 Not published yet"
+                        },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (selected.roomUnlocked == true) Color(0xFF00C853)
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (published) Color(0xFF00C853) else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-
                     Text(
-                        "Auto-reveal timing (tap to change):",
+                        "Players get the Room ID & Password the moment you publish. There is no timer — " +
+                            "publish when the custom room is actually open in Free Fire.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    ) {
-                        listOf(
-                            5 to "5m", 15 to "15m", 30 to "30m", 60 to "1h",
-                            120 to "2h", 360 to "6h", 720 to "12h", 1440 to "24h",
-                        ).forEach { (minutes, label) ->
-                            FilterChip(
-                                selected = selected.roomRevealMinutes == minutes,
-                                onClick = {
-                                    selectedId?.let {
-                                        viewModel.updateRoomReveal(it, roomRevealMinutes = minutes)
-                                    }
-                                },
-                                label = { Text(label, fontSize = 11.sp) },
-                            )
-                        }
-                    }
 
-                    if (selected.hasRoomCredentials == true && selected.roomUnlocked == false) {
+                    if (selected.status.name in
+                        setOf("DRAFT", "UPCOMING", "OPEN", "SLOTS_FULL", "ROOM_REVEALED")
+                    ) {
                         AppButton(
-                            text = if (viewModel.roomRevealBusyId == selected.id) {
-                                "⏳ Revealing…"
-                            } else {
-                                "🔑 Reveal to players now"
-                            },
-                            enabled = viewModel.roomRevealBusyId == null,
-                            onClick = { viewModel.updateRoomReveal(selected.id, revealNow = true) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                        )
-                        Text(
-                            "Bypasses the countdown — joined players see the code immediately.",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = "🚫 Cancel this match & refund players",
+                            onClick = { cancelTarget = selected },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         )
                     }
                 }
@@ -228,18 +225,11 @@ fun PublishRoomScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = revealNowOnPublish,
-                        onClick = { revealNowOnPublish = !revealNowOnPublish },
-                        label = { Text("Reveal to players immediately", fontSize = 11.sp) },
-                    )
-                }
                 Text(
-                    if (revealNowOnPublish) {
-                        "⚡ Publish will unlock the code for joined players right now."
+                    if (published) {
+                        "✏️ Edit the code below and publish again — players see the new values immediately."
                     } else {
-                        "🕒 Publish stores the code and unlocks it ${selected.roomRevealLabel()} (or whenever you press Reveal Now)."
+                        "⚡ Publishing shows the code to every joined player right away."
                     },
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -248,13 +238,8 @@ fun PublishRoomScreen(
                 when (publishState) {
                     is AdminUi.Error -> Text(publishState.message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                     is AdminUi.Success<*> -> if (done) {
-                        val creds = publishState.data as? com.tourney.core.model.RoomCredentials
                         Text(
-                            if (creds?.roomUnlocked == true) {
-                                "✅ Room published — players can see the Room ID & Password now."
-                            } else {
-                                "✅ Room saved — players will see it ${creds?.roomRevealMinutes ?: selected.roomRevealMinutes} min before start."
-                            },
+                            "✅ Room published — every joined player can see the Room ID & Password now.",
                             color = MaterialTheme.colorScheme.tertiary,
                             fontSize = 13.sp,
                         )
@@ -263,10 +248,10 @@ fun PublishRoomScreen(
                 }
 
                 AppButton(
-                    text = if (publishState is AdminUi.Loading) "Publishing…" else if (revealNowOnPublish) {
-                        "Publish & Reveal Now"
-                    } else {
-                        "Publish Room (auto reveal)"
+                    text = when {
+                        publishState is AdminUi.Loading -> "Publishing…"
+                        published -> "Update & publish to players"
+                        else -> "Publish to players"
                     },
                     enabled = (publishState !is AdminUi.Loading) && roomId.isNotBlank() && roomPassword.isNotBlank(),
                     onClick = {
@@ -275,12 +260,51 @@ fun PublishRoomScreen(
                             selectedId!!,
                             roomId.trim(),
                             roomPassword.trim(),
-                            revealNowOnPublish,
+                            revealNow = true,
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+    // ── Cancel the match from the room section (full auto-refund) ────────
+    cancelTarget?.let { match ->
+        var reason by remember(match.id) { mutableStateOf("Match cancelled by organiser") }
+        AlertDialog(
+            onDismissRequest = { cancelTarget = null },
+            title = { Text("Cancel ${match.displayName}?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Every booked seat is refunded in one transaction and the match is cancelled " +
+                            "for the players. This cannot be undone.",
+                        fontSize = 13.sp,
+                    )
+                    OutlinedTextField(
+                        value = reason,
+                        onValueChange = { reason = it.take(120) },
+                        label = { Text("Reason (players see this)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = reason.trim().length >= 5,
+                    onClick = {
+                        val id = match.id
+                        cancelTarget = null
+                        viewModel.cancelMatch(id, reason)
+                    },
+                ) {
+                    Text("Cancel & Refund", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { cancelTarget = null }) { Text("Keep match") }
+            },
+        )
+    }
         }
     }
 }
@@ -315,7 +339,13 @@ private fun TournamentRow(t: Tournament, selected: Boolean, onClick: () -> Unit)
             }
             Text(
                 "${t.matchType.name} • ${t.mapType.name} • ${t.slotsBooked}/48 booked • " +
-                    "reveal ${t.roomRevealLabel()}",
+                    if (t.roomUnlocked == true ||
+                        t.status == com.tourney.core.model.TournamentStatus.ROOM_REVEALED
+                    ) {
+                        "room published"
+                    } else {
+                        "room not published"
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,

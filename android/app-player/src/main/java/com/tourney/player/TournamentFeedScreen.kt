@@ -354,12 +354,12 @@ fun TournamentFeedScreen(
     // ── Joined Details Dialog ─────────────────────────────────────────────
     if (showJoinedDetailsDialog != null) {
         val t = showJoinedDetailsDialog!!
-        val isWithinWindow = t.isWithin15MinWindow()
+        val published = t.isRoomUnlockedNow()
         AlertDialog(
             onDismissRequest = { showJoinedDetailsDialog = null },
             title = {
                 Text(
-                    if (isWithinWindow) "⏳ Room ID Releasing Soon" else "🎟️ Match Entry Confirmed",
+                    if (published) "🔑 Room ID Available" else "🎟️ Match Entry Confirmed",
                     fontWeight = FontWeight.Bold,
                 )
             },
@@ -369,10 +369,10 @@ fun TournamentFeedScreen(
                     Text("✅ You are registered for this match!", color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
                     Text("⏰ Match Time: ${formatMatchTime(t.matchTime)}", fontSize = 13.sp)
                     Text(
-                        if (isWithinWindow) {
-                            "⏳ Organizer is creating the Custom Room in Free Fire. The Room ID & Password will drop right here in a few moments!"
+                        if (published) {
+                            "🔑 The organiser published the Room ID & Password — open the match to see it."
                         } else {
-                            "🔑 Room ID & Password will be revealed ${t.roomRevealLabel()}."
+                            "🕒 The organiser publishes the Room ID & Password when the custom room is ready. This screen updates automatically."
                         },
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -915,38 +915,34 @@ fun TournamentCard(
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (tournament.mySlot != null) {
-                    val isWithin15Min = tournament.isWithin15MinWindow() || tournament.status == TournamentStatus.ROOM_REVEALED || tournament.status == TournamentStatus.LIVE
+                    // The room appears only when the organiser publishes it — no countdown.
+                    val published = tournament.isRoomUnlockedNow()
                     val hasCredentials = tournament.room != null || tournament.hasRoomCredentials == true
 
-                    if (isWithin15Min && hasCredentials) {
+                    if (published && hasCredentials) {
                         AppButton(
                             text = "🔑 Get Room ID & Password",
                             onClick = onOpenRoom,
                             modifier = Modifier.weight(1f),
                         )
-                    } else if (isWithin15Min && !hasCredentials) {
-                        AppButton(
-                            text = "⏳ Room ID Dropping Soon...",
-                            onClick = onViewSeatClick,
-                            modifier = Modifier.weight(1f),
-                        )
                     } else {
-                        val secondsToRoom = tournament.secondsUntilRoomReveal(nowEpochMs)
                         AppButton(
-                            text = if (secondsToRoom > 0L) {
-                                "✅ Joined • Room in ${formatDurationShort(secondsToRoom)}"
-                            } else {
-                                "✅ Joined • Waiting for Room ID"
-                            },
+                            text = "✅ Joined • Waiting for Room ID",
                             onClick = onViewSeatClick,
                             modifier = Modifier.weight(1f),
                         )
                     }
                 } else if (tournament.status == TournamentStatus.UPCOMING || tournament.status == TournamentStatus.OPEN) {
+                    // Entry closes 1 minute before kickoff (same rule as the backend).
+                    val joinClosed = tournament.isJoinClosed(nowEpochMs)
                     AppButton(
-                        text = if (tournament.remainingSlots == 0) "🔒 Slots Full" else "⚡ Join Match",
+                        text = when {
+                            tournament.remainingSlots == 0 -> "🔒 Slots Full"
+                            joinClosed -> "⏱ Entry closed — joining stops 1 min before start"
+                            else -> "⚡ Join Match"
+                        },
                         onClick = onJoinClick,
-                        enabled = tournament.remainingSlots > 0,
+                        enabled = tournament.remainingSlots > 0 && !joinClosed,
                         modifier = Modifier.weight(1f),
                     )
                 } else if (tournament.status == TournamentStatus.LIVE) {

@@ -1,17 +1,18 @@
 import { ApiError } from '../utils/ApiError.js';
 
 /**
- * 🔑 ADMIN-CONTROLLED ROOM CREDENTIALS REVEAL
+ * 🔑 ADMIN-ONLY ROOM CREDENTIALS REVEAL
  *
- * Historically the custom Room ID & Password were hard-locked until T-15 min.
- * Now the admin decides per match:
- *   - roomRevealMinutes = N  -> auto reveal N minutes before match start
- *                              (default 15, same as the old behaviour)
- *   - roomRevealedAt != null -> admin pressed "Reveal Now" (or the auto
- *                              window already fired) => visible immediately.
+ * The owner's rule: a player may see the custom Room ID & Password **only after
+ * an admin or sub-admin publishes it**. There is no clock-based reveal any more —
+ * a match can start with no room at all, and the sweep must never hand the code
+ * out on its own.
  *
- * Every service (feed, details, room endpoint, lifecycle sweep) must use
- * these helpers so the rule is identical everywhere.
+ *   - roomRevealedAt != null -> staff pressed "Publish" => visible immediately
+ *   - roomRevealedAt == null -> nothing reaches the players, however close kickoff is
+ *
+ * Every service (feed, details, room endpoint) must use these helpers so the
+ * rule is identical everywhere.
  */
 
 export const DEFAULT_ROOM_REVEAL_MINUTES = 15;
@@ -37,23 +38,22 @@ export function resolveRoomRevealMinutes(raw: number | null | undefined): number
   return minutes;
 }
 
-/** Timestamp when credentials become visible automatically. */
+/**
+ * @deprecated kept for the legacy `roomRevealMinutes` column only.
+ * Nothing auto-reveals any more — credentials appear when staff publish them.
+ */
 export function roomRevealAt(matchTime: Date, roomRevealMinutes: number): Date {
   return new Date(matchTime.getTime() - roomRevealMinutes * MINUTE_MS);
 }
 
-/** True when players may see Room ID & Password right now. */
-export function isRoomUnlocked(t: RoomRevealFields, nowMs: number = Date.now()): boolean {
-  if (t.roomRevealedAt) return true;
-  const minutes = t.roomRevealMinutes ?? DEFAULT_ROOM_REVEAL_MINUTES;
-  return nowMs >= roomRevealAt(t.matchTime, minutes).getTime();
+/** True only after staff published the credentials. The clock never unlocks them. */
+export function isRoomUnlocked(t: RoomRevealFields, _nowMs: number = Date.now()): boolean {
+  return Boolean(t.roomRevealedAt);
 }
 
-/** Seconds until the auto-reveal window opens (0 when already visible). */
+/** No countdown exists any more: 0 means "already published", not "about to". */
 export function secondsUntilRoomReveal(t: RoomRevealFields, nowMs: number = Date.now()): number {
-  if (isRoomUnlocked(t, nowMs)) return 0;
-  const minutes = t.roomRevealMinutes ?? DEFAULT_ROOM_REVEAL_MINUTES;
-  return Math.max(0, Math.ceil((roomRevealAt(t.matchTime, minutes).getTime() - nowMs) / 1000));
+  return isRoomUnlocked(t, nowMs) ? 0 : 0;
 }
 
 /** "15 minutes", "2 hours", "1 hour 30 minutes" — used in API messages/UI. */
@@ -66,17 +66,14 @@ export function formatRevealWindowLabel(minutes: number): string {
   return mins === 0 ? hourLabel : `${hourLabel} ${mins} minute${mins === 1 ? '' : 's'}`;
 }
 
-/** Feed/API payload metadata about the reveal window. */
+/** Feed/API payload metadata about the reveal state. */
 export function roomRevealMeta(t: RoomRevealFields, nowMs: number = Date.now()) {
   const minutes = t.roomRevealMinutes ?? DEFAULT_ROOM_REVEAL_MINUTES;
-  const revealAt = roomRevealAt(t.matchTime, minutes);
-  const unlocked = isRoomUnlocked(t, nowMs);
   return {
     roomRevealMinutes: minutes,
-    roomRevealsAt: revealAt.toISOString(),
-    roomUnlocked: unlocked,
-    secondsUntilRoomReveal: unlocked
-      ? 0
-      : Math.max(0, Math.ceil((revealAt.getTime() - nowMs) / 1000)),
+    // No scheduled drop: the room shows up when staff publish it.
+    roomRevealsAt: null,
+    roomUnlocked: isRoomUnlocked(t, nowMs),
+    secondsUntilRoomReveal: 0,
   };
 }

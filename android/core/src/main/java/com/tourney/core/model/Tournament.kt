@@ -120,24 +120,17 @@ data class Tournament(
     }
 
     /**
-     * When the Room ID & Password become visible to joined players:
-     * the admin decides per match (default 15 minutes before start), or the
-     * admin can press "Reveal Now" (server sets roomRevealedAt -> roomUnlocked).
+     * The room is published by staff — never by a clock. `roomRevealsAt` is only
+     * set by older backends; the local fallback (matchTime - roomRevealMinutes)
+     * used to hand the code to players before the admin published anything.
      */
-    fun roomRevealAtEpochMs(): Long? {
-        roomRevealsAt?.let { at ->
-            runCatching { java.time.Instant.parse(at).toEpochMilli() }.getOrNull()?.let { return it }
-        }
-        val matchEpoch = runCatching { java.time.Instant.parse(matchTime).toEpochMilli() }.getOrNull()
-        return matchEpoch?.minus(roomRevealMinutes.toLong() * 60_000L)
-    }
+    fun roomRevealAtEpochMs(): Long? =
+        roomRevealsAt?.let { at -> runCatching { java.time.Instant.parse(at).toEpochMilli() }.getOrNull() }
 
-    /** True when players may see the Room ID & Password right now. */
+    /** True only after an admin/sub-admin published the Room ID & Password. */
     fun isRoomUnlockedNow(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean {
         if (roomUnlocked == true) return true
-        if (room != null) return true
-        val revealAt = roomRevealAtEpochMs() ?: return false
-        return nowEpochMs >= revealAt
+        return room != null
     }
 
     /** Returns true if the room reveal window is open (admin-controlled, not fixed T-15). */
@@ -148,18 +141,21 @@ data class Tournament(
     /** Returns true if room credentials can be shown right now to a joined player. */
     fun isRoomReadyToView(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean {
         if (mySlot == null) return false
-        val unlocked = isRoomUnlockedNow(nowEpochMs) ||
-            status == TournamentStatus.ROOM_REVEALED || status == TournamentStatus.LIVE
-        val hasCreds = room != null || hasRoomCredentials == true || status == TournamentStatus.ROOM_REVEALED
-        return unlocked && hasCreds
+        val published = isRoomUnlockedNow(nowEpochMs)
+        val hasCreds = room != null || hasRoomCredentials == true
+        return published && hasCreds
     }
 
-    /** Countdown until the admin's room reveal time (0 when credentials are visible). */
-    fun secondsUntilRoomReveal(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Long {
-        if (isRoomUnlockedNow(nowEpochMs)) return 0L
-        val revealAt = roomRevealAtEpochMs() ?: return Long.MAX_VALUE
-        return if (nowEpochMs >= revealAt) 0L else (revealAt - nowEpochMs) / 1000L
-    }
+    /** No countdown any more: 0 when published, [Long.MAX_VALUE] while it is not. */
+    fun secondsUntilRoomReveal(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Long =
+        if (isRoomUnlockedNow(nowEpochMs)) 0L else Long.MAX_VALUE
+
+    /**
+     * Entry closes 1 minute before kickoff (mirrors the backend rule), so a 6:00 PM
+     * match cannot be joined from 5:59 PM.
+     */
+    fun isJoinClosed(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean =
+        secondsUntilMatch(nowEpochMs) <= 60L
 
     /** Seconds until match kicks off. */
     fun secondsUntilMatch(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Long {
@@ -171,10 +167,9 @@ data class Tournament(
         return if (nowEpochMs >= matchEpoch) 0L else (matchEpoch - nowEpochMs) / 1000L
     }
 
-    /** Returns true if server time has crossed the admin's room reveal threshold. */
-    fun isRoomUnlockTime(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean {
-        return isRoomUnlockedNow(nowEpochMs)
-    }
+    /** True when staff already published the room credentials. */
+    fun isRoomUnlockTime(nowEpochMs: Long = TimeAuthority.currentTimeMillis()): Boolean =
+        isRoomUnlockedNow(nowEpochMs)
 
     /** "15 min before start", "2h before start", "1h 30m before start". */
     fun roomRevealLabel(): String {

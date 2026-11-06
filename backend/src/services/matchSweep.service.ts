@@ -1,37 +1,27 @@
 import { prisma } from '../config/prisma.js';
-import { pushToTournamentParticipants } from './fcm.service.js';
 import { realtimeService } from './realtime.service.js';
-import {
-  DEFAULT_ROOM_REVEAL_MINUTES,
-  MAX_ROOM_REVEAL_MINUTES,
-  MINUTE_MS,
-  isRoomUnlocked,
-  roomRevealAt,
-} from './roomReveal.js';
+import { DEFAULT_ROOM_REVEAL_MINUTES, MINUTE_MS } from './roomReveal.js';
 
 /**
  * 🕒 MATCH STATE-MACHINE SWEEP
  *
- * The tournament lifecycle is time driven:
+ * Only two things are time driven now:
  *
- *   UPCOMING / OPEN / SLOTS_FULL ──(T-Nmin)──► ROOM_REVEALED ──(kickoff)──► LIVE
+ *   UPCOMING / OPEN / SLOTS_FULL / ROOM_REVEALED ──(kickoff)──► LIVE ──(2h)──► UNDER_REVIEW
  *
- * N comes from the admin's per-match `roomRevealMinutes` (default 15 minutes,
- * same as the old fixed rule). Publishing a room with "Reveal Now" jumps
- * straight to ROOM_REVEALED. This sweep is the automatic safety net: it is safe
- * to run every minute and near-instantly after a backend restart, because every
- * transition is a conditional `updateMany` (PENDING-style guard) — two
- * concurrent sweeps can never double-fire a push notification.
+ * The room is **never** revealed on a clock: players see the custom Room ID &
+ * Password only after an admin/sub-admin publishes them (see roomReveal.ts).
+ * Joining closes 1 minute before kickoff (enforced in joinTournament).
+ *
+ * Safe to run every minute and right after a restart: every transition is a
+ * conditional `updateMany` guard, so two concurrent sweeps cannot double-fire.
  */
 
 /** Default reveal window (legacy export — per-match value lives on Tournament). */
 export const ROOM_REVEAL_WINDOW_MS = DEFAULT_ROOM_REVEAL_MINUTES * MINUTE_MS;
 
-/** Statuses that may still be auto-revealed by the sweep. */
-const REVEALABLE_STATUSES = ['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL'] as const;
-
-/** How far ahead we look for matches whose admin reveal window may have opened. */
-const MAX_REVEAL_LOOKAHEAD_MS = MAX_ROOM_REVEAL_MINUTES * MINUTE_MS;
+/** Not-yet-started statuses that must flip to LIVE at kickoff. */
+const PRE_MATCH_STATUSES = ['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
 
 /**
  * A LIVE match auto-moves to UNDER_REVIEW this long after kickoff, so the
@@ -48,8 +38,6 @@ export interface SweptMatch {
 
 export interface SweepResult {
   ranAt: string;
-  revealWindowMinutes: number;
-  roomRevealed: SweptMatch[];
   wentLive: SweptMatch[];
   /** LIVE matches automatically handed over to the results/payout queue. */
   movedToReview: SweptMatch[];
@@ -58,8 +46,8 @@ export interface SweepResult {
 /**
  * Advance every due match to its correct lifecycle state.
  *
- * 1. matchTime <= now + 15min  → ROOM_REVEALED (+FCM alert to participants)
- * 2. matchTime <= now          → LIVE
+ * 1. matchTime <= now → LIVE (from any pre-match status)
+ * 2. LIVE and 2h past kickoff → UNDER_REVIEW
  *
  * @param now   injectable clock (tests / replays)
  * @param tenantId optional tenant scope (used by the manual trigger)
@@ -79,91 +67,13 @@ export async function sweepMatchStates(
   }
 
   const tenantFilter = tenantId ? { tenantId } : {};
-  // Look ahead far enough for the largest admin-configured reveal window.
-  const revealCutoff = new Date(effectiveNow.getTime() + MAX_REVEAL_LOOKAHEAD_MS);
-
-  // ── Step 1: reveal rooms whose admin-configured reveal time has arrived ──
-  const revealCandidates = await prisma.tournament.findMany({
-    where: {
-      ...tenantFilter,
-      status: { in: [...REVEALABLE_STATUSES] },
-      matchTime: { lte: revealCutoff },
-    },
-    select: {
-      id: true,
-      title: true,
-      matchTime: true,
-      roomId: true,
-      roomRevealMinutes: true,
-      roomRevealedAt: true,
-    },
-    orderBy: { matchTime: 'asc' },
-  });
-
-  const roomRevealed: SweptMatch[] = [];
-  for (const candidate of revealCandidates) {
-    // Per-match admin window: skip matches whose reveal time is still ahead.
-    if (!isRoomUnlocked(candidate, effectiveNow.getTime())) continue;
-    const revealAt = roomRevealAt(candidate.matchTime, candidate.roomRevealMinutes);
-
-    const flipped = await prisma.tournament.updateMany({
-      where: { id: candidate.id, status: { in: [...REVEALABLE_STATUSES] } },
-      data: { status: 'ROOM_REVEALED', roomRevealedAt: effectiveNow },
-    });
-    if (flipped.count !== 1) continue; // someone else won the race — skip the push
-
-    roomRevealed.push({ id: candidate.id, title: candidate.title, matchTime: candidate.matchTime });
-    realtimeService.broadcast('MATCH_STATUS_CHANGED', {
-      tournamentId: candidate.id,
-      status: 'ROOM_REVEALED',
-    });
-
-    // If room credentials were saved earlier by admin, deliver them now.
-    if (candidate.roomId) {
-      try {
-        const creds = await prisma.tournament.findUnique({
-          where: { id: candidate.id },
-          select: { roomId: true, roomPassword: true, roomRevealedAt: true },
-        });
-        if (creds?.roomId && creds.roomPassword) {
-          const confirmedSlots = await prisma.tournamentSlot.findMany({
-            where: { tournamentId: candidate.id },
-            select: { userId: true },
-          });
-          if (confirmedSlots.length > 0) {
-            realtimeService.sendToUsers(
-              confirmedSlots.map((s) => s.userId),
-              'ROOM_CREDENTIALS_REVEALED',
-              {
-                tournamentId: candidate.id,
-                roomId: creds.roomId,
-                roomPassword: creds.roomPassword,
-                roomRevealedAt: creds.roomRevealedAt,
-              },
-            );
-          }
-        }
-      } catch (err) {
-        // A notification failure must not stop the sweep for other matches.
-        console.error('[sweep] room reveal notification failed:', err);
-      }
-    }
-
-    void pushToTournamentParticipants(candidate.id, {
-      type: 'ROOM_REVEALED',
-      tournamentId: candidate.id,
-      title: '🏟 Room Reveal Window Open!',
-      body: candidate.roomId
-        ? `Custom room is out for "${candidate.title}" — open the app for room ID & password.`
-        : `"${candidate.title}" room reveal window is open (${revealAt.toISOString()}). Room ID drops any moment.`,
-    });
-  }
-
-  // ── Step 2: kick off matches whose start time has arrived ────────────
+  // ── Step 1: kick off matches whose start time has arrived ────────────
+  // Any pre-match status goes LIVE at kickoff — a match whose room was never
+  // published must still start (the owner explicitly asked for this).
   const liveCandidates = await prisma.tournament.findMany({
     where: {
       ...tenantFilter,
-      status: 'ROOM_REVEALED',
+      status: { in: [...PRE_MATCH_STATUSES] },
       matchTime: { lte: effectiveNow },
     },
     select: { id: true, title: true, matchTime: true },
@@ -173,7 +83,7 @@ export async function sweepMatchStates(
   const wentLive: SweptMatch[] = [];
   for (const candidate of liveCandidates) {
     const flipped = await prisma.tournament.updateMany({
-      where: { id: candidate.id, status: 'ROOM_REVEALED' },
+      where: { id: candidate.id, status: { in: [...PRE_MATCH_STATUSES] } },
       data: { status: 'LIVE' },
     });
     if (flipped.count !== 1) continue;
@@ -185,7 +95,7 @@ export async function sweepMatchStates(
 
   }
 
-  // ── Step 3: LONG-FINISHED live matches → UNDER_REVIEW ───────────────
+  // ── Step 2: LONG-FINISHED live matches → UNDER_REVIEW ───────────────
   // The player app stops listing a match 3h after kickoff; this status flip
   // keeps the admin history honest ("match ended, results/payout pending")
   // instead of showing yesterday's match as "Live In-Progress" forever.
@@ -215,8 +125,6 @@ export async function sweepMatchStates(
 
   return {
     ranAt: effectiveNow.toISOString(),
-    revealWindowMinutes: ROOM_REVEAL_WINDOW_MS / 60000,
-    roomRevealed,
     wentLive,
     movedToReview,
   };
@@ -237,14 +145,9 @@ export function startMatchSweepScheduler(intervalMs = 60_000): void {
   const run = async (): Promise<void> => {
     try {
       const result = await sweepMatchStates();
-      if (
-        result.roomRevealed.length > 0 ||
-        result.wentLive.length > 0 ||
-        result.movedToReview.length > 0
-      ) {
+      if (result.wentLive.length > 0 || result.movedToReview.length > 0) {
         console.log(
-          `[sweep] revealed ${result.roomRevealed.length}, went live ${result.wentLive.length}, ` +
-            `moved to review ${result.movedToReview.length}`,
+          `[sweep] went live ${result.wentLive.length}, moved to review ${result.movedToReview.length}`,
         );
       }
     } catch (err) {

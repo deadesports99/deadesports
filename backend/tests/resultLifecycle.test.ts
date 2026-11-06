@@ -111,16 +111,26 @@ describe('room credentials lifecycle', () => {
     seed();
   });
 
-  it('publishes credentials without revealing them when the window is closed', async () => {
-    const out = await api.updateRoomCredentials(admin as any, tournamentId, ' 88221144 ', ' ff2026 ', false);
+  it('publishing is the reveal — players get the code the moment staff save it', async () => {
+    const out = await api.updateRoomCredentials(admin as any, tournamentId, ' 88221144 ', ' ff2026 ');
 
     assert.equal(out.room.roomId, '88221144', 'trimmed');
-    assert.equal(out.status, 'OPEN');
-    assert.equal(fake.rowsOf('tournament')[0].roomRevealedAt, null);
-    assert.equal(pushes.length, 0, 'no reveal alert yet');
+    assert.equal(out.status, 'ROOM_REVEALED');
+    assert.ok(fake.rowsOf('tournament')[0].roomRevealedAt instanceof Date);
+    assert.equal(pushes.filter((p) => p.type === 'ROOM_REVEALED').length, 1);
   });
 
-  it('reveals immediately (and notifies participants) when revealNow is set', async () => {
+  it('re-publishing an already visible room updates it without a second alert', async () => {
+    await api.updateRoomCredentials(admin as any, tournamentId, '88221144', 'ff2026');
+    const before = pushes.length;
+    const out = await api.updateRoomCredentials(admin as any, tournamentId, '99990000', 'newpw');
+
+    assert.equal(out.room.roomId, '99990000');
+    assert.equal(out.room.roomPassword, 'newpw');
+    assert.equal(pushes.length, before, 'no duplicate reveal alert');
+  });
+
+  it('revealNow still works for older clients', async () => {
     const out = await api.updateRoomCredentials(admin as any, tournamentId, '88221144', 'ff2026', true);
 
     assert.equal(out.status, 'ROOM_REVEALED');
@@ -133,8 +143,10 @@ describe('room credentials lifecycle', () => {
     assert.equal(pushes.filter((p) => p.type === 'ROOM_REVEALED').length, 1);
   });
 
-  it('auto-reveals when the admin window is already open', async () => {
-    seed({ matchTime: inMinutes(5) }); // 15 min window -> already open
+  it('never auto-reveals just because kickoff is close', async () => {
+    seed({ matchTime: inMinutes(5) }); // old T-15 rule would have opened this
+    await api.updateRoomReveal(admin as any, tournamentId, { roomRevealMinutes: 15 });
+    assert.equal(fake.rowsOf('tournament')[0].roomRevealedAt, null);
     const out = await api.updateRoomCredentials(admin as any, tournamentId, '11112222', 'pw');
     assert.equal(out.status, 'ROOM_REVEALED');
   });
@@ -182,25 +194,26 @@ describe('room credentials lifecycle', () => {
     );
   });
 
-  it('gates player access until the reveal window opens', async () => {
-    seed({ roomId: '88221144', roomPassword: 'ff2026', matchTime: inMinutes(120) });
+  it('gates player access until staff publish the room', async () => {
+    seed({ roomId: '88221144', roomPassword: 'ff2026', matchTime: inMinutes(5) });
 
+    // Kickoff is minutes away, but nobody published it: still locked.
     const early = await api.getRoomCredentials(player('player-1') as any, tournamentId).catch((e) => e);
     assert.equal(early.statusCode, 403);
-    assert.match(early.message, /revealed 15 minutes before match start/i);
-    assert.ok(early.details.secondsUntilReveal > 0);
+    assert.match(early.message, /not published yet/i);
 
     await assert.rejects(
       () => api.getRoomCredentials(player('outsider') as any, tournamentId),
       /Only confirmed participants/i,
     );
 
-    // Staff bypass the timer.
+    // Staff always see them.
     const staff = await api.getRoomCredentials(admin as any, tournamentId);
     assert.equal(staff.roomId, '88221144');
     assert.equal(staff.roomUnlocked, true);
 
-    seed({ roomId: '88221144', roomPassword: 'ff2026', matchTime: inMinutes(5) });
+    // After publishing, the slot holder gets them — no clock involved.
+    seed({ roomId: '88221144', roomPassword: 'ff2026', matchTime: inMinutes(5), roomRevealedAt: new Date() });
     const opened = await api.getRoomCredentials(player('player-1') as any, tournamentId);
     assert.equal(opened.roomPassword, 'ff2026');
     assert.equal(opened.secondsUntilReveal, 0);

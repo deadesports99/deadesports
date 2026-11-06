@@ -8,10 +8,8 @@ import { realtimeService } from './realtime.service.js';
 import {
   DEFAULT_ROOM_REVEAL_MINUTES,
   MINUTE_MS,
-  formatRevealWindowLabel,
   isRoomUnlocked,
   resolveRoomRevealMinutes,
-  roomRevealAt,
   roomRevealMeta,
   secondsUntilRoomReveal,
 } from './roomReveal.js';
@@ -62,29 +60,25 @@ export async function updateRoomCredentials(
     throw ApiError.conflict(`Cannot update room for a ${tournament.status} tournament`);
   }
 
+  // Publishing IS the reveal: the owner wants players to receive the custom room
+  // only when staff publish it, never on a clock. `revealNow` is kept as a no-op
+  // in the signature so older clients keep working.
+  void revealNow;
   const now = Date.now();
   const wasRevealed = Boolean(tournament.roomRevealedAt);
-  const autoWindowOpen =
-    now >= roomRevealAt(tournament.matchTime, tournament.roomRevealMinutes).getTime();
-  const shouldReveal = revealNow || wasRevealed || autoWindowOpen;
 
   const updated = await prisma.tournament.update({
     where: { id: tournamentId },
     data: {
       roomId: roomId.trim(),
       roomPassword: roomPassword.trim(),
-      ...(shouldReveal
-        ? {
-            roomRevealedAt: tournament.roomRevealedAt ?? new Date(),
-            status: 'ROOM_REVEALED' as const,
-          }
-        : {}),
+      roomRevealedAt: tournament.roomRevealedAt ?? new Date(),
+      status: 'ROOM_REVEALED' as const,
     },
   });
 
-  if (shouldReveal) {
-    await announceRoomReveal(staffUser.tenantId, updated, !wasRevealed);
-  }
+  // Editing an already published room updates the players silently.
+  await announceRoomReveal(staffUser.tenantId, updated, !wasRevealed);
 
   return {
     ...roomRevealMeta(updated, now),
@@ -184,14 +178,13 @@ export async function updateRoomReveal(
   }
 
   const now = Date.now();
+  // The window value is stored for history only — nothing auto-reveals any more.
   const minutes =
     input.roomRevealMinutes !== undefined
       ? resolveRoomRevealMinutes(input.roomRevealMinutes)
       : tournament.roomRevealMinutes;
   const wasRevealed = Boolean(tournament.roomRevealedAt);
-  const autoWindowOpen =
-    hasCredentials && now >= roomRevealAt(tournament.matchTime, minutes).getTime();
-  const shouldReveal = Boolean(input.revealNow) || wasRevealed || autoWindowOpen;
+  const shouldReveal = Boolean(input.revealNow) || wasRevealed;
 
   const updated = await prisma.tournament.update({
     where: { id: tournamentId },
@@ -227,15 +220,16 @@ export interface RoomAccessResult {
   roomRevealedAt: Date | null;
   matchTime: Date;
   roomRevealMinutes: number;
-  roomRevealsAt: string;
+  /** Always null now: the room appears when staff publish it, not on a clock. */
+  roomRevealsAt: string | null;
   roomUnlocked: boolean;
   secondsUntilReveal: number;
 }
 
 /**
- * Player access with the admin-controlled reveal gate.
- * Slot holders (or staff) may read credentials once the reveal window opens
- * or the admin pressed "Reveal Now".
+ * Player access with the admin-only reveal gate.
+ * Slot holders (or staff) may read credentials only after staff published them —
+ * there is no clock-based unlock.
  */
 export async function getRoomCredentials(user: AuthUser, tournamentId: string): Promise<RoomAccessResult> {
   const tournament = await prisma.tournament.findFirst({
@@ -261,15 +255,14 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
   const now = Date.now();
   const unlocked = isRoomUnlocked(tournament, now);
   const secondsUntilReveal = secondsUntilRoomReveal(tournament, now);
-  const unlockAt = roomRevealAt(tournament.matchTime, tournament.roomRevealMinutes);
 
-  // 2) Reveal gate: players cannot see credentials before the admin's window.
+  // 2) Reveal gate: nothing reaches players until staff publish the room.
   if (!isStaff(user) && !unlocked) {
     throw ApiError.forbidden(
-      `Room ID will be revealed ${formatRevealWindowLabel(tournament.roomRevealMinutes)} before match start`,
+      'Room ID & Password are not published yet — the organiser will publish them before the match',
       {
         secondsUntilReveal,
-        unlockAt: unlockAt.toISOString(),
+        unlockAt: null,
         matchTime: tournament.matchTime.toISOString(),
         roomRevealMinutes: tournament.roomRevealMinutes,
       },
@@ -282,7 +275,7 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
     roomRevealedAt: tournament.roomRevealedAt,
     matchTime: tournament.matchTime,
     roomRevealMinutes: tournament.roomRevealMinutes,
-    roomRevealsAt: unlockAt.toISOString(),
+    roomRevealsAt: null,
     roomUnlocked: true,
     secondsUntilReveal,
   };

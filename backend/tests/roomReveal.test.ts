@@ -44,16 +44,17 @@ describe('reveal window maths', () => {
     assert.equal(isRoomUnlocked(t, matchTime.getTime() - 10 * 60 * MINUTE_MS), true);
   });
 
-  it('isRoomUnlocked uses the default window when minutes are null', () => {
+  it('the clock alone never unlocks the room, however close kickoff is', () => {
     const t = { matchTime, roomRevealMinutes: null, roomRevealedAt: null };
-    // Default window is 15 minutes before the match: later than that = locked.
     assert.equal(isRoomUnlocked(t, matchTime.getTime() - 16 * MINUTE_MS), false);
-    assert.equal(isRoomUnlocked(t, matchTime.getTime() - 14 * MINUTE_MS), true);
+    assert.equal(isRoomUnlocked(t, matchTime.getTime() - 14 * MINUTE_MS), false);
+    assert.equal(isRoomUnlocked(t, matchTime.getTime()), false, 'even at kickoff');
+    assert.equal(isRoomUnlocked(t, matchTime.getTime() + 60 * MINUTE_MS), false, 'and after');
   });
 
-  it('secondsUntilRoomReveal counts down and floors at zero', () => {
+  it('secondsUntilRoomReveal is always zero — there is no countdown', () => {
     const t = { matchTime, roomRevealMinutes: 10, roomRevealedAt: null };
-    assert.equal(secondsUntilRoomReveal(t, matchTime.getTime() - 12 * MINUTE_MS), 120);
+    assert.equal(secondsUntilRoomReveal(t, matchTime.getTime() - 12 * MINUTE_MS), 0);
     assert.equal(secondsUntilRoomReveal(t, matchTime.getTime()), 0);
   });
 });
@@ -75,19 +76,20 @@ describe('formatRevealWindowLabel', () => {
 });
 
 describe('roomRevealMeta', () => {
-  it('reports locked state with a countdown', () => {
+  it('reports locked state with no scheduled drop', () => {
     const t = { matchTime, roomRevealMinutes: 30, roomRevealedAt: null };
     const meta = roomRevealMeta(t, matchTime.getTime() - 40 * MINUTE_MS);
     assert.equal(meta.roomUnlocked, false);
-    assert.equal(meta.roomRevealMinutes, 30);
-    assert.equal(meta.secondsUntilRoomReveal, 600);
-    assert.equal(meta.roomRevealsAt, roomRevealAt(matchTime, 30).toISOString());
+    assert.equal(meta.roomRevealMinutes, 30, 'legacy column is still echoed');
+    assert.equal(meta.secondsUntilRoomReveal, 0);
+    assert.equal(meta.roomRevealsAt, null);
   });
 
-  it('reports unlocked state with zero countdown', () => {
-    const t = { matchTime, roomRevealMinutes: 15, roomRevealedAt: null };
+  it('reports unlocked state once staff published the room', () => {
+    const t = { matchTime, roomRevealMinutes: 15, roomRevealedAt: new Date('2026-01-01T09:00:00Z') };
     const meta = roomRevealMeta(t, matchTime.getTime());
     assert.equal(meta.roomUnlocked, true);
     assert.equal(meta.secondsUntilRoomReveal, 0);
+    assert.equal(meta.roomRevealsAt, null);
   });
 });

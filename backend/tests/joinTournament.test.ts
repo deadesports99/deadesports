@@ -54,14 +54,14 @@ const tournamentId = 'tour-1';
 
 const user = { userId, tenantId, role: 'USER' } as any;
 
-function seed(opts: { deposit?: number; winning?: number; entryFee?: number; slots?: any[]; status?: string } = {}) {
+function seed(opts: { deposit?: number; winning?: number; entryFee?: number; slots?: any[]; status?: string; matchInMs?: number } = {}) {
   locks = [];
   fake = new FakePrisma({
     users: [{ id: userId, tenantId, depositBalance: opts.deposit ?? 100, winningBalance: opts.winning ?? 0, isBanned: false }],
     tournaments: [{
       id: tournamentId, tenantId, title: 'Bermuda Solo #1', status: opts.status ?? 'OPEN',
       matchType: 'SOLO', entryFee: opts.entryFee ?? 25, totalSlots: 48, visibleFrom: null,
-      matchTime: new Date(Date.now() + 3_600_000),
+      matchTime: new Date(Date.now() + (opts.matchInMs ?? 3_600_000)),
     }],
     tournamentSlots: opts.slots ?? [],
   });
@@ -133,6 +133,21 @@ describe('joinTournament — entry fee on the money path', () => {
     fake.rowsOf('tournament')[0].visibleFrom = new Date(Date.now() + 600_000);
     await assert.rejects(() => api.joinTournament(user, tournamentId, 1), /not open yet/i);
     assert.equal(fake.rowsOf('walletLedger').length, 0);
+  });
+
+  it('closes entry 1 minute before kickoff', async () => {
+    // A 6:00 PM match: 5:58 PM is still fine …
+    seed({ matchInMs: 2 * 60_000 });
+    await api.joinTournament(user, tournamentId, 1);
+
+    // … 5:59 PM is not.
+    seed({ matchInMs: 45_000 });
+    await assert.rejects(
+      () => api.joinTournament(user, tournamentId, 1),
+      /Entry closed — joining stops 1 minute before the match starts/i,
+    );
+    assert.equal(fake.rowsOf('walletLedger').length, 0, 'no fee taken');
+    assert.equal(fake.rowsOf('tournamentSlot').length, 0, 'no seat booked');
   });
 
   it('rejects invalid slot numbers and unknown tournaments', async () => {

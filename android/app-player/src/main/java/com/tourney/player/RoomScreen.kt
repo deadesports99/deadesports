@@ -28,14 +28,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.AppTopBar
-import com.tourney.core.ui.CountdownText
 import com.tourney.core.ui.ErrorState
 import com.tourney.core.ui.LoadingState
 
 /**
- * Timed Room ID screen — the anti-fraud gate:
- * - Locked: live countdown "Room credentials reveal in MM:SS" (T-15 min rule).
- * - Unlocked: Room ID + Password with 1-tap copy + haptic feedback.
+ * Room ID screen:
+ * - Locked: "the organiser has not published the room yet" (no countdown — the
+ *   room appears only when an admin/sub-admin publishes it).
+ * - Published: Room ID + Password with 1-tap copy + haptic feedback.
  * Only registered slot holders (or staff) ever get here.
  */
 @Composable
@@ -54,14 +54,12 @@ fun RoomScreen(
         copiedLabel = null
     }
 
-    // When the countdown reaches zero, re-poll to unlock automatically.
-    val lockedSeconds = (state as? RoomState.Locked)?.secondsUntilReveal
-    var lastTick by remember { mutableStateOf(0L) }
-    if (lockedSeconds != null && lockedSeconds > 0) {
-        LaunchedEffect(lockedSeconds) {
-            lastTick = lockedSeconds
-            kotlinx.coroutines.delay(1000)
-            // CountdownText drives its own ticking; here we only re-fetch once.
+    // Nothing unlocks on a clock any more: quietly re-poll so the room shows up
+    // as soon as the admin/sub-admin publishes it.
+    LaunchedEffect(tournamentId, state is RoomState.Locked) {
+        while (viewModel.roomState is RoomState.Locked) {
+            kotlinx.coroutines.delay(15_000)
+            viewModel.refreshRoom(tournamentId)
         }
     }
 
@@ -79,25 +77,30 @@ fun RoomScreen(
                 Text("🔒", fontSize = 44.sp)
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Room ID & Password are locked",
+                    "Room ID not published yet",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(8.dp))
-                CountdownText(remainingSeconds = state.secondsUntilReveal)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     state.message,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "Stay on this screen — the code unlocks automatically (or the organizer can reveal it earlier).",
+                    "The organiser publishes the Room ID & Password when the custom room is ready. " +
+                        "This screen checks again automatically.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
-                // Auto unlock when countdown ends.
-                AutoUnlock(seconds = state.secondsUntilReveal, onUnlock = { viewModel.refreshRoom(tournamentId) })
+                Spacer(Modifier.height(16.dp))
+                AppButton(
+                    text = "🔄 Check again",
+                    onClick = { viewModel.refreshRoom(tournamentId) },
+                )
             }
             is RoomState.Ready -> Column(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -141,16 +144,6 @@ fun RoomScreen(
                 }
             }
         }
-    }
-}
-
-/** Re-polls the room endpoint when the backend countdown expires. */
-@Composable
-private fun AutoUnlock(seconds: Long, onUnlock: () -> Unit) {
-    LaunchedEffect(seconds) {
-        // CountdownText already ticks per second; wait full duration, then unlock.
-        kotlinx.coroutines.delay(seconds * 1000L)
-        onUnlock()
     }
 }
 

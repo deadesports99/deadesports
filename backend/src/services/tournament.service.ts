@@ -32,6 +32,12 @@ const TEAM_SIZE: Record<'SOLO' | 'DUO' | 'SQUAD', number> = { SOLO: 1, DUO: 2, S
 /** Joinable tournament statuses. */
 const JOINABLE_STATUSES = ['UPCOMING', 'OPEN'] as const;
 
+/**
+ * Entry closes this long before kickoff: with a 6:00 PM match no one can join
+ * from 5:59 PM, so the batch and the room list are frozen before play starts.
+ */
+export const JOIN_CUTOFF_MS = 60 * 1000;
+
 /** Tournament statuses from which an admin may cancel + refund. */
 const CANCELLABLE_STATUSES = ['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
 
@@ -458,6 +464,13 @@ export async function joinTournament(
 
   if (!(JOINABLE_STATUSES as readonly string[]).includes(tournament.status)) {
     throw ApiError.conflict(`Tournament is not accepting entries (status: ${tournament.status})`);
+  }
+
+  // Joining closes 1 minute before the match starts (see JOIN_CUTOFF_MS).
+  if (tournament.matchTime.getTime() - Date.now() <= JOIN_CUTOFF_MS) {
+    throw ApiError.conflict(
+      'Entry closed — joining stops 1 minute before the match starts',
+    );
   }
 
   if ((inGameName || inGameUid) && saveAsDefault) {
