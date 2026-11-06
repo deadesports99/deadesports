@@ -12,6 +12,7 @@ import {
 import { Theme } from '../../types';
 import { cx, formatINR } from '../../utils/formatters';
 import { QUICK_ADD_AMOUNTS } from '../../data/mockData';
+import { PhonePeLogo, GPayLogo, PaytmLogo, BhimUpiLogo } from '../common/PaymentLogos';
 
 interface AddCashModalProps {
   theme: Theme;
@@ -25,10 +26,10 @@ interface AddCashModalProps {
 type PaymentMethodType = 'upi' | 'netbanking' | 'cards';
 
 const POPULAR_UPI = [
-  { id: 'gpay', name: 'Google Pay', icon: '⚡' },
-  { id: 'phonepe', name: 'PhonePe', icon: '🟣' },
-  { id: 'paytm', name: 'Paytm UPI', icon: '🔵' },
-  { id: 'bhim', name: 'BHIM / Any UPI', icon: '🇮🇳' },
+  { id: 'phonepe', name: 'PhonePe', type: 'phonepe' },
+  { id: 'gpay', name: 'Google Pay', type: 'gpay' },
+  { id: 'paytm', name: 'Paytm UPI', type: 'paytm' },
+  { id: 'bhim', name: 'BHIM / Any UPI', type: 'bhim' },
 ];
 
 const POPULAR_BANKS = [
@@ -262,6 +263,35 @@ export function AddCashModal({
               <div className="grid grid-cols-2 gap-2">
                 {POPULAR_UPI.map((app) => {
                   const isSelected = selectedUpi === app.id;
+                  const renderUpiIcon = () => {
+                    if (app.type === 'phonepe') {
+                      return (
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#5F259F] p-0.5 shadow-sm">
+                          <PhonePeLogo className="h-full w-full" />
+                        </div>
+                      );
+                    }
+                    if (app.type === 'gpay') {
+                      return (
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white p-1 shadow-sm ring-1 ring-slate-200">
+                          <GPayLogo className="h-full w-full" />
+                        </div>
+                      );
+                    }
+                    if (app.type === 'paytm') {
+                      return (
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white p-0.5 shadow-sm ring-1 ring-slate-200">
+                          <PaytmLogo />
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white p-1 shadow-sm ring-1 ring-slate-200">
+                        <BhimUpiLogo className="h-full w-full" />
+                      </div>
+                    );
+                  };
+
                   return (
                     <button
                       key={app.id}
@@ -278,8 +308,8 @@ export function AddCashModal({
                           : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50'
                       )}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{app.icon}</span>
+                      <div className="flex items-center gap-2.5">
+                        {renderUpiIcon()}
                         <span className="text-xs font-bold">{app.name}</span>
                       </div>
                       {isSelected && (

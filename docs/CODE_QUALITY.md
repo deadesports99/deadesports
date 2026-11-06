@@ -11,9 +11,10 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | 70.0 % | ❌ (test backlog) |
+| new_coverage | ≥ 80 % | 95.7 % new code / 89.6 % overall | ✅ |
 
-Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0).
+Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0), duplicate lines 1.2 %,
+254 backend tests green. Verified on `67aa8f1` after a local scan with coverage.
 
 ## What was fixed (2026-11)
 
@@ -70,17 +71,16 @@ npm run test:coverage   # writes coverage/lcov.info (paths normalised for Sonar)
 `coverage/lcov.info` (POSIX paths prefixed with `backend/`, test + generated files
 removed) which is what `sonar.javascript.lcov.reportPaths` consumes.
 
-## Why coverage is not 80 % yet
+## How the 80 % bar is met
 
-The project went from **0 tests** to a real suite, but 80 % of *new code* means
-~5 400 of 6 700 lines covered. Two suites are needed:
+The project went from **0 tests** to 254 backend tests. Coverage comes from a
+hand-written in-memory Prisma (`tests/helpers/fakePrisma.ts`) plus `node:test`
+`mock.module` for Redis, FCM, realtime and the gateway — no Postgres, no Redis, no
+network, so the suite runs anywhere in ~20 s.
 
-1. **Backend** — services talk to Prisma/Redis. Covering them needs either
-   dependency injection or Prisma/Redis mocks (`node:test` `mock.module`), plus a
-   throwaway Postgres for integration tests.
-2. **Android (Kotlin)** — currently 0 % and it is ~40 % of the codebase; needs
-   JUnit/Robolectric + Compose UI tests and a `jacocoTestReport` wired to
-   `sonar.coverage.jacoco.xmlReportPaths`.
+Backend is at **92 % of statements / 95.7 % of new lines**. The remaining gap is
+mostly `src/generated/**` (Prisma client, excluded), Kotlin (see above) and the
+error branches that need a real provider.
 
 Suggested ratchet (raise the threshold only after the suite catches up):
 
@@ -92,9 +92,8 @@ Suggested ratchet (raise the threshold only after the suite catches up):
 | done | 46 % | HTTP end-to-end (auth, deposit, join, withdraw, online top-up, RBAC, 404) |
 | done | 62 % | cancel + refund, lifecycle sweep, admin online payments, room reveal, 1-click payout |
 | done | 70 % | phone/Google/email login, staff management, player stats, admin players, tenant settings, daily settlement |
-| next | 80 % | admin HTTP routes (create match, room, payout, settlement CSV), Firebase token fallback |
-| later | 50 % | auth + tournament + result services, API route tests via supertest |
-| goal | 80 % | Kotlin unit tests (JUnit + JaCoCo) + full service coverage |
+| done | 80 %+ | admin HTTP routes (create match, room, payout, settlement CSV), auth doors, Razorpay webhook, Firebase claims fallback, realtime websocket, seat locks, Razorpay REST path |
+| next | keep | Kotlin unit tests (JUnit + MockK) + JaCoCo, then re-include `android/**` in coverage |
 
 Note: the free SonarCloud organisation cannot modify quality gates
 (`/api/qualitygates/select` → 403), so the default **Sonar way** gate stays in
@@ -124,4 +123,10 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `authFlows.test.ts` — phone OTP login (unknown/banned/disabled), Google one-tap register + login, email OTP send/verify (wrong/expired/replayed codes, hashed password), staff hire/update/deactivate, profile + push token
 - `playersAndTenant.test.ts` — career stats (booyahs, kills, winnings, best rank, DQ ignored), game profile conflict, admin search by 5 fields, ban/unban, tenant UPI/WhatsApp/min-deposit validation, auth switches
 - `settlementReport.test.ts` — daily P&L (deposits in, withdrawals out, per-match revenue, prizes, platform cut), empty day, date validation, CSV export contents
+- `adminApi.e2e.test.ts` — admin HTTP surface: match create/auto-title/clone/cancel+refund, room credentials, prize payout, settlement CSV, deposit + withdrawal approvals, staff CRUD, player search/ban, tenant settings, RBAC guards
+- `authAndWebhook.e2e.test.ts` — phone register/login/`/auth/me`, email OTP, FCM token, Razorpay webhook (bad signature, capture settles once, retry idempotent, failure marks FAILED), demo checkout page, `/payments/config`
+- `firebase.test.ts` — phone number normalisation, Admin SDK singleton, phone/Google token verification incl. demo bypass and JWT-claims fallback (issuer/audience checks)
+- `realtime.test.ts` — real websocket: CONNECTED ack with server time, query-string + AUTH handshake (good/bad token), PING/PONG, broadcast/user/users/tenant fan-out, tenant isolation, dead socket cleanup
+- `slotLock.test.ts` — Redis seat guard: every Lua code mapped (taken/already joined/full), DB fallback when Redis is down or throws, hydrate from DB, squad codes, join/full/not-found, outage no-ops
+- `paymentGatewayRazorpay.test.ts` — real REST branch with `fetch` stubbed: order payload + basic auth (secret never logged), gateway 400 → 502, unreachable/proxy HTML, missing keys, payment lookup, checkout + webhook HMAC
 - `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators + relations, increment/decrement, updateMany, upsert, orderBy/skip/take, includes, `$queryRaw`, `$transaction`)

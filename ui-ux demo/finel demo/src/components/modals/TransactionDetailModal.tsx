@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Theme, TransactionItem } from '../../types';
 import { cx, formatINR } from '../../utils/formatters';
+import { PhonePeLogo } from '../common/PaymentLogos';
 
 interface TransactionDetailModalProps {
   theme: Theme;
@@ -140,14 +141,34 @@ export function TransactionDetailModal({
 
         {/* Big Amount & Status Center Hero */}
         <div className="my-5 flex flex-col items-center text-center">
-          <div
-            className={cx(
-              'flex h-14 w-14 items-center justify-center rounded-2xl border shadow-lg mb-2.5',
-              meta.bg
-            )}
-          >
-            <IconComponent className={cx('h-7 w-7', meta.color)} />
-          </div>
+          {transaction.category === 'Winnings' || transaction.channel === 'freefire_win' ? (
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden border border-amber-400/50 shadow-lg shadow-amber-500/20 mb-2.5 bg-[#081326]">
+              <img src="/assets/games/freefire/icon.png" alt="Free Fire" className="h-full w-full object-cover" />
+              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-slate-950 ring-2 ring-slate-950 shadow-xs">
+                <Trophy className="h-3 w-3 fill-current" />
+              </div>
+            </div>
+          ) : transaction.category === 'Entries' || transaction.channel === 'freefire_entry' ? (
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden border border-cyan-400/50 shadow-lg shadow-cyan-500/20 mb-2.5 bg-[#081326]">
+              <img src="/assets/games/freefire/icon.png" alt="Free Fire" className="h-full w-full object-cover" />
+              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400 text-slate-950 ring-2 ring-slate-950 shadow-xs">
+                <Swords className="h-3 w-3" />
+              </div>
+            </div>
+          ) : transaction.channel === 'phonepe' || transaction.payoutMethod?.toLowerCase().includes('phonepe') || transaction.title?.toLowerCase().includes('phonepe') ? (
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-[#5F259F] p-2.5 border border-white/20 shadow-lg shadow-purple-500/30 mb-2.5">
+              <PhonePeLogo className="h-full w-full" />
+            </div>
+          ) : (
+            <div
+              className={cx(
+                'flex h-14 w-14 items-center justify-center rounded-2xl border shadow-lg mb-2.5',
+                meta.bg
+              )}
+            >
+              <IconComponent className={cx('h-7 w-7', meta.color)} />
+            </div>
+          )}
 
           <span
             className={cx(
