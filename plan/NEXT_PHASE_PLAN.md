@@ -15,7 +15,7 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 | A1 | Gradle test deps + JaCoCo in `core` | ✅ |
 | A2 | First Kotlin test file (models) | ✅ |
 | A3 | Money-call helper tests (`apiCall` + error mapping) | ✅ |
-| A3b | `PlayerViewModel` tests (needs Robolectric) | ⬜ |
+| A3b | `TopUpController` (pure) + 17 money-path tests | ✅ |
 | A4 | `AdminViewModel` tests (online tab + sync) | ⬜ |
 | A5 | JaCoCo XML into Sonar, Android back in coverage | ⬜ |
 | B1 | Backend `GET /payments/my` | ⬜ |
@@ -46,13 +46,20 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 - [x] `testImplementation(libs.org.json)` because `android.jar` ships only json stubs on the JVM.
 - Check: 12/12 Kotlin tests green, `core` line coverage 2.3 % → 3.8 %.
 
-**A3b — `PlayerViewModel` money flow (needs Robolectric, 1 h)**
-- [ ] Robolectric + `Application` so `AndroidViewModel` can be built; inject a fake `TourneyApi` into
-      `ApiClient` (reflection) or add a small seam.
-- [ ] Tests: order → verify → balance refresh; verify failure keeps balance unchanged; double-tap
-      Pay sends only one order; `syncTopUp` on a pending order settles once.
-- Why it is split: the ViewModel is `AndroidViewModel` + `SharedPreferences`, so plain JUnit cannot
-  build it; Robolectric is a ~100 MB download and deserves its own step.
+**A3b — top-up state machine, extracted and tested (1 h)** — ✅ done
+- [x] `core/payment/TopUpController.kt` — the money rules moved out of `PlayerViewModel` into a
+      framework-free class (`PaymentOrdersApi` interface + Compose state). No Android imports.
+- [x] `PlayerViewModel` now delegates (`activeTopUp`, `topUpMessage`, `topUpBusy`, `topUpSettled`,
+      `gatewayInfo`, `createTopUp`, `syncTopUp`, `clearTopUp` keep the same public API) and only
+      wires Retrofit + wallet refresh (`onSettled(rupees)`).
+- [x] `TopUpControllerTest` — 17 tests: one order at a time (double tap), minimum amount, gateway
+      failure, network crash, captured verify settles once + refreshes wallet with the right amount,
+      uncaptured verify keeps the order, missing signature falls back to server reconcile, bad
+      signature keeps money pending, cancel/error messages, Check status (already captured, late
+      capture, PENDING/FAILED/EXPIRED wording, no order, double tap), gateway info cached once,
+      clear resets everything.
+- Chose extraction over Robolectric: deterministic, no 100 MB download, and the ViewModel got thinner.
+- Check: 29 Kotlin tests green, `:app-player` + `:app-admin` assemble, `core` lines 3.8 % → 7.8 %.
 
 **A4 — `AdminViewModel` online tab (45 min)**
 - [ ] Today's collected total, status filter, `demoMode` banner flag, Sync calls reconcile once.
