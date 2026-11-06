@@ -75,4 +75,23 @@ class PaymentModelTest {
         assertEquals("Rahul", PaymentPlayer(inGameName = "  ", name = "Rahul").label)
         assertEquals("Unknown player", PaymentPlayer().label)
     }
+
+    @Test
+    fun `history rows explain their status in one word`() {
+        assertEquals("Paid", PlayerPayment(status = "CAPTURED").label)
+        assertEquals("Pending", PlayerPayment(status = "CREATED").label)
+        assertEquals("Pending", PlayerPayment(status = "AUTHORIZED").label)
+        assertEquals("Failed", PlayerPayment(status = "FAILED").label)
+        assertEquals("Expired", PlayerPayment(status = "EXPIRED").label)
+        assertEquals("WEIRD", PlayerPayment(status = "WEIRD").label)
+    }
+
+    @Test
+    fun `only unpaid rows offer Re-check`() {
+        assertTrue(PlayerPayment(status = "PENDING").isPending)
+        assertTrue(PlayerPayment(status = "AUTHORIZED").isPending)
+        assertFalse(PlayerPayment(status = "CAPTURED").isPending)
+        assertFalse(PlayerPayment(status = "EXPIRED").isPending)
+        assertFalse(PlayerPayment(status = "FAILED").isPending)
+    }
 }

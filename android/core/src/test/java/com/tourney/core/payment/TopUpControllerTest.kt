@@ -352,4 +352,48 @@ class TopUpControllerTest {
         assertFalse(vm.isBusy)
         assertFalse(vm.isSettled)
     }
+
+    // ── history Re-check ──────────────────────────────────────────────────
+    @Test
+    fun `Re-check from the history list settles without an open sheet`() = runTest {
+        val api = FakeApi().apply { status = "PENDING"; syncStatus = "CAPTURED" }
+        val settled = mutableListOf<Int>()
+        val vm = controller(api, settled)
+
+        vm.recheck(orderId = "o9", amountRupees = 500)
+        advanceUntilIdle()
+
+        assertEquals(1, api.statusCalls)
+        assertEquals(1, api.syncCalls)
+        assertTrue(vm.isSettled)
+        assertEquals("✅ ₹500 added to your wallet.", vm.message)
+        assertEquals(listOf(500), settled)
+    }
+
+    @Test
+    fun `Re-check on a still-unpaid order explains and credits nothing`() = runTest {
+        val api = FakeApi().apply { status = "PENDING"; syncStatus = "PENDING" }
+        val settled = mutableListOf<Int>()
+        val vm = controller(api, settled)
+
+        vm.recheck(orderId = "o9", amountRupees = 500)
+        advanceUntilIdle()
+
+        assertFalse(vm.isSettled)
+        assertEquals("Payment is still pending at the gateway. Try again in a minute.", vm.message)
+        assertTrue(settled.isEmpty())
+    }
+
+    @Test
+    fun `Re-check cannot run twice at the same time`() = runTest {
+        val api = FakeApi().apply { status = "PENDING"; syncStatus = "CAPTURED" }
+        val vm = controller(api)
+
+        vm.recheck(orderId = "o9", amountRupees = 500)
+        vm.recheck(orderId = "o9", amountRupees = 500)
+        advanceUntilIdle()
+
+        assertEquals(1, api.statusCalls)
+        assertEquals(1, api.syncCalls)
+    }
 }

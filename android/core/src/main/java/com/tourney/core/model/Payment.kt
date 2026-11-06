@@ -151,3 +151,43 @@ data class ReconcilePaymentResponse(
     @Json(name = "balanceAfter") val balanceAfter: Double? = null,
     @Json(name = "creditedPaise") val creditedPaise: Int? = null,
 )
+
+/** One row of GET /payments/my — the player's own top-up history. */
+@JsonClass(generateAdapter = true)
+data class PlayerPayment(
+    val id: String = "",
+    val amountPaise: Int = 0,
+    val amountRupees: Double = 0.0,
+    val currency: String = "INR",
+    val provider: String = "mock",
+    val status: String = "CREATED",
+    val providerOrderId: String? = null,
+    val providerPaymentId: String? = null,
+    val failureReason: String? = null,
+    val createdAt: String = "",
+    val capturedAt: String? = null,
+    val expiresAt: String? = null,
+) {
+    val isCaptured: Boolean get() = status == "CAPTURED"
+
+    /** Still waiting on the gateway — worth a "Re-check". */
+    val isPending: Boolean get() = status in setOf("CREATED", "PENDING", "AUTHORIZED")
+
+    /** One line the player can understand without support. */
+    val label: String
+        get() = when (status) {
+            "CAPTURED" -> "Paid"
+            "CREATED", "PENDING", "AUTHORIZED" -> "Pending"
+            "FAILED" -> "Failed"
+            "EXPIRED" -> "Expired"
+            else -> status
+        }
+}
+
+/** GET /payments/my response envelope data. */
+@JsonClass(generateAdapter = true)
+data class PlayerPaymentsResponse(
+    val items: List<PlayerPayment> = emptyList(),
+    val pagination: PaymentPagination = PaymentPagination(),
+    val demoMode: Boolean = false,
+)

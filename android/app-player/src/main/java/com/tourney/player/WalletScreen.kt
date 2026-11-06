@@ -1,5 +1,8 @@
 package com.tourney.player
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -7,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -34,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.model.LedgerEntry
 import com.tourney.core.model.PlayerDepositsResponse
+import com.tourney.core.model.PlayerPayment
+import com.tourney.core.model.PlayerPaymentsResponse
 import com.tourney.core.model.WalletSummary
 import com.tourney.core.ui.AppButton
 import com.tourney.core.ui.AppTopBar
@@ -59,6 +65,7 @@ fun WalletScreen(
 ) {
     val state = viewModel.walletUi
     val deposits = (viewModel.myDepositsUi as? UiState.Success)?.data
+    val topUps = (viewModel.myPaymentsUi as? UiState.Success)?.data
 
     var showWithdraw by remember { mutableStateOf(false) }
     var showDeposit by remember { mutableStateOf(false) }
@@ -66,7 +73,10 @@ fun WalletScreen(
     var showLowWinningAlert by remember { mutableStateOf(false) }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
-    LaunchedEffect(Unit) { viewModel.loadMyDeposits() }
+    LaunchedEffect(Unit) {
+        viewModel.loadMyDeposits()
+        viewModel.loadMyPayments()
+    }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -74,6 +84,7 @@ fun WalletScreen(
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshWallet(silent = true)
                 viewModel.loadMyDeposits()
+                viewModel.loadMyPayments()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -93,6 +104,7 @@ fun WalletScreen(
                     haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     viewModel.refreshWallet()
                     viewModel.loadMyDeposits()
+                    viewModel.loadMyPayments()
                 },
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -102,6 +114,8 @@ fun WalletScreen(
                     is UiState.Success -> WalletContent(
                         wallet = state.data,
                         deposits = deposits,
+                        topUps = topUps,
+                        onRecheck = { viewModel.recheckPayment(it) },
                         supportWhatsapp = viewModel.liveSettings.supportWhatsapp,
                         onAddMoney = {
                             viewModel.clearTopUp()
@@ -174,9 +188,11 @@ fun WalletScreen(
 private fun WalletContent(
     wallet: WalletSummary,
     deposits: PlayerDepositsResponse?,
+    topUps: PlayerPaymentsResponse?,
     supportWhatsapp: String,
     onAddMoney: () -> Unit,
     onWithdraw: () -> Unit,
+    onRecheck: (PlayerPayment) -> Unit,
 ) {
     val context = LocalContext.current
     LazyColumn(
@@ -241,6 +257,20 @@ private fun WalletContent(
                     onClick = onWithdraw,
                     modifier = Modifier.weight(1f),
                 )
+            }
+        }
+
+        val recent = topUps?.items.orEmpty()
+        if (recent.isNotEmpty()) {
+            item {
+                Text(
+                    "Recent top-ups",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            items(recent, key = { "topup-${it.id}" }) { payment ->
+                TopUpRow(payment = payment, onRecheck = { onRecheck(payment) })
             }
         }
 
@@ -326,6 +356,51 @@ private fun BalanceCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
         )
+    }
+}
+
+/**
+ * One online top-up. Pending rows get a Re-check button (the server reconcile is
+ * idempotent, so tapping twice can never credit twice).
+ */
+@Composable
+private fun TopUpRow(payment: PlayerPayment, onRecheck: () -> Unit) {
+    val tone = when {
+        payment.isCaptured -> MaterialTheme.colorScheme.primary
+        payment.isPending -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.error
+    }
+    GlassCard(cornerRadius = 12.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "₹${"%.0f".format(java.util.Locale.US, payment.amountRupees)}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        payment.label,
+                        color = tone,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .background(tone.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                Text(
+                    formatLedgerTime(payment.createdAt) +
+                        (payment.failureReason?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (payment.isPending) {
+                TextButton(onClick = onRecheck) { Text("Re-check", fontSize = 12.sp) }
+            }
+        }
     }
 }
 

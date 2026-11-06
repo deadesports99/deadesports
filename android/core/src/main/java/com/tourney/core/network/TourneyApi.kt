@@ -263,6 +263,13 @@ interface TourneyApi {
 
     // ─── Online payments (Razorpay / mock) ──────────────────────────────
     /** Public gateway info: provider, amount limits, demo flag. */
+    @GET("payments/my")
+    suspend fun myPayments(
+        @Query("status") status: String = "ALL",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 10,
+    ): ApiEnvelope<com.tourney.core.model.PlayerPaymentsResponse>
+
     @GET("payments/config")
     suspend fun paymentGatewayInfo(): ApiEnvelope<PaymentGatewayInfo>
 

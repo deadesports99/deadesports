@@ -19,7 +19,7 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 | A4 | `AdminPaymentsController` + 13 admin tests | ✅ |
 | A5 | JaCoCo XML into Sonar, Android back in coverage | ⬜ |
 | B1 | Backend `GET /payments/my` | ✅ |
-| B2 | Wallet screen "Recent top-ups" list | ⬜ |
+| B2 | Wallet screen "Recent top-ups" + Re-check | ✅ |
 | C1 | Auto-reconcile sweep | ⬜ |
 | D1 | Live Razorpay run (needs keys) | ⬜ |
 | E1 | Go-live cleanup (Section V2) | ⬜ |
@@ -88,9 +88,15 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
       rupees, PENDING/CAPTURED/FAILED filters, unknown filter 400, cross-player isolation, paging
       clamps + totalPages, and "listing never credits" (balance + ledger untouched).
 
-**B2 — Android (45 min)**
-- [ ] Wallet screen: "Recent top-ups (5)" list + tap for detail + **Re-check** (reconcile).
-- Check: on device, a FAILED order shows why and Re-check updates it.
+**B2 — Android (45 min)** — ✅ done
+- [x] `PlayerPayment` / `PlayerPaymentsResponse` models + `GET payments/my` in `TourneyApi`.
+- [x] Wallet screen "Recent top-ups" section: amount, one-word status chip (Paid / Pending / Failed /
+      Expired), time, failure reason, and a **Re-check** button only on unpaid rows.
+- [x] `TopUpController.recheck(orderId, amountRupees)` reuses the exact same idempotent reconcile
+      (no second code path), and the history reloads whenever money lands.
+- [x] Tests: 3 new `TopUpControllerTest` cases (settles from history, still-unpaid wording, double tap)
+      + 2 model cases (status wording, Re-check only on unpaid).
+- Check: 47 Kotlin tests green, both apps assemble. Device screenshot still pending.
 
 ## C. Auto-reconcile sweep
 

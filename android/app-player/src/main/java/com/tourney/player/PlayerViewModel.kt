@@ -11,6 +11,7 @@ import com.tourney.core.model.ApiException
 import com.tourney.core.model.CreatePaymentOrderRequest
 import com.tourney.core.model.DepositSubmitResponse
 import com.tourney.core.model.PaymentOrderCreated
+import com.tourney.core.model.PlayerPaymentsResponse
 import com.tourney.core.model.PaymentOrderStatus
 import com.tourney.core.model.PaymentGatewayInfo
 import com.tourney.core.model.VerifyPaymentRequest
@@ -598,6 +599,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         onSettled = { _ ->
             refreshWallet(silent = true)
             loadMyDeposits()
+            loadMyPayments()
         },
     )
 
@@ -617,6 +619,27 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val gatewayInfo: PaymentGatewayInfo? get() = topUpController.gatewayInfo
 
     fun loadGatewayInfo() = topUpController.loadGatewayInfo()
+
+    /** Player's own online top-up history (Wallet -> Recent top-ups). */
+    var myPaymentsUi by mutableStateOf<UiState<PlayerPaymentsResponse>>(UiState.Idle)
+        private set
+
+    fun loadMyPayments() {
+        viewModelScope.launch {
+            try {
+                myPaymentsUi = UiState.Success(apiCall { api.myPayments(limit = 8) })
+            } catch (e: ApiException) {
+                myPaymentsUi = UiState.Error(e.message)
+            } catch (_: Exception) {
+                myPaymentsUi = UiState.Error("Could not load your top-ups.")
+            }
+        }
+    }
+
+    /** Wallet history "Re-check": same idempotent reconcile the sheet uses. */
+    fun recheckPayment(order: com.tourney.core.model.PlayerPayment) {
+        topUpController.recheck(order.id, order.amountRupees.toInt())
+    }
 
     fun clearTopUp() = topUpController.clear()
 

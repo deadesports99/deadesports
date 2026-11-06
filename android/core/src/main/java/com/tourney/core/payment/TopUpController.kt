@@ -146,20 +146,32 @@ class TopUpController(
      */
     fun sync() {
         val order = activeOrder ?: return
+        syncOrder(order.orderId, order.amountRupees)
+    }
+
+    /**
+     * Re-check one order from the history list (Add Money may already be closed).
+     * Same idempotent server path, same messages.
+     */
+    fun recheck(orderId: String, amountRupees: Int) {
+        syncOrder(orderId, amountRupees)
+    }
+
+    private fun syncOrder(orderId: String, amountRupees: Int) {
         if (isBusy) return
         isBusy = true
         message = "Checking payment status…"
         scope.launch {
             try {
-                val local = orders.order(order.orderId)
+                val local = orders.order(orderId)
                 if (local.isCaptured) {
-                    settle(order.amountRupees)
+                    settle(amountRupees)
                     return@launch
                 }
 
-                val synced = orders.sync(order.orderId)
+                val synced = orders.sync(orderId)
                 if (synced.isCaptured) {
-                    settle(order.amountRupees)
+                    settle(amountRupees)
                 } else {
                     message = when (local.status) {
                         "PENDING" -> "Payment is still pending at the gateway. Try again in a minute."
