@@ -13,6 +13,29 @@ let app: App | null = null;
  *  2. Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS)
  *  3. Fallback to Project ID (enables public-key ID Token verification without private keys)
  */
+/**
+ * Local-development login, and **only** that.
+ *
+ * A dev machine has no Firebase service account, so `develop` builds cannot get a
+ * real ID token. This accepts `dev_otp_<phone>` / `dev_google_<uid>` when
+ * `NODE_ENV === 'development'` **and** `DEV_FAKE_FIREBASE === 'true'`; anything else
+ * falls through to real verification. `assertDevAuthConfig()` (called in server.ts)
+ * refuses to boot production with the flag set, so this can never ship enabled.
+ */
+export function isDevAuthEnabled(): boolean {
+  // Read live `process.env` (not the frozen `env` object) so a test can flip it.
+  return process.env.NODE_ENV === 'development' && process.env.DEV_FAKE_FIREBASE === 'true';
+}
+
+/** Throws if a production deploy still has the development login flag on. */
+export function assertDevAuthConfig(): void {
+  if (process.env.NODE_ENV === 'production' && process.env.DEV_FAKE_FIREBASE === 'true') {
+    throw new Error(
+      '❌ DEV_FAKE_FIREBASE=true is not allowed in production — unset it before deploying',
+    );
+  }
+}
+
 export function getFirebaseApp(): App | null {
   if (app) return app;
 
@@ -73,6 +96,11 @@ export async function verifyFirebasePhoneToken(
 ): Promise<{ uid: string; e164: string; national: string }> {
   if (!idToken || typeof idToken !== 'string') {
     throw ApiError.badRequest('Firebase idToken is required for OTP verification');
+  }
+
+  if (isDevAuthEnabled() && idToken.startsWith('dev_otp_')) {
+    const norm = normalizePhoneNumber(idToken.slice('dev_otp_'.length));
+    return { uid: `dev_${norm.national}`, e164: norm.e164, national: norm.national };
   }
 
   const fbApp = getFirebaseApp();
@@ -139,6 +167,11 @@ export interface VerifiedGoogleUser {
 export async function verifyFirebaseGoogleToken(idToken: string): Promise<VerifiedGoogleUser> {
   if (!idToken || typeof idToken !== 'string') {
     throw ApiError.badRequest('Firebase idToken is required for Google authentication');
+  }
+
+  if (isDevAuthEnabled() && idToken.startsWith('dev_google_')) {
+    const raw = idToken.slice('dev_google_'.length);
+    return { uid: `dev_${raw}`, email: `${raw}@gmail.com`, name: `Dev Gamer ${raw}` };
   }
 
   const fbApp = getFirebaseApp();

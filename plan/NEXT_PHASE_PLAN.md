@@ -187,3 +187,32 @@ Blocked on a human/account:
 - [ ] `rzp_test_*` keys in `backend/.env` → run `npx tsx src/scripts/razorpayLiveCheck.ts --create-order`.
 - [ ] One real ₹10 UPI payment on the device, then refund it.
 - [ ] Then repeat with `rzp_live_*` and a public HTTPS webhook URL.
+
+---
+
+## Live test on a real device (Realme P3 5G, local backend over `adb reverse`) — ✅
+
+Admin app, end to end, every screen touched:
+
+| Function | Result |
+| --- | --- |
+| Create Match | Match **#12 Bermuda Solo** created: ₹10 entry, ₹100 pool, ₹5/kill, 12:00 PM IST, listed immediately |
+| Publish Room ID | Room `88451230` / `ff2026` stored, status *hidden until T-15*, then **Reveal now** → `ROOM OUT` and visible to the player |
+| Spectator / End match | Winner by FF UID `123456789`, 2 kills → prize preview **50% of ₹100 + 2×₹5 = ₹60**, "winner APE-0214 paid" |
+| Manage Matches | Live / Upcoming / History tabs, seats 1/48, cancel+refund & clone actions present |
+| Wallet Console — Deposits | ₹50 UTR request approved with a confirmation dialog → balance credited instantly |
+| Wallet Console — Withdrawals | ₹60 payout approved with UTR `556677889900` → winning balance returned to ₹0 |
+| Wallet Console — Online | Demo banner, Today/Total summary (₹910 • 6 paid), status filters, per-row "Check with gateway" |
+| Player Management | 11 players, search by phone/UID works (1 result), **ban → BANNED badge → unban** both confirmed |
+| Staff Management | 3 staff, permission switch on/off saved ("Permissions updated ✓", badge updated) and reverted |
+| App Settings | Collecting UPI, payee name, WhatsApp, min add-cash, theme, auth methods |
+| Daily Settlement | Real day numbers: collections ₹60 (deposits ₹50 + fees ₹10), payouts ₹120 (withdrawals ₹60 + prizes ₹60), margin −₹50, 10% cut |
+
+Player app, screen by screen: match feed shows the new match with the right money, join charges ₹10
+(₹960 → ₹950), wallet "Recent top-ups" + ledger list, UTR add-cash with the in-app warning
+"Money is credited only after staff verify", prize ₹60 lands in the winning balance, withdrawal
+request, and the ledger reads: +₹50 → −₹10 → +₹60 → −₹60 with `Bal:` after every row.
+
+One UX note found while testing (not a bug): the UTR top-up is visible in the **Transactions** ledger
+but not in "Recent top-ups", which only lists gateway orders. Merging them (or labelling the section
+"Online top-ups") would make the manual flow easier to follow.

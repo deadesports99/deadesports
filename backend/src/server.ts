@@ -1,5 +1,6 @@
 import { app } from './app.js';
 import { env } from './config/env.js';
+import { assertDevAuthConfig } from './services/firebase.service.js';
 import { assertPaymentConfig } from './config/payment.js';
 import { disconnectPrisma } from './config/prisma.js';
 import { disconnectRedis } from './config/redis.js';
@@ -10,6 +11,7 @@ import { realtimeService } from './services/realtime.service.js';
 // Fail fast before accepting traffic: a misconfigured gateway must never
 // surface as a broken "Add Money" button for players.
 assertPaymentConfig();
+assertDevAuthConfig();
 
 /**
  * HTTP server listener with graceful shutdown.

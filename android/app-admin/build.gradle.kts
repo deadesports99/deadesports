@@ -97,6 +97,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // Dev-only "login without OTP" button is gated on BuildConfig.DEBUG.
+        buildConfig = true
     }
 
     // Use the generated directory as the complete asset source so the

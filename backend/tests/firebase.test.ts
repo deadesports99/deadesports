@@ -7,7 +7,7 @@
  * test auth now goes through `tests/helpers/fakeFirebase.ts`.
  */
 import assert from 'node:assert/strict';
-import { before, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import jwt from 'jsonwebtoken';
 
 process.env.NODE_ENV = 'test';
@@ -78,5 +78,41 @@ describe('verifyFirebaseGoogleToken', () => {
 
     const foreign = ID_TOKEN({ iss: 'https://evil.example', aud: 'someone-else', email: 'x@y.com' });
     await assert.rejects(() => fb.verifyFirebaseGoogleToken(foreign), /Invalid or expired/i);
+  });
+});
+
+describe('development login (DEV_FAKE_FIREBASE)', () => {
+  const previous = process.env.DEV_FAKE_FIREBASE;
+
+  after(() => {
+    if (previous === undefined) delete process.env.DEV_FAKE_FIREBASE;
+    else process.env.DEV_FAKE_FIREBASE = previous;
+  });
+
+  it('accepts dev tokens only when the flag is on in development', async () => {
+    const previousEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    process.env.DEV_FAKE_FIREBASE = 'true';
+    try {
+      assert.equal(fb.isDevAuthEnabled(), true);
+      const phone = await fb.verifyFirebasePhoneToken('dev_otp_9812345678');
+      assert.deepEqual(phone, { uid: 'dev_9812345678', e164: '+919812345678', national: '9812345678' });
+      const google = await fb.verifyFirebaseGoogleToken('dev_google_ravi');
+      assert.equal(google.uid, 'dev_ravi');
+
+      // Same token, production process -> refused.
+      process.env.NODE_ENV = 'production';
+      await assert.rejects(() => fb.verifyFirebasePhoneToken('dev_otp_9812345678'), /Invalid or expired/i);
+      assert.throws(() => fb.assertDevAuthConfig(), /not allowed in production/i);
+    } finally {
+      process.env.NODE_ENV = previousEnv;
+    }
+  });
+
+  it('never accepts dev tokens when the flag is off', async () => {
+    process.env.DEV_FAKE_FIREBASE = 'false';
+    assert.equal(fb.isDevAuthEnabled(), false);
+    await assert.rejects(() => fb.verifyFirebasePhoneToken('dev_otp_9812345678'), /Invalid or expired/i);
+    await assert.rejects(() => fb.verifyFirebaseGoogleToken('dev_google_ravi'), /Invalid or expired/i);
   });
 });

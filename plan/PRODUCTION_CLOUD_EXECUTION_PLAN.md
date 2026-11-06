@@ -494,6 +494,11 @@ Use small test amounts and record IDs for cleanup/refund.
 
 - [x] Both bypass branches **deleted** from `firebase.service.ts`; test auth uses `tests/helpers/fakeFirebase.ts`.
 - [x] `DEV_TEST_DEVICE_IDS`, the whitelist bypass and `DEV_UNLIMITED_DEVICE_ACCOUNTS` are gone.
+- [x] Device testing needs *some* login on a machine without Firebase credentials, so the bypass
+      returned as **one explicit flag**: `DEV_FAKE_FIREBASE=true` accepts `dev_otp_<phone>` /
+      `dev_google_<uid>` **only** when `NODE_ENV === 'development'`. `assertDevAuthConfig()` makes
+      booting production with it **fatal**, the Admin/Player debug APK has a "Dev login (no OTP)"
+      button that is compiled out of release builds, and `.env.production.example` ships it false.
 - [x] Policy = **max 2 accounts per device** (`MAX_ACCOUNTS_PER_DEVICE`), covered by `authService.test.ts`.
 
 ### C. Seeded demo data and demo tenants

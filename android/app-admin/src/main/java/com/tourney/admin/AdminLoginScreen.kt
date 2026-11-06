@@ -184,6 +184,23 @@ fun AdminLoginScreen(viewModel: AdminViewModel) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            // Debug builds only: no Firebase credentials on a dev machine, so the
+            // backend accepts `dev_otp_<phone>` when DEV_FAKE_FIREBASE=true in
+            // development. Never compiled into a release APK.
+            if (BuildConfig.DEBUG && phone.trim().length == 10) {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        error = null
+                        busy = true
+                        viewModel.login(phoneNumber = phone.trim(), idToken = "dev_otp_${phone.trim()}")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Dev login (no OTP)", fontSize = 12.sp)
+                }
+            }
         } else {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Text(

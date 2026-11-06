@@ -42,6 +42,14 @@ const envSchema = z.object({
   /** Firebase Project ID for public cert token verification. */
   FIREBASE_PROJECT_ID: z.string().default('deadesports-865d2'),
 
+  /**
+   * LOCAL DEVELOPMENT ONLY: accept `dev_otp_<phone>` / `dev_google_<uid>` tokens so
+   * a phone can log in without Firebase credentials. Refused unless
+   * NODE_ENV === 'development' **and** this is explicitly 'true'; booting production
+   * with it set is fatal (see assertDevAuthConfig).
+   */
+  DEV_FAKE_FIREBASE: z.string().optional(),
+
   // ─── Online payment gateway (wallet top-up) ───────────────────────────
   /** `mock` = no keys needed (demo), `razorpay` = real Indian gateway. */
   PAYMENT_PROVIDER: z.enum(['mock', 'razorpay']).default('mock'),
