@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -112,11 +113,15 @@ fun CreateTournamentScreen(
 
     val uiState = viewModel.createUi
 
-    // Success → confirm + leave
+    // Success → confirm + leave. The result is consumed first: leaving `Success` in
+    // the ViewModel made the next visit pop itself back to the dashboard instantly.
     LaunchedEffect(uiState) {
         when (uiState) {
             is AdminUi.Error -> error = uiState.message
-            is AdminUi.Success<*> -> onCreated()
+            is AdminUi.Success<*> -> {
+                viewModel.clearCreateState()
+                onCreated()
+            }
             else -> {}
         }
     }
@@ -147,6 +152,8 @@ fun CreateTournamentScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                // The numeric keyboard used to cover the submit button at the very bottom.
+                .imePadding()
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

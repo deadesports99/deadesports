@@ -239,3 +239,19 @@ toggled the hacker flag (reason field appeared), un-toggled it, tapped payout �
 
 Also fixed while there: the scorer used to keep a stale *Network error* state forever when it was
 opened again — it now reloads unless it already has data.
+
+### Create Match refused to open a second time, and the keyboard hid the button ✅
+
+Reported: "ek match create karne ke baad dusra banane gaya to section me ghusne hi nahi diya".
+
+Root cause: `AdminViewModel.createUi` stayed `AdminUi.Success` after a successful create. `CreateTournamentScreen` has
+`LaunchedEffect(uiState) { is Success -> onCreated() }`, so the *next* visit to the form ran that effect on the stale
+success and called `popBackStack()` immediately — the screen opened and closed in the same frame, which reads as
+"the button does nothing". Fix: `clearCreateState()` is called before leaving, so the state is consumed exactly once.
+
+Second, smaller defect found while verifying: the numeric keyboard covered the bottom "Create Tournament" button, so a
+scroll could not reach it. The form now uses `imePadding()`.
+
+Verified on device: create → back to dashboard → *Create Match* opens again with a blank form → created
+`#16 (₹30 / ₹300)` and `#17 (₹40 / ₹400)` back to back, both listed correctly in Manage Matches under *Upcoming*,
+then cancelled (`₹0 refunded to 0 players`) to leave the demo data clean.

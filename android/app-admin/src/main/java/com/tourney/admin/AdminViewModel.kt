@@ -161,6 +161,17 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
     var createUi by mutableStateOf<AdminUi<Tournament>>(AdminUi.Idle)
         private set
 
+    /**
+     * One-shot consume of [createUi] by the create screen.
+     *
+     * A finished create used to leave `Success` behind, so the *next* visit to the
+     * form hit `LaunchedEffect(uiState)` with that old success and bounced straight
+     * back to the dashboard — the section refused to open for a second match.
+     */
+    fun clearCreateState() {
+        createUi = AdminUi.Idle
+    }
+
     fun createTournament(request: CreateTournamentRequest) {
         createUi = AdminUi.Loading
         viewModelScope.launch {
