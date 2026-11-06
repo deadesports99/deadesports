@@ -36,6 +36,15 @@ object DemoColors {
     /** Muted surface (dimmed chips, inner strips): dark card vs slate-100. */
     val CardMuted: Color get() = if (isDark) Color(0xFF0B1526) else Color(0xFFF1F5F9)
 
+    /** Inner stat strip inside a card: slate-900/75 in dark, slate-50 in light. */
+    val Strip: Color get() = if (isDark) Color(0xBF0F172A) else Color(0xFFF8FAFC)
+
+    /** Small chips/map tags: slate-800/80 in dark, slate-100 in light. */
+    val ChipBg: Color get() = if (isDark) Color(0xCC1E293B) else Color(0xFFF1F5F9)
+
+    /** Progress track: slate-800 in dark, slate-200 in light. */
+    val Track: Color get() = if (isDark) Color(0xFF1E293B) else Color(0xFFE2E8F0)
+
     /** Deepest surface: input fields, inner stat strips. */
     val Field: Color get() = if (isDark) Color(0xFF060B14) else Color(0xFFF8FAFC)
 
