@@ -216,6 +216,18 @@ export class FakePrisma {
             (out._sum as Row)[field] = rows.reduce((acc, r) => acc + (Number(r[field]) || 0), 0);
           }
         }
+        for (const [op, builder] of [['_max', Math.max], ['_min', Math.min]] as const) {
+          const spec = args[op] as Row | undefined;
+          if (!spec) continue;
+          out[op] = {} as Row;
+          for (const [field, enabled] of Object.entries(spec)) {
+            if (!enabled) continue;
+            const values = rows.map((r) => r[field]).filter((v) => v !== null && v !== undefined);
+            (out[op] as Row)[field] = values.length
+              ? values.map((v) => (v instanceof Date ? v.getTime() : plain(v))).reduce(builder as any)
+              : null;
+          }
+        }
         if (args._count === true) out._count = rows.length;
         else if (args._count && typeof args._count === 'object') {
           // `_count: { _all: true, field: true }` -> counts, like Prisma.
@@ -243,22 +255,25 @@ export class FakePrisma {
         // The real schema generates ids server-side; mirror that here.
         const row = { id: `${model}-${++this.idSeq}`, createdAt: new Date(), ...args.data };
         this.rows(model).push(row);
-        return project(row, args.select);
+        return this.withIncludes(model, project(row, args.select), args.include) as Row;
       },
       upsert: async (args: any = {}) => {
         this.log(model, 'upsert', args);
         const found = this.rows(model).find((r) => matches(r, args.where));
-        if (found) { applyData(found, args.update); return project(found, args.select); }
-        const row = { createdAt: new Date(), ...args.create };
+        if (found) {
+          applyData(found, args.update);
+          return this.withIncludes(model, project(found, args.select), args.include) as Row;
+        }
+        const row = { id: `${model}-${++this.idSeq}`, createdAt: new Date(), ...args.create };
         this.rows(model).push(row);
-        return project(row, args.select);
+        return this.withIncludes(model, project(row, args.select), args.include) as Row;
       },
       update: async (args: any = {}) => {
         this.log(model, 'update', args);
         const row = this.rows(model).find((r) => matches(r, args.where));
         if (!row) throw new Error(`${model}.update: not found`);
         applyData(row, args.data);
-        return project(row, args.select);
+        return this.withIncludes(model, project(row, args.select), args.include) as Row;
       },
       delete: async (args: any = {}) => {
         this.log(model, 'delete', args);
@@ -307,9 +322,22 @@ export class FakePrisma {
 
   /** Resolve `include: { user: true }`. */
   private withIncludes(model: ModelName, row: Row | null, include: Row | undefined): Row | null {
-    if (!row || !include || !FakePrisma.RELATIONAL.includes(model) || !include.user) return row;
-    const owner = this.store.user.find((u) => u.id === row.userId);
-    return { ...row, user: owner };
+    if (!row || !include) return row;
+
+    let result: Row = row;
+    if (FakePrisma.RELATIONAL.includes(model) && include.user) {
+      result = { ...result, user: this.store.user.find((u) => u.id === result.userId) };
+    }
+
+    // `include: { _count: { select: { slots: true } } }`
+    const countSelect = (include._count as Row | undefined)?.select as Row | undefined;
+    if (countSelect?.slots) {
+      const slots = this.store.tournamentSlot.filter((s) =>
+        model === 'tournament' ? s.tournamentId === result.id : s.userId === result.id,
+      );
+      result = { ...result, _count: { ...(result._count as Row | undefined), slots: slots.length } };
+    }
+    return result;
   }
 
   /** `SELECT ... FOR UPDATE` used to lock the tournament row. */
