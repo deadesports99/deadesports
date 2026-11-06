@@ -10,6 +10,7 @@ coroutines = "1.9.0"
 junit = "4.13.2"
 mockk = "1.13.13"
 jacoco = "0.8.12"
+orgJson = "20240303"
 datastore = "1.1.1"
 retrofit = "2.11.0"
 moshi = "1.15.1"
@@ -36,6 +37,8 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+# Real org.json for JVM tests (android.jar ships stubs).
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-converter-moshi = { group = "com.squareup.retrofit2", name = "converter-moshi", version.ref = "retrofit" }
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }

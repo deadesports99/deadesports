@@ -14,7 +14,8 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 | --- | --- | --- |
 | A1 | Gradle test deps + JaCoCo in `core` | ✅ |
 | A2 | First Kotlin test file (models) | ✅ |
-| A3 | `PlayerViewModel` add-money tests | ⬜ |
+| A3 | Money-call helper tests (`apiCall` + error mapping) | ✅ |
+| A3b | `PlayerViewModel` tests (needs Robolectric) | ⬜ |
 | A4 | `AdminViewModel` tests (online tab + sync) | ⬜ |
 | A5 | JaCoCo XML into Sonar, Android back in coverage | ⬜ |
 | B1 | Backend `GET /payments/my` | ⬜ |
@@ -38,10 +39,20 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
       razorpay vs mock checkout, CAPTURED-only rule, settlement flags, gateway limits, admin label fallback.
 - Check: `tests="6" failures="0"`, JaCoCo XML written (`core/build/reports/jacoco/jacocoTestReport/`).
 
-**A3 — `PlayerViewModel` money flow (45 min)**
-- [ ] Fake API returns order → verify → balance refresh; verify failure keeps balance unchanged;
-      double-tap Pay sends only one order.
-- Check: `:app-player:test` green; no Compose needed (coroutines-test only).
+**A3 — money-call helper (`apiCall`) (45 min)** — ✅ done
+- [x] `android/core/src/test/java/com/tourney/core/network/ApiCallTest.kt` — 6 tests: success payload,
+      success-without-data is an error, HTTP envelope → `ApiException` + `details`, non-JSON body,
+      empty body, per-field validation messages.
+- [x] `testImplementation(libs.org.json)` because `android.jar` ships only json stubs on the JVM.
+- Check: 12/12 Kotlin tests green, `core` line coverage 2.3 % → 3.8 %.
+
+**A3b — `PlayerViewModel` money flow (needs Robolectric, 1 h)**
+- [ ] Robolectric + `Application` so `AndroidViewModel` can be built; inject a fake `TourneyApi` into
+      `ApiClient` (reflection) or add a small seam.
+- [ ] Tests: order → verify → balance refresh; verify failure keeps balance unchanged; double-tap
+      Pay sends only one order; `syncTopUp` on a pending order settles once.
+- Why it is split: the ViewModel is `AndroidViewModel` + `SharedPreferences`, so plain JUnit cannot
+  build it; Robolectric is a ~100 MB download and deserves its own step.
 
 **A4 — `AdminViewModel` online tab (45 min)**
 - [ ] Today's collected total, status filter, `demoMode` banner flag, Sync calls reconcile once.

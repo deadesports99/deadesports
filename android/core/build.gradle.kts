@@ -92,6 +92,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.org.json)
 
     // Exposed because TourneyApi's CSV export returns okhttp3.ResponseBody.
     api(libs.okhttp)
