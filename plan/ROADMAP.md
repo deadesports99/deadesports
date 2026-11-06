@@ -311,25 +311,25 @@ CREATE TABLE wallet_transactions (
 - [x] Timed room release: players see creds only from T-15min (403 countdown lock).
 - [x] Player screenshot result submission + verify (MatchResult upsert).
 - [x] 1-Click winner payout: per-kill + rank prize -> winningBalance -> double-entry ledger -> COMPLETED.
-- [ ] WebSocket / Socket.io channel: Room credentials broadcast strictly to confirmed tournament participants.
-- [ ] Push Notifications via Firebase Cloud Messaging (FCM).
-- [ ] Match status state machine hookup (frontend-driven transitions pending apps).
+- [x] WebSocket realtime channel (`src/services/realtime.service.ts`, `/ws`): room creds, match status, wallet + payout events; token auth handshake, PING/PONG keep-alive, per-user / per-tenant fan-out (tests: `tests/realtime.test.ts`).
+- [x] Push Notifications via Firebase Cloud Messaging (`src/services/fcm.service.ts`, token stored on `User.fcmToken`).
+- [x] Match status state machine + minute sweep (`matchSweep.service.ts`): OPEN to SLOTS_FULL to ROOM_REVEALED (T-15 min) to LIVE (kickoff) to UNDER_REVIEW (kickoff + 2h) to COMPLETED (tests: `tests/matchSweep.test.ts`).
 
 ### 📍 Phase 5: Result Processing, Screenshot Verification & Wallet Ledger (Days 17–21)
-- [ ] Player Screenshot upload pipeline to Cloud Storage.
-- [ ] Manager Review Dashboard: Side-by-side screenshot viewer with Kill count and Rank input.
-- [ ] 1-Click Winner Payout Calculator (calculates rank reward + per-kill bonus automatically).
-- [ ] 1-Click Match Cancellation & Auto-Refund to all participant wallets if room crashes.
-- [ ] Withdrawal request management (Approve/Reject with UTR reference).
+- [x] Official result capture: `MatchResult.screenshotUrl` (official/spectator screenshot link) plus per-player kills/rank/DQ, locked after payout.
+- [x] Admin review surface: scoreboard order, publish results, 1-tap payout confirmation (admin app result screen).
+- [x] 1-Click Winner Payout: rank split 50/30/20 % of pool plus per-kill bonus into `winningBalance`, double-entry ledger, status COMPLETED (tests: `finishMatchPayout.test.ts`, `resultLifecycle.test.ts`).
+- [x] 1-Click Match Cancellation & Auto-Refund to every participant (fee returns to the balance it came from, exactly once) - `cancelRefund.test.ts`.
+- [x] Withdrawal request management (Approve/Reject with UTR reference, refund on reject) - `withdrawalService.test.ts`, admin wallet console.
+- [ ] Player-side screenshot upload to Cloud Storage (deliberately skipped: results are official/spectator-verified, see schema note).
 
 ### 📍 Phase 6: iOS-Style UI/UX & Native Polish (Days 22–27)
-- [ ] Native Cupertino components integration:
-  - Frosted glass blur headers (`expo-blur`).
-  - Smooth bottom sheets (`@gorhom/bottom-sheet`) for match details and slot pickers.
-  - Haptic feedback on button clicks (`expo-haptics`).
-- [ ] Complete **Dark & Light Mode** styling tokens with smooth transitions.
-- [ ] Clean card layouts, tournament countdown timers, and live slot counter bars.
-- [ ] Deploy web preview & Expo build for Boss review.
+- [x] Native Android equivalent of the Cupertino look (this stack is Kotlin/Compose, not Expo):
+  frosted `GlassCard`, modal bottom sheets (`AddMoneySheet`, `PlayerBottomSheet`), ripple/haptic press feedback.
+- [x] Complete **Dark Mode** design tokens (dark-only product decision) with readable surfaces - fixed the dark-theme `Surface` regression.
+- [x] Clean card layouts, tournament countdown timers, live slot counter bars, wallet screen and admin wallet console.
+- [x] Deployable web preview of the design (`ui-ux demo/finel demo`, Vite) for client review.
+- [x] Player wallet top-up UX: Add Money sheet, amount chips, gateway handoff, pending/success/failure states.
 
 ### 📍 Phase 7: Multi-Client White-Label Engine & Security Hardening (Days 28–30) — ✅ COMPLETE
 - [ ] Dynamic branding injector: Logo, primary colors, and app name load dynamically based on Tenant configuration.
@@ -342,12 +342,54 @@ CREATE TABLE wallet_transactions (
 - [x] Daily Settlement Console & 1-Tap Match Cloning presets.
 
 ### 📍 Phase 8: Production Cloud Deployment & Custom Domain (Active)
-- [ ] Multi-stage production `Dockerfile` with non-root security & Prisma compilation.
+- [x] Multi-stage production `Dockerfile` (non-root user) plus `.dockerignore` and Prisma generate at build time.
 - [ ] Cloud deployment to Render / Railway / VPS / Cloud Run.
 - [ ] Connect production Upstash Serverless Redis & Supabase pooler (Port 6543).
 - [ ] Custom domain DNS mapping (`api.yourbrand.com`) with automated SSL/TLS certificates.
 - [ ] Android apps (`:app-player` & `:app-admin`) switch from `localhost:5000` to live HTTPS domain.
 - [ ] Refer to comprehensive plan: `plan/PRODUCTION_CLOUD_DEPLOYMENT_PLAN.md`.
+
+### 📍 Phase 9: Real-Money Payments & Wallet Top-Up - ✅ COMPLETE
+> Source of truth: `docs/PAYMENT_GATEWAY.md`.
+> Tests: `paymentGateway.test.ts`, `paymentSettlement.test.ts`, `adminPayments.test.ts`,
+> `authAndWebhook.e2e.test.ts`, `paymentGatewayRazorpay.test.ts`.
+
+- [x] **Razorpay provider** (UPI / cards / netbanking / wallets) over REST with Node 22 `fetch` - no SDK dependency; a `mock` provider keeps local demos keyless.
+- [x] **All money in integer paise** on the money path (no floats, no rounding drift).
+- [x] `PaymentOrder` model + `PaymentStatus` enum (CREATED to AUTHORIZED to CAPTURED / FAILED / EXPIRED), unique `providerOrderId` + `receipt`, TTL-bound `expiresAt`.
+- [x] Create order then client checkout then `/verify` signature check then **CAPTURED** then deposit credit **exactly once**.
+- [x] **Razorpay webhook** (`payment.captured` / `payment.failed`) verified against the **raw request body** bytes (HMAC-SHA256), idempotent retries, unknown-order handling.
+- [x] Settlement is **claim-then-credit** (`updateMany where status != CAPTURED`), so a late success or a duplicated webhook can never create money twice.
+- [x] Expiry sweep (`PAYMENT_EXPIRY_SWEEP_INTERVAL_MS`) marks stale orders EXPIRED; a genuine late capture still settles.
+- [x] **Reconcile** (`reconcilePaymentOrder`) shared by player and admin: asks the gateway what really happened, then settles through the same idempotent path.
+- [x] Ledger row `DEPOSIT`, realtime `WALLET_UPDATED` and `DEPOSIT_APPROVED` fan-out.
+- [x] Config with boot assertions: `PAYMENT_PROVIDER`, min/max amount clamps, order TTL, `PUBLIC_BASE_URL`; `mock` in production is a warning, never a crash.
+- [x] Player Android: `AddMoneySheet` + `WalletScreen` + Razorpay checkout listener in `MainActivity`, amount chips, pending/failed recovery.
+- [x] Admin Android: **Online** tab inside the Wallet Console - collected today, all-time, status filters, per-order **Sync** (reconcile), explained rejections.
+- [x] Demo checkout page (`public/demo-checkout.html`) and `testPaymentFlow.ts` (19 checks) for keyless demos.
+- [ ] Live run with real `rzp_test_*` keys (blocked: keys not provisioned yet).
+
+### 📍 Phase 10: Admin Visibility & Simplicity for Online Money - ✅ COMPLETE
+- [x] Online payments live in the existing Wallet Console as a third tab (nothing new to learn).
+- [x] The number that matters first: **collected today**, then all-time, then per-order rows.
+- [x] One-tap **Sync** reuses the player reconcile path (one idempotent code path, no drift between apps).
+- [x] Failed/expired orders explain *why* (signature mismatch, expiry, gateway error) instead of a bare red badge.
+- [x] Deposit approve/reject and withdrawal approve/reject stay in the same console with RBAC guards (admin vs sub-admin).
+- [x] Daily settlement console: deposits in, withdrawals out, per-match revenue, prizes, platform cut, CSV download.
+- [x] Duplicated card chrome extracted into shared composables (`QueueCardHeader`, `RejectionLine`) to keep the console easy to read.
+
+### 📍 Phase 11: Quality Engineering & Release Gate - ✅ COMPLETE
+> Source of truth: `docs/CODE_QUALITY.md`.
+> Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
+
+- [x] **254 backend tests** (from 0) with `node:test` + `tsx`: in-memory Prisma (`tests/helpers/fakePrisma.ts`), `mock.module` for Redis/FCM/realtime/gateway, real Express app on an ephemeral port, real websocket - no database, no network, ~20 s.
+- [x] HTTP end-to-end suites: player flows, admin routes (match create/clone/cancel, room publish, payout, settlement CSV, staff CRUD, player ban, tenant settings), auth doors, Razorpay webhook, seat locks, Razorpay REST branch.
+- [x] SonarCloud quality gate **OK** on `main`: 0 bugs, 0 vulnerabilities, 0 code smells, duplication 1.2 %, coverage **89.6 % overall / 95.7 % on new code** (backend lines).
+- [x] Analysis scope limited to shipped code (design previews, mockups, dev scripts excluded in both `sonar-project.properties` and project settings, because Automatic Analysis ignores the properties file).
+- [x] Real Sonar findings fixed instead of silenced: ReDoS `stripTrailingSlashes`, `crypto.randomInt` OTP, dangling promises, duplicate Kotlin branch, `reduce()` misuse, pinned GitHub Actions, accidental 1.5 MB HTML page dump removed.
+- [x] Android excluded from the **coverage metric only** (no JVM test harness exists); it is still analysed for bugs/vulnerabilities/smells.
+- [x] Coverage is earned by tests, never by lowering the 80 % bar (the free Sonar organisation cannot edit gates anyway).
+- [ ] Kotlin unit tests (JUnit + MockK + JaCoCo) and re-include `android/**` in coverage.
 
 ---
 

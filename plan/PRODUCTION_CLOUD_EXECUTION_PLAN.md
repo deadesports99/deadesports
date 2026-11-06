@@ -32,6 +32,9 @@ Already prepared:
 - `/health`, `/health/ready`, `/health/db`, `/health/redis`
 - Supabase pool sizing and Redis timeout/fallback handling
 - Android HTTPS API configuration and `-PapiBaseUrl` override
+- Real-money top-ups: Razorpay + mock provider, webhook, idempotent settlement (`docs/PAYMENT_GATEWAY.md`)
+- Admin online-payments tab in the Wallet Console (collected today, per-order Sync)
+- 254 backend tests and a green SonarCloud quality gate (`docs/CODE_QUALITY.md`)
 
 The security and database blockers below must be completed before deployment.
 
@@ -453,9 +456,108 @@ Use small test amounts and record IDs for cleanup/refund.
 
 ---
 
+## ⚠️ Section V2 - Demo / Test / Debug Code Removal (MUST REMOVE BEFORE LAUNCH)
+
+> **Why this section exists:** the platform was built and demoed without live gateway
+> keys, with local phones and with seeded accounts. Every shortcut below is safe in
+> development and unsafe (or embarrassing) in production. Tick each box only after the
+> file/flag is gone from the deployed artifact - not just from your editor.
+>
+> Verify with: `grep -rn "mock\|demo\|BYPASS\|DEV_" backend/src backend/public --include=*.ts --include=*.js --include=*.html`
+
+### A. Mock payment gateway (highest risk - moves no real money, but takes none either)
+
+| Item | File | Remove / change |
+| --- | --- | --- |
+| Mock provider branch | `backend/src/services/paymentGateway.service.ts` | Keep the code, set `PAYMENT_PROVIDER=razorpay`. A `mock` provider in production is only a boot **warning**, so a typo here means paying customers silently get demo orders. |
+| Demo checkout page + script | `backend/public/demo-checkout.html`, `backend/public/demo-checkout.js` | Delete before the public deploy (or keep them out of the Docker image). |
+| Demo routes | `backend/src/controllers/payment.controller.ts` (`demoCheckoutPage`, `demoCheckoutScript`, `demoPay`) | Return `404` when `PAYMENT_PROVIDER !== 'mock'`, then delete in the clean-up commit. |
+| Auto-capture flag | `PAYMENT_MOCK_AUTO_CAPTURE` in `.env.payment.example` | Must be absent/false in production; a real gateway must never auto-capture from the server. |
+| Mock signatures | `paymentGateway.mockSignature()` | Used by tests only - never call it from a production route. |
+| `demoMode` flag leak | `backend/src/controllers/payment.controller.ts`, `paymentAdmin.service.ts` | Keep it (admin needs to know), but confirm the Android Admin app shows a red "DEMO MODE - no real money" banner when true. |
+
+- [ ] `PAYMENT_PROVIDER=razorpay`, `RAZORPAY_KEY_ID/SECRET/WEBHOOK_SECRET` present in `.env.production`.
+- [ ] Demo routes unreachable (`curl -i .../api/payments/demo/checkout` returns 404).
+- [ ] `public/demo-checkout.*` not present in the running image.
+- [ ] Admin app shows the DEMO banner only when the API reports `demoMode: true`.
+
+### B. OTP / login bypasses
+
+| Item | File | Remove / change |
+| --- | --- | --- |
+| `mock_otp_` token bypass | `backend/src/services/firebase.service.ts` (~line 80) | Guarded by `NODE_ENV !== 'production' \|\| BYPASS_OTP_FOR_TESTING === 'true'` - both must be false, and the flag must be deleted from the code afterwards. |
+| `mock_google_` token bypass | `backend/src/services/firebase.service.ts` (~line 160) | Same treatment. |
+| Developer device IDs | `backend/src/services/auth.service.ts` (`DEV_TEST_DEVICE_IDS`, ~line 116) | Delete the whitelisted SSAIDs, then finalise the per-device account cap (1 or 2). |
+| Unlimited device accounts | `DEV_UNLIMITED_DEVICE_ACCOUNTS` env flag | Absent in `.env.production`. |
+| Debug logging | `backend/src/services/auth.service.ts:133` (`console.log` on every device check) | Remove or gate behind `env.NODE_ENV === 'development'` - it leaks device IDs into cloud logs. |
+
+- [ ] Both bypass branches physically deleted (not only disabled by env).
+- [ ] `DEV_TEST_DEVICE_IDS` empty and `DEV_UNLIMITED_DEVICE_ACCOUNTS` absent.
+- [ ] Device-limit policy decided and covered by a test.
+
+### C. Seeded demo data and demo tenants
+
+| Item | File | Remove / change |
+| --- | --- | --- |
+| Demo tenant + demo admins | `backend/prisma/seed.ts` | Seeded phones `9999900001` (ADMIN), `9999900002` (SUB_ADMIN), plus `99999692404`, `99999627799`. Change passwords/OTP or delete the demo tenant before launch. |
+| Demo tournaments / slots | `backend/prisma/seed.ts` | Do not run the seed against production; production tenant is created with the Phase 4 SQL template. |
+| Test admin credentials in docs | `docs/*.md`, `plan/*.md`, Android `ui-ux demo/**` | Make sure no live credential or seeded phone is quoted in anything shipped with the APK or the website. |
+
+- [ ] Production tenant created via the SQL template, not the seed script.
+- [ ] Seeded phones either deleted or rotated with a fresh OTP/PIN.
+- [ ] `npm run seed` is not part of the production start command.
+
+### D. Developer harness code that must not ship
+
+| Item | Path | Action |
+| --- | --- | --- |
+| Ad-hoc lifecycle/stress scripts | `backend/scripts_lifecycle.ts`, `scripts_phase6.ts`, `scripts_phase8_visibility.ts`, `scripts_phase9_room_reveal.ts`, `scripts_stress_test.ts` | Keep in the repo for testing, excluded from the image and from Sonar analysis (already excluded). |
+| Dev/test harnesses | `backend/src/scripts/**` (18 files: `testPaymentFlow.ts`, `testRealtime*.ts`, `hookAndroid.js`, `patch*.js`, `fixFeedTabs.js`, ...) | Excluded from Sonar and from the Docker build; delete the one-off patch scripts (`patch*`, `fix*`, `removeSpinners`) since they already did their job. |
+| Test suite | `backend/tests/**` | Keep in git, excluded from the image (already in `.dockerignore`). Never mount into production. |
+| Coverage output | `backend/coverage/**` | Excluded from the image; do not commit generated reports. |
+| Design mockups | `ui-ux demo/**`, `**/preview*.html` | Not part of the APK; keep out of the deployed website root. |
+| Enumeration check script | `backend/src/utils/*` dev helpers | Confirm none are reachable from a route. |
+
+- [ ] `docker run <image> sh -c "ls src/scripts public tests"` shows nothing but production files.
+- [ ] One-off patch scripts deleted from the repo.
+- [ ] `.dockerignore` still lists `tests`, `coverage`, `.env*`, `src/generated`.
+
+### E. Android release build hygiene
+
+| Item | File | Action |
+| --- | --- | --- |
+| Localhost default API | `android/core/src/main/java/com/tourney/core/theme/ClientConfig.kt:41` (`http://localhost:5000/api/v1`) | Release builds must always pass `-PapiBaseUrl=https://api.<domain>/api/v1`; keep the localhost default for debug only. |
+| Realtime base URL fallback | `android/core/src/main/java/com/tourney/core/network/TourneyRealtimeClient.kt:87` (`http://localhost:5000`) | Derive from `ClientConfig` (it currently defaults to localhost) - otherwise realtime silently fails on real devices. |
+| Cleartext traffic | `AndroidManifest.xml` (`usesCleartextTraffic`) | Must be false/absent in release; debug-only network config. |
+| Adb reverse instructions | `docs/*.md`, `README` | Fine in docs, never in a release build. |
+| Debug signing | `android/app-*/build.gradle.kts` | Signed with a real keystore for Play/APK distribution; debug keystore never on the store build. |
+| Razorpay test key | Android `Payment.kt` / checkout init | Key comes from the backend response (`keyId`); confirm it is the live key, not `rzp_test_*`. |
+
+- [ ] `./gradlew :app-player:assembleRelease -PapiBaseUrl=https://api.<domain>/api/v1` produces a build whose `BuildConfig.API_BASE_URL` is the live domain.
+- [ ] Realtime connects over `wss://` on a 4G device.
+- [ ] No debug keystore in the distributed artifact.
+
+### F. Operational leftovers that look like demo code
+
+- [ ] `TRUST_PROXY=true` set on Render (otherwise rate limiting keys off the proxy IP).
+- [ ] Realtime `console.log('... Gateway mounted')` reduced to a single startup line.
+- [ ] `/health/db` and `/health/redis` require no auth but must not print connection strings.
+- [ ] Log level: no `console.log` of phone numbers, device IDs or gateway payloads in production.
+- [ ] Rate-limit bypass header/env removed (see Phase 1.2).
+- [ ] Sonar exclusions re-checked after the removals - deleting files can leave dead patterns behind.
+
+### G. Sign-off
+
+- [ ] Ran the full list once on a staging deploy and once on the production deploy.
+- [ ] `grep -rn "mock_otp_\|mock_google_\|DEV_TEST_DEVICE_IDS\|BYPASS_OTP_FOR_TESTING\|DEMO" backend/src android/*/src/main` returns only intentional, env-gated hits.
+- [ ] `npm test` still green after every removal commit (254 tests at time of writing).
+
+---
+
 ## Final go-live gate
 
 - [ ] Developer Testing Overrides completely removed from `backend/src/services/auth.service.ts`.
+- [ ] Section V2 (demo/test/debug removal) fully ticked on the production deploy.
 - [ ] Phase 1 security blockers fixed and reviewed.
 - [ ] Phase 2 migration applied and recorded.
 - [ ] Phase 3 local production-like checks pass.
