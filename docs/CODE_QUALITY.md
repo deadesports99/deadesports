@@ -11,10 +11,10 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | 94.3 % new code / 89.7 % overall | ✅ |
+| new_coverage | ≥ 80 % | 93.9 % new code / 89.7 % overall | ✅ |
 
 Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0), duplicate lines 1.2 %,
-271 backend tests green. Verified on `67aa8f1` after a local scan with coverage.
+274 backend tests green. Verified on `67aa8f1` after a local scan with coverage.
 
 ## What was fixed (2026-11)
 
