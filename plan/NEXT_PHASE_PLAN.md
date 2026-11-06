@@ -96,7 +96,7 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
       (no second code path), and the history reloads whenever money lands.
 - [x] Tests: 3 new `TopUpControllerTest` cases (settles from history, still-unpaid wording, double tap)
       + 2 model cases (status wording, Re-check only on unpaid).
-- Check: 50 Kotlin tests green, both apps assemble, and **verified on the Realme P3 5G** (real backend
+- Check: 56 Kotlin tests green, both apps assemble, and **verified on the Realme P3 5G** (real backend
       over `adb reverse`): wallet shows "Recent top-ups" with Paid rows, a fresh mock order shows
       **Pending + Re-check**, and tapping Re-check now shows a banner.
 - Device testing caught two real gaps, both fixed: the reconcile result was invisible when the sheet was

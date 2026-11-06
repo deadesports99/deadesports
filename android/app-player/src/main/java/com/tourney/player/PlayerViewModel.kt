@@ -35,6 +35,7 @@ import com.tourney.core.network.RealtimeEvent
 import com.tourney.core.network.TourneyRealtimeClient
 import com.tourney.core.payment.PaymentOrdersApi
 import com.tourney.core.payment.TopUpController
+import com.tourney.core.payment.WalletMath
 import com.tourney.core.network.ApiClient
 import com.tourney.core.network.DeviceIdProvider
 import com.tourney.core.network.apiCall
@@ -555,21 +556,12 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     /** Optimistic wallet deduction on match join — 0ms instant local update */
     fun deductEntryFee(fee: Double) {
         val current = (walletUi as? UiState.Success)?.data ?: return
-        val currentDeposit = current.depositValue
-        val currentWinning = current.winningValue
-        val newDeposit: Double
-        val newWinning: Double
-        if (currentDeposit >= fee) {
-            newDeposit = currentDeposit - fee
-            newWinning = currentWinning
-        } else {
-            newDeposit = 0.0
-            newWinning = (currentWinning - (fee - currentDeposit)).coerceAtLeast(0.0)
-        }
+        // Same rule as the server (deposit first, then winnings) — and unit-tested.
+        val split = WalletMath.applyEntryFee(current.depositValue, current.winningValue, fee)
         walletUi = UiState.Success(
             current.copy(
-                depositBalance = "%.2f".format(java.util.Locale.US, newDeposit),
-                winningBalance = "%.2f".format(java.util.Locale.US, newWinning),
+                depositBalance = "%.2f".format(java.util.Locale.US, split.deposit),
+                winningBalance = "%.2f".format(java.util.Locale.US, split.winning),
             )
         )
         refreshWallet(silent = true)
