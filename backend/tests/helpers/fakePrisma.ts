@@ -216,16 +216,22 @@ export class FakePrisma {
             (out._sum as Row)[field] = rows.reduce((acc, r) => acc + (Number(r[field]) || 0), 0);
           }
         }
-        for (const [op, builder] of [['_max', Math.max], ['_min', Math.min]] as const) {
+        for (const op of ['_max', '_min'] as const) {
           const spec = args[op] as Row | undefined;
           if (!spec) continue;
           out[op] = {} as Row;
           for (const [field, enabled] of Object.entries(spec)) {
             if (!enabled) continue;
-            const values = rows.map((r) => r[field]).filter((v) => v !== null && v !== undefined);
-            (out[op] as Row)[field] = values.length
-              ? values.map((v) => (v instanceof Date ? v.getTime() : plain(v))).reduce(builder as any)
-              : null;
+            const values = rows
+              .map((r) => r[field])
+              .filter((v) => v !== null && v !== undefined)
+              .map((v) => (v instanceof Date ? v.getTime() : plain(v)));
+            let best: number | null = null;
+            for (const value of values) {
+              if (best === null) best = value;
+              else if (op === '_max' ? value > best : value < best) best = value;
+            }
+            (out[op] as Row)[field] = best;
           }
         }
         if (args._count === true) out._count = rows.length;
