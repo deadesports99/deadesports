@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyRound,
   LogOut,
@@ -9,7 +9,16 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { Theme, UserProfile, AuthProvider } from '../types';
-import { cx } from '../utils/formatters';
+import { cx, formatINR } from '../utils/formatters';
+
+export interface PlayerCareerStats {
+  matchesJoined: number;
+  matchesPlayed: number;
+  booyahs: number;
+  totalKills: number;
+  totalWinnings: number;
+  bestRank: number | null;
+}
 
 interface ProfileScreenProps {
   theme: Theme;
@@ -20,6 +29,13 @@ interface ProfileScreenProps {
   onOpenSettings: () => void;
   onSecurity: () => void;
   onSignOut: () => void;
+  /** Real data from GET /players/me */
+  playerCode?: string | null;
+  stats?: PlayerCareerStats | null;
+  inGameName?: string;
+  inGameUid?: string;
+  /** PATCH /players/me/game-profile — the organiser seats players by IGN/UID. */
+  onSaveGameProfile?: (ign: string, uid: string) => Promise<void>;
 }
 
 export function ProfileScreen({
@@ -30,8 +46,50 @@ export function ProfileScreen({
   onOpenSettings,
   onSecurity,
   onSignOut,
+  playerCode,
+  stats,
+  inGameName = '',
+  inGameUid = '',
+  onSaveGameProfile,
 }: ProfileScreenProps) {
   const isDark = theme === 'dark';
+
+  const [ign, setIgn] = useState(inGameName);
+  const [uid, setUid] = useState(inGameUid);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | undefined>(undefined);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setIgn(inGameName);
+    setUid(inGameUid);
+  }, [inGameName, inGameUid]);
+
+  const ignOk = ign.trim().length >= 2 && ign.trim().length <= 30;
+  const uidOk = /^\d{6,12}$/.test(uid.trim());
+  const dirty = ign.trim() !== inGameName || uid.trim() !== inGameUid;
+
+  const saveIdentity = async () => {
+    if (!onSaveGameProfile) return;
+    setSaving(true);
+    setSaveError(undefined);
+    try {
+      await onSaveGameProfile(ign.trim(), uid.trim());
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2500);
+    } catch (error) {
+      setSaveError((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const statCards = [
+    { label: 'Matches', value: String(stats?.matchesJoined ?? joinedCount) },
+    { label: 'Booyahs', value: String(stats?.booyahs ?? 0) },
+    { label: 'Kills', value: String(stats?.totalKills ?? 0) },
+    { label: 'Winnings', value: formatINR(stats?.totalWinnings ?? 0) },
+  ];
 
   return (
     <div className="space-y-4">
@@ -84,9 +142,29 @@ export function ProfileScreen({
             </p>
 
             <p className={cx('mt-0.5 text-[10px] font-medium tracking-wide', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              Player UID: 84920194
+              {playerCode ? `Player ID: ${playerCode}` : 'Player ID: —'}
             </p>
           </div>
+        </div>
+
+        {/* Career numbers — real MatchResult + slot data */}
+        <div className="mt-4 grid grid-cols-4 gap-1.5">
+          {statCards.map((card) => (
+            <div
+              key={card.label}
+              className={cx(
+                'rounded-xl border px-1.5 py-2 text-center',
+                isDark ? 'border-white/10 bg-[#060B14]' : 'border-slate-200 bg-slate-50'
+              )}
+            >
+              <p className={cx('text-[13px] font-black leading-none', isDark ? 'text-white' : 'text-slate-950')}>
+                {card.value}
+              </p>
+              <p className={cx('mt-1 text-[8px] font-bold uppercase tracking-wider', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                {card.label}
+              </p>
+            </div>
+          ))}
         </div>
 
         {/* Action Buttons: Account Security & Sign Out */}
@@ -115,6 +193,74 @@ export function ProfileScreen({
         </div>
       </section>
 
+      {/* Free Fire Identity — this is what the organiser uses to seat you */}
+      <section
+        className={cx(
+          'rounded-2xl border p-4',
+          isDark ? 'border-white/10 bg-[#0C121E]' : 'border-slate-200 bg-white shadow-sm'
+        )}
+      >
+        <div className="flex items-center justify-between">
+          <p className={cx('text-[10px] font-black uppercase tracking-wider', isDark ? 'text-slate-300' : 'text-slate-600')}>
+            Your Free Fire Details
+          </p>
+          {saved && <span className="text-[10px] font-black text-emerald-500">Saved ✓</span>}
+        </div>
+
+        <label className="mt-3 block">
+          <span className={cx('mb-1 block text-[10px] font-bold', isDark ? 'text-slate-400' : 'text-slate-600')}>
+            In-Game Name (IGN)
+          </span>
+          <input
+            value={ign}
+            onChange={(event) => setIgn(event.target.value.slice(0, 30))}
+            placeholder="e.g. SpartanOP"
+            className={cx(
+              'h-11 w-full rounded-xl border px-3 text-[13px] font-bold outline-none transition-all',
+              isDark
+                ? 'border-white/15 bg-[#060B14] text-white placeholder:text-slate-600 focus:border-white'
+                : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-black'
+            )}
+          />
+        </label>
+
+        <label className="mt-2 block">
+          <span className={cx('mb-1 block text-[10px] font-bold', isDark ? 'text-slate-400' : 'text-slate-600')}>
+            Free Fire UID
+          </span>
+          <input
+            value={uid}
+            inputMode="numeric"
+            onChange={(event) => setUid(event.target.value.replace(/\D/g, '').slice(0, 12))}
+            placeholder="6-12 digit UID"
+            className={cx(
+              'h-11 w-full rounded-xl border px-3 text-[13px] font-bold tracking-widest outline-none transition-all',
+              isDark
+                ? 'border-white/15 bg-[#060B14] text-white placeholder:text-slate-600 focus:border-white'
+                : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-black'
+            )}
+          />
+        </label>
+
+        {saveError && <p className="mt-2 text-[11px] font-semibold text-rose-500">{saveError}</p>}
+
+        <button
+          type="button"
+          disabled={!ignOk || !uidOk || saving || !dirty}
+          onClick={() => void saveIdentity()}
+          className={cx(
+            'mt-3 h-11 w-full rounded-xl text-xs font-black transition-all active:scale-[0.97]',
+            ignOk && uidOk && dirty && !saving
+              ? 'bg-[#FFD000] text-slate-950 hover:bg-[#FFDA29]'
+              : isDark
+              ? 'bg-white/10 text-slate-400'
+              : 'bg-slate-200 text-slate-500'
+          )}
+        >
+          {saving ? 'Saving...' : dirty ? 'Save Free Fire details' : 'Saved to your profile'}
+        </button>
+      </section>
+
       {/* WhatsApp Helpdesk & Support Card */}
       <section
         className={cx(
@@ -140,7 +286,7 @@ export function ProfileScreen({
               Tournament Support & Helpdesk
             </p>
             <p className={cx('truncate text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              {joinedCount} matches joined • 24/7 Organiser Support
+              {joinedCount} {joinedCount === 1 ? 'match' : 'matches'} joined • 24/7 Organiser Support
             </p>
           </div>
         </div>

@@ -38,6 +38,7 @@ import { OtpScreen } from './screens/auth/OtpScreen';
 import { TournamentsScreen } from './screens/TournamentsScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { ProfileScreen, type PlayerCareerStats } from './screens/ProfileScreen';
 
 const LEDGER_LOOK: Record<string, { category: TransactionItem['category']; title: string; badge: string; tone: TransactionItem['badgeTone'] }> = {
   ADD_MONEY: { category: 'Deposits', title: 'Added Cash', badge: 'Deposit', tone: 'emerald' },
@@ -127,6 +128,8 @@ export function App() {
   const [joinError, setJoinError] = useState<string | undefined>(undefined);
   const [profileIgn, setProfileIgn] = useState('');
   const [profileUid, setProfileUid] = useState('');
+  const [playerCode, setPlayerCode] = useState<string | null>(null);
+  const [career, setCareer] = useState<PlayerCareerStats | null>(null);
 
   // Wallet state
   const [depositCash, setDepositCash] = useState(120);
@@ -175,10 +178,11 @@ export function App() {
   const loadFeed = async () => {
     setFeedLoading(true);
     try {
-      const [list, wallet, me] = await Promise.all([
+      const [list, wallet, me, stats] = await Promise.all([
         api.tournaments.list(),
         api.wallet.summary(1, 25),
         api.auth.me().catch(() => null),
+        api.player.stats().catch(() => null),
       ]);
 
       const feed = list.items.filter(isFeedMatch);
@@ -191,7 +195,9 @@ export function App() {
       if (me) {
         setProfileIgn(me.inGameName ?? '');
         setProfileUid(me.inGameUid ?? '');
+        setPlayerCode(me.playerCode ?? null);
       }
+      if (stats) setCareer(stats);
     } catch (error) {
       showToast(error instanceof ApiError ? error.message : 'Could not load the lobby', 'error');
     } finally {
@@ -429,6 +435,8 @@ export function App() {
             ? 'Esports Lobby'
             : activeTab === 'wallet'
             ? 'Arena Wallet'
+            : activeTab === 'profile'
+            ? 'Player Profile'
             : 'Arena Settings'
         }
         subtitle={
@@ -436,7 +444,9 @@ export function App() {
             ? 'Free Fire Max • Custom Scrims'
             : activeTab === 'wallet'
             ? 'Dual Ledger • Instant UPI'
-            : 'Profile • Preferences • Rules'
+            : activeTab === 'profile'
+            ? 'Identity • Career • Support'
+            : 'Preferences • Notifications • Rules'
         }
         balance={balance}
         onAddFunds={() => {
@@ -495,7 +505,45 @@ export function App() {
           />
         )}
 
-        {(activeTab === 'settings' || activeTab === 'profile') && (
+        {activeTab === 'profile' && (
+          <ProfileScreen
+            theme={theme}
+            user={user}
+            provider={provider}
+            joinedCount={joinedIds.length}
+            playerCode={playerCode}
+            stats={career}
+            inGameName={profileIgn}
+            inGameUid={profileUid}
+            onSaveGameProfile={async (ign, uid) => {
+              const updated = await api.player.updateGameProfile(ign, uid);
+              setProfileIgn(updated.inGameName);
+              setProfileUid(updated.inGameUid);
+              showToast('Free Fire details saved.');
+            }}
+            onOpenSettings={() => setActiveTab('settings')}
+            onSecurity={() => showToast('Your account is protected by OTP login on this number.')}
+            onSignOut={() => setSignOutOpen(true)}
+          />
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className={
+                theme === 'dark'
+                  ? 'rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-slate-300'
+                  : 'rounded-xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-700'
+              }
+            >
+              ← Back to profile
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
           <SettingsScreen
             theme={theme}
             onThemeToggle={(nextTheme) => setTheme(nextTheme)}

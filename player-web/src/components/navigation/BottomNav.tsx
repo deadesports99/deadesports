@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gamepad2, Settings, Wallet } from 'lucide-react';
+import { Gamepad2, User, Wallet } from 'lucide-react';
 import { NavTab, Theme } from '../../types';
 import { cx } from '../../utils/formatters';
 
@@ -14,7 +14,7 @@ export function BottomNav({ theme, activeTab, onChange }: BottomNavProps) {
   const tabs: Array<{ id: NavTab; label: string; icon: React.ElementType }> = [
     { id: 'tournaments', label: 'Tournaments', icon: Gamepad2 },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'profile', label: 'Profile', icon: User },
   ];
 
   return (

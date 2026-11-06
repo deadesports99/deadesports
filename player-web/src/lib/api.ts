@@ -275,6 +275,26 @@ export const payments = {
   my: () => request<ApiPaged<Record<string, unknown>>>('/payments/my'),
 };
 
+export interface ApiPlayerStats {
+  matchesJoined: number;
+  matchesPlayed: number;
+  booyahs: number;
+  totalKills: number;
+  totalWinnings: number;
+  bestRank: number | null;
+}
+
+export const player = {
+  stats: () => request<ApiPlayerStats>('/players/me/stats'),
+
+  /** Players can fix their Free Fire identity without contacting support. */
+  updateGameProfile: (inGameName: string, inGameUid: string) =>
+    request<{ inGameName: string; inGameUid: string }>('/players/me/game-profile', {
+      method: 'PATCH',
+      body: JSON.stringify({ inGameName, inGameUid }),
+    }),
+};
+
 export const wallet = {
   summary: (page = 1, limit = 25) => request<ApiWallet>(`/wallet?page=${page}&limit=${limit}`),
 
@@ -290,6 +310,7 @@ export const api = {
   tournaments,
   wallet,
   payments,
+  player,
   tenantId: TENANT_ID,
   baseUrl: API_BASE,
 };
