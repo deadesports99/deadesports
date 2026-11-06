@@ -2,6 +2,7 @@ import groovy.json.JsonSlurper
 import java.io.File
 
 plugins {
+    id("jacoco")
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -106,6 +107,8 @@ android {
 tasks.named("preBuild").configure { dependsOn(generateApiConfig) }
 
 dependencies {
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     implementation(project(":core"))
 
     implementation(libs.androidx.core.ktx)
@@ -121,4 +124,29 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     debugImplementation(libs.androidx.ui.tooling)
+}
+
+// JVM unit tests + JaCoCo XML for SonarCloud (no emulator needed).
+jacoco {
+    toolVersion = libs.versions.jacoco.get()
+}
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    classDirectories.setFrom(
+        fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) {
+            exclude("**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/*_Factory.*", "**/*JsonAdapter.*")
+        },
+    )
+    sourceDirectories.setFrom(files("src/main/java"))
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("outputs/unit_test_code_coverage/**/*.exec")
+            include("jacoco/*.exec")
+        },
+    )
 }

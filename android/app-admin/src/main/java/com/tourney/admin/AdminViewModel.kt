@@ -29,6 +29,7 @@ import com.tourney.core.model.PublishRoomRequest
 import com.tourney.core.model.RejectWithdrawalRequest
 import com.tourney.core.model.RoomCredentials
 import com.tourney.core.model.RoomRevealRequest
+import com.tourney.core.model.ReconcilePaymentResponse
 import com.tourney.core.model.SlotsResponse
 import com.tourney.core.model.StaffListResponse
 import com.tourney.core.model.StaffPermissions
@@ -489,55 +490,30 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ─── Online payments (Razorpay / mock top-ups) ───────────────────────
-    var paymentsUi by mutableStateOf<AdminUi<AdminPaymentsResponse>>(AdminUi.Idle)
-        private set
+    // The list + Sync live in `AdminPaymentsController` (unit-tested without
+    // Android); this class only wires Retrofit and the shared wallet banner.
+    private val paymentsController: AdminPaymentsController = AdminPaymentsController(
+        scope = viewModelScope,
+        api = object : AdminPaymentsApi {
+            override suspend fun list(status: String, page: Int, limit: Int): AdminPaymentsResponse =
+                apiCall { api.adminPayments(status = status, page = page, limit = limit) }
 
-    /** Last filter chosen by the screen; reused after a sync. */
-    private var paymentsFilter: String = "ALL"
+            override suspend fun sync(orderId: String): ReconcilePaymentResponse =
+                apiCall { api.adminSyncPayment(orderId, AckRequest()) }
+        },
+        onBusy = { walletBusy = it },
+        onFeedback = { message, error ->
+            walletMessage = message
+            walletError = error
+        },
+    )
 
-    fun loadPayments(status: String = "ALL") {
-        paymentsFilter = status
-        paymentsUi = AdminUi.Loading
-        viewModelScope.launch {
-            try {
-                paymentsUi = AdminUi.Success(
-                    apiCall { api.adminPayments(status = status, page = 1, limit = 30) },
-                )
-            } catch (e: ApiException) {
-                paymentsUi = AdminUi.Error(e.message)
-            } catch (e: Exception) {
-                paymentsUi = AdminUi.Error("Network error — is the server running?")
-            }
-        }
-    }
+    val paymentsUi: AdminUi<AdminPaymentsResponse> get() = paymentsController.ui
+
+    fun loadPayments(status: String = "ALL") = paymentsController.load(status)
 
     /** Ask the gateway what really happened and settle if money was captured. */
-    fun syncPayment(id: String) {
-        if (walletBusy) return
-        walletBusy = true
-        walletMessage = null
-        walletError = null
-        viewModelScope.launch {
-            try {
-                val result = apiCall { api.adminSyncPayment(id, AckRequest()) }
-                walletMessage = when {
-                    result.status == "CAPTURED" && result.alreadySettled ->
-                        "Already captured — wallet was credited earlier ✓"
-                    result.status == "CAPTURED" ->
-                        result.balanceAfter?.let { "Paid ✓ — wallet balance now ₹${formatMoney(it)}" }
-                            ?: "Paid ✓ — wallet credited"
-                    else -> "Gateway says: ${result.gatewayStatus ?: result.status} — not paid yet"
-                }
-                loadPayments(paymentsFilter)
-            } catch (e: ApiException) {
-                walletError = e.message
-            } catch (e: Exception) {
-                walletError = "Network error — is the server running?"
-            } finally {
-                walletBusy = false
-            }
-        }
-    }
+    fun syncPayment(id: String) = paymentsController.sync(id)
 
     fun clearWalletFeedback() {
         walletMessage = null

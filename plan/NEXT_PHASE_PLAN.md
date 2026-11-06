@@ -16,7 +16,7 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 | A2 | First Kotlin test file (models) | ✅ |
 | A3 | Money-call helper tests (`apiCall` + error mapping) | ✅ |
 | A3b | `TopUpController` (pure) + 17 money-path tests | ✅ |
-| A4 | `AdminViewModel` tests (online tab + sync) | ⬜ |
+| A4 | `AdminPaymentsController` + 13 admin tests | ✅ |
 | A5 | JaCoCo XML into Sonar, Android back in coverage | ⬜ |
 | B1 | Backend `GET /payments/my` | ⬜ |
 | B2 | Wallet screen "Recent top-ups" list | ⬜ |
@@ -61,9 +61,16 @@ Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lin
 - Chose extraction over Robolectric: deterministic, no 100 MB download, and the ViewModel got thinner.
 - Check: 29 Kotlin tests green, `:app-player` + `:app-admin` assemble, `core` lines 3.8 % → 7.8 %.
 
-**A4 — `AdminViewModel` online tab (45 min)**
-- [ ] Today's collected total, status filter, `demoMode` banner flag, Sync calls reconcile once.
-- Check: `:app-admin:test` green.
+**A4 — admin online tab, extracted and tested (1 h)** — ✅ done
+- [x] `app-admin/AdminPaymentsController.kt` — list + remembered filter + one-tap Sync, pure Kotlin.
+      `AdminViewModel.paymentsUi/loadPayments/syncPayment` now delegate; the wallet banner
+      (`walletBusy`, `walletMessage`, `walletError`) keeps the exact same behaviour via callbacks.
+- [x] `AdminPaymentsControllerTest` — 13 tests: summary money first, loading state, server error,
+      network crash, filter remembered, sync reports new balance, **sync keeps the FAILED filter**
+      (bug found: reload was resetting to ALL), already-settled wording (never credits twice),
+      unpaid order names the gateway status, falls back to local status, failed sync does not reload,
+      double-tap Sync reconciles once, stale feedback cleared first.
+- Check: 42 Kotlin tests green, both apps assemble, `:app-admin` JaCoCo XML written.
 
 **A5 — coverage plumbed (20 min)**
 - [ ] `sonar.coverage.jacoco.xmlReportPaths=android/*/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml`.
