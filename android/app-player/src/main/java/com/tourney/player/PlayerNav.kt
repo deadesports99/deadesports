@@ -3,20 +3,17 @@ package com.tourney.player
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Wallet
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -25,12 +22,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tourney.core.model.MatchType
 import com.tourney.core.theme.ThemeMode
+import com.tourney.player.ui.matches.MatchesScreen
+import com.tourney.player.ui.nav.DemoBottomBar
 
 /** Bottom tabs — Matches, Wallet and Profile. Push screens hide the bar. */
-private enum class PlayerTab(val route: String, val label: String, val icon: ImageVector) {
-    MATCHES("feed", "Matches", Icons.Filled.SportsEsports),
-    WALLET("wallet", "Wallet", Icons.Filled.Wallet),
-    PROFILE("profile", "Profile", Icons.Filled.Person),
+private enum class PlayerTab(val route: String) {
+    MATCHES("feed"),
+    WALLET("wallet"),
+    PROFILE("profile"),
 }
 
 @Composable
@@ -43,6 +42,15 @@ fun PlayerNavHost(
 ) {
     val navController = rememberNavController()
     val matchViewModel: MatchViewModel = viewModel()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var playerNavToast by remember { mutableStateOf<String?>(null) }
+
+    // Small transient messages from the demo-styled screens ("BGMI unlocking…").
+    LaunchedEffect(playerNavToast) {
+        val message = playerNavToast ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        playerNavToast = null
+    }
 
     // FCM deep-link: jump to the right screen from a notification tap.
     LaunchedEffect(pushTarget) {
@@ -62,22 +70,14 @@ fun PlayerNavHost(
     val showBottomBar = currentRoute in PlayerTab.entries.map { it.route }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
-                    PlayerTab.entries.forEach { tab ->
-                        NavigationBarItem(
-                            selected = currentRoute == tab.route,
-                            onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(PlayerTab.MATCHES.route) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) },
-                        )
+                DemoBottomBar(currentRoute = currentRoute) { tab ->
+                    navController.navigate(tab.route) {
+                        popUpTo(PlayerTab.MATCHES.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 }
             }
@@ -86,15 +86,14 @@ fun PlayerNavHost(
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             NavHost(navController = navController, startDestination = PlayerTab.MATCHES.route) {
                 composable(PlayerTab.MATCHES.route) {
-                    TournamentFeedScreen(
+                    // Demo design (owner-approved): tournaments page with the
+                    // Quick Join bottom sheet; the old feed stays for push links.
+                    MatchesScreen(
                         viewModel = playerViewModel,
+                        onOpenWallet = { navController.navigate(PlayerTab.WALLET.route) },
                         onOpenRoom = { id -> navController.navigate("room/$id") },
                         onOpenScoreboard = { id -> navController.navigate("scoreboard/$id") },
-                        onNavigateToWallet = { navController.navigate(PlayerTab.WALLET.route) },
-                        onLogout = {
-                            playerViewModel.logout()
-                            matchViewModel.resetSession()
-                        },
+                        onToast = { message -> playerNavToast = message },
                     )
                 }
                 composable(PlayerTab.WALLET.route) {
