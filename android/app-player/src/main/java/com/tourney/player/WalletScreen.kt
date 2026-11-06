@@ -78,6 +78,15 @@ fun WalletScreen(
         viewModel.loadMyPayments()
     }
 
+    // Re-check from the list reports here (the Add Money sheet is usually closed).
+    val topUpMessage = viewModel.topUpMessage
+    LaunchedEffect(topUpMessage, showAddMoney) {
+        if (topUpMessage != null && !showAddMoney) {
+            kotlinx.coroutines.delay(5000)
+            viewModel.clearTopUpMessage()
+        }
+    }
+
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -115,6 +124,7 @@ fun WalletScreen(
                         wallet = state.data,
                         deposits = deposits,
                         topUps = topUps,
+                        recheckMessage = topUpMessage,
                         onRecheck = { viewModel.recheckPayment(it) },
                         supportWhatsapp = viewModel.liveSettings.supportWhatsapp,
                         onAddMoney = {
@@ -189,6 +199,7 @@ private fun WalletContent(
     wallet: WalletSummary,
     deposits: PlayerDepositsResponse?,
     topUps: PlayerPaymentsResponse?,
+    recheckMessage: String?,
     supportWhatsapp: String,
     onAddMoney: () -> Unit,
     onWithdraw: () -> Unit,
@@ -257,6 +268,14 @@ private fun WalletContent(
                     onClick = onWithdraw,
                     modifier = Modifier.weight(1f),
                 )
+            }
+        }
+
+        if (recheckMessage != null) {
+            item {
+                GlassCard(cornerRadius = 12.dp, modifier = Modifier.fillMaxWidth()) {
+                    Text(recheckMessage, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
 

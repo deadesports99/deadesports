@@ -643,6 +643,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearTopUp() = topUpController.clear()
 
+    fun clearTopUpMessage() = topUpController.clearMessage()
+
     fun createTopUp(amountRupees: Int, onReady: (PaymentOrderCreated) -> Unit) =
         topUpController.start(amountRupees, onReady)
 

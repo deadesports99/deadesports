@@ -33,6 +33,7 @@ class TopUpControllerTest {
         var statusCalls = 0
         var createError: Exception? = null
         var verifyError: Exception? = null
+        var syncError: Exception? = null
         var status = "PENDING"
         var syncStatus = "PENDING"
         var verifyResponse = VerifyPaymentResponse(orderId = "o1", status = "CAPTURED", balanceAfter = 500.0)
@@ -64,6 +65,7 @@ class TopUpControllerTest {
 
         override suspend fun sync(orderId: String): VerifyPaymentResponse {
             syncCalls += 1
+            syncError?.let { throw it }
             return VerifyPaymentResponse(orderId = orderId, status = syncStatus)
         }
 
@@ -395,5 +397,50 @@ class TopUpControllerTest {
 
         assertEquals(1, api.statusCalls)
         assertEquals(1, api.syncCalls)
+    }
+
+    @Test
+    fun `clearing the message keeps the pending order for later`() = runTest {
+        val api = FakeApi().apply { status = "PENDING"; syncStatus = "PENDING" }
+        val vm = controller(api)
+        vm.start(amountRupees = 500) {}
+        advanceUntilIdle()
+        vm.sync()
+        advanceUntilIdle()
+        assertTrue(vm.message != null)
+
+        vm.clearMessage()
+
+        assertNull(vm.message)
+        assertEquals("o1", vm.activeOrder?.orderId)
+    }
+
+    @Test
+    fun `an abandoned checkout is explained in player words, not server words`() = runTest {
+        val api = FakeApi().apply {
+            status = "CREATED"
+            syncError = ApiException(409, "No gateway payment recorded for this order yet")
+        }
+        val vm = controller(api)
+
+        vm.recheck(orderId = "o9", amountRupees = 500)
+        advanceUntilIdle()
+
+        assertEquals(
+            "No payment received for this order yet. Finish the checkout, then tap Re-check.",
+            vm.message,
+        )
+        assertFalse(vm.isSettled)
+    }
+
+    @Test
+    fun `other server errors keep their own wording`() = runTest {
+        val api = FakeApi().apply { status = "CREATED"; syncError = ApiException(502, "Payment gateway unreachable") }
+        val vm = controller(api)
+
+        vm.recheck(orderId = "o9", amountRupees = 500)
+        advanceUntilIdle()
+
+        assertEquals("Payment gateway unreachable", vm.message)
     }
 }

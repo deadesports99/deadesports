@@ -71,6 +71,11 @@ class TopUpController(
         }
     }
 
+    /** Clear only the status line (checkout stays pending). */
+    fun clearMessage() {
+        message = null
+    }
+
     fun clear() {
         activeOrder = null
         message = null
@@ -181,7 +186,13 @@ class TopUpController(
                     }
                 }
             } catch (e: ApiException) {
-                message = e.message
+                // 409 = the gateway never saw a payment for this order (checkout
+                // abandoned). Say what to do instead of echoing the server wording.
+                message = if (e.statusCode == 409) {
+                    "No payment received for this order yet. Finish the checkout, then tap Re-check."
+                } else {
+                    e.message
+                }
             } catch (_: Exception) {
                 message = "Could not check the payment. Try again."
             } finally {

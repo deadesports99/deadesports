@@ -46,3 +46,6 @@ coverage/
 
 # saved page dumps (not source)
 video_page.html
+
+# local device screenshots
+ tmp_screens/
