@@ -11,10 +11,10 @@ Dashboard: https://sonarcloud.io/dashboard?id=deadesports99_deadesports
 | new_maintainability_rating | ≤ 1 (A) | A | ✅ |
 | new_duplicated_lines_density | ≤ 3 % | 0 % | ✅ |
 | new_security_hotspots_reviewed | 100 % | 100 % | ✅ |
-| new_coverage | ≥ 80 % | 95.7 % new code / 89.6 % overall | ✅ |
+| new_coverage | ≥ 80 % | 94.3 % new code / 89.7 % overall | ✅ |
 
 Open issues: **0** (bugs 0 / vulnerabilities 0 / code smells 0), duplicate lines 1.2 %,
-254 backend tests green. Verified on `67aa8f1` after a local scan with coverage.
+271 backend tests green. Verified on `67aa8f1` after a local scan with coverage.
 
 ## What was fixed (2026-11)
 
@@ -129,4 +129,5 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `realtime.test.ts` — real websocket: CONNECTED ack with server time, query-string + AUTH handshake (good/bad token), PING/PONG, broadcast/user/users/tenant fan-out, tenant isolation, dead socket cleanup
 - `slotLock.test.ts` — Redis seat guard: every Lua code mapped (taken/already joined/full), DB fallback when Redis is down or throws, hydrate from DB, squad codes, join/full/not-found, outage no-ops
 - `paymentGatewayRazorpay.test.ts` — real REST branch with `fetch` stubbed: order payload + basic auth (secret never logged), gateway 400 → 502, unreachable/proxy HTML, missing keys, payment lookup, checkout + webhook HMAC
+- `reconcileSweep` cases live in `paymentSettlement.test.ts` — stale unpaid order settled after a missed webhook, mock no-op, fresh checkout untouched, expiry sweep owns expired windows, gateway says unpaid, broken order vs healthy order, batch limit
 - `helpers/fakePrisma.ts` — in-memory Prisma subset (where operators + relations, increment/decrement, updateMany, upsert, orderBy/skip/take, includes, `$queryRaw`, `$transaction`)
