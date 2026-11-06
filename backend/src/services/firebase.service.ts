@@ -75,20 +75,6 @@ export async function verifyFirebasePhoneToken(
     throw ApiError.badRequest('Firebase idToken is required for OTP verification');
   }
 
-  // Developer bypass for mock tokens in non-production environments
-  if (
-    (process.env.NODE_ENV !== 'production' || process.env.BYPASS_OTP_FOR_TESTING === 'true') &&
-    idToken.startsWith('mock_otp_')
-  ) {
-    const raw = idToken.replace('mock_otp_', '');
-    const norm = normalizePhoneNumber(raw);
-    return {
-      uid: `mock_${norm.national}`,
-      e164: norm.e164,
-      national: norm.national,
-    };
-  }
-
   const fbApp = getFirebaseApp();
   if (!fbApp) {
     throw ApiError.internal('Firebase service unavailable on server');
@@ -153,19 +139,6 @@ export interface VerifiedGoogleUser {
 export async function verifyFirebaseGoogleToken(idToken: string): Promise<VerifiedGoogleUser> {
   if (!idToken || typeof idToken !== 'string') {
     throw ApiError.badRequest('Firebase idToken is required for Google authentication');
-  }
-
-  // Developer bypass for mock tokens in non-production environments
-  if (
-    (process.env.NODE_ENV !== 'production' || process.env.BYPASS_OTP_FOR_TESTING === 'true') &&
-    idToken.startsWith('mock_google_')
-  ) {
-    const raw = idToken.replace('mock_google_', '');
-    return {
-      uid: `mock_${raw}`,
-      email: `${raw}@gmail.com`,
-      name: `Mock Gamer ${raw}`,
-    };
   }
 
   const fbApp = getFirebaseApp();

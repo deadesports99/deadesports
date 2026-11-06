@@ -107,22 +107,16 @@ async function assertPhoneFree(tenantId: string, phoneNumber: string): Promise<v
   if (existing) throw ApiError.conflict('Phone number already registered');
 }
 
-/**
- * Developer Whitelisted Test Devices:
- * Temporarily exempts developer testing phones from multi-accounting blocks during app development & testing.
- * MUST be cleaned up / removed before final production cloud deployment.
- * Tracked in: plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md
- */
-const DEV_TEST_DEVICE_IDS = new Set<string>([
-  '1d24b2b7de7dafdb', // Jay's Realme test phone (:app-player scoped Android ID)
-  'd75a826d9b6319b1', // Jay's Realme test phone (system shell Android ID)
-  ...(process.env.DEV_ALLOWED_DEVICE_IDS ? process.env.DEV_ALLOWED_DEVICE_IDS.split(',').map((s) => s.trim()) : []),
-]);
+/** Anti-multi-accounting rule: max 2 accounts per physical device. */
+const MAX_ACCOUNTS_PER_DEVICE = 2;
 
 /**
  * Anti-Multi-Accounting (Device Lock):
- * General Rule: Maximum 2 accounts per physical mobile device (to prevent fraud while allowing family/dual accounts).
- * Developer Exemption: Whitelisted testing phones or DEV_UNLIMITED_DEVICE_ACCOUNTS=true allow unlimited accounts.
+ * Maximum [MAX_ACCOUNTS_PER_DEVICE] accounts per physical device - enough for a
+ * shared family phone, too few to farm accounts.
+ *
+ * The developer test-device whitelist and the `DEV_UNLIMITED_DEVICE_ACCOUNTS`
+ * escape hatch were removed for launch (PRODUCTION_CLOUD_EXECUTION_PLAN V2-B).
  */
 async function assertDeviceFree(tenantId: string, deviceId?: string): Promise<string | undefined> {
   if (!deviceId) return undefined;
@@ -130,19 +124,10 @@ async function assertDeviceFree(tenantId: string, deviceId?: string): Promise<st
   const trimmed = deviceId.trim();
   if (!trimmed) return undefined;
 
-  console.log(`[auth] assertDeviceFree check deviceId="${trimmed}" (isWhitelisted=${DEV_TEST_DEVICE_IDS.has(trimmed)})`);
-
-  // Developer testing phone: allow unlimited accounts for test device
-  if (DEV_TEST_DEVICE_IDS.has(trimmed) || process.env.DEV_UNLIMITED_DEVICE_ACCOUNTS === 'true') {
-    console.log(`[auth] Developer device bypass granted for deviceId="${trimmed}"`);
-    return trimmed;
-  }
-
-  // General rule: Maximum 2 accounts allowed per physical device
   const countOnDevice = await prisma.user.count({
     where: { tenantId, deviceId: trimmed, isBanned: false },
   });
-  if (countOnDevice >= 2) {
+  if (countOnDevice >= MAX_ACCOUNTS_PER_DEVICE) {
     throw ApiError.forbidden(
       'Tournament security: Maximum 2 accounts are allowed per physical mobile device.',
     );

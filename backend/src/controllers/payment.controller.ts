@@ -318,7 +318,7 @@ export async function getGatewayInfo(_req: Request, res: Response, next: NextFun
 export async function demoCheckoutPage(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (paymentConfig.provider !== 'mock') {
-      throw new ApiError(400, 'Demo checkout is only available in mock mode');
+      throw ApiError.notFound('Not found');
     }
     res.sendFile(path.resolve('public/demo-checkout.html'));
   } catch (err) {
@@ -329,7 +329,7 @@ export async function demoCheckoutPage(req: Request, res: Response, next: NextFu
 export async function demoCheckoutScript(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (paymentConfig.provider !== 'mock') {
-      throw new ApiError(400, 'Demo checkout is only available in mock mode');
+      throw ApiError.notFound('Not found');
     }
     res.type('application/javascript');
     res.sendFile(path.resolve('public/demo-checkout.js'));
@@ -341,7 +341,7 @@ export async function demoCheckoutScript(_req: Request, res: Response, next: Nex
 export async function demoPay(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (paymentConfig.provider !== 'mock') {
-      throw new ApiError(400, 'Demo pay is only available in mock mode');
+      throw ApiError.notFound('Not found');
     }
 
     const orderId = String(req.body?.orderId ?? '');

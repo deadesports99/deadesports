@@ -1,7 +1,10 @@
 /**
- * Firebase token verification: the admin SDK path, the phone/Google mock bypass
- * used by demos, and the JWT-claims fallback that keeps logins working when the
- * Admin SDK is unreachable.
+ * Firebase token verification: the JWT-claims fallback that keeps logins working
+ * when the Admin SDK is unreachable, plus the junk-token doors.
+ *
+ * The `mock_otp_` / `mock_google_` bypass tests are gone together with the
+ * production code they covered (see PRODUCTION_CLOUD_EXECUTION_PLAN.md V2-B);
+ * test auth now goes through `tests/helpers/fakeFirebase.ts`.
  */
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
@@ -42,11 +45,6 @@ describe('getFirebaseApp', () => {
 });
 
 describe('verifyFirebasePhoneToken', () => {
-  it('accepts the demo bypass in non-production', async () => {
-    const out = await fb.verifyFirebasePhoneToken('mock_otp_9999900001');
-    assert.deepEqual(out, { uid: 'mock_9999900001', e164: '+919999900001', national: '9999900001' });
-  });
-
   it('rejects junk and empty tokens', async () => {
     await assert.rejects(() => fb.verifyFirebasePhoneToken('not-a-real-token'), /Invalid or expired/i);
     await assert.rejects(() => fb.verifyFirebasePhoneToken(''), /idToken is required/i);
@@ -67,11 +65,6 @@ describe('verifyFirebasePhoneToken', () => {
 });
 
 describe('verifyFirebaseGoogleToken', () => {
-  it('accepts the demo bypass', async () => {
-    const out = await fb.verifyFirebaseGoogleToken('mock_google_ravi');
-    assert.deepEqual(out, { uid: 'mock_ravi', email: 'ravi@gmail.com', name: 'Mock Gamer ravi' });
-  });
-
   it('rejects junk and empty tokens', async () => {
     await assert.rejects(() => fb.verifyFirebaseGoogleToken('obviously-invalid'), /Invalid or expired/i);
     await assert.rejects(() => fb.verifyFirebaseGoogleToken(''), /idToken is required/i);

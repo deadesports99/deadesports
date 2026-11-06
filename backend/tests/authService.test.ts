@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 import { before, beforeEach, describe, it, mock } from 'node:test';
 import { FakePrisma } from './helpers/fakePrisma.js';
+import { registerFakeFirebase } from './helpers/fakeFirebase.js';
 
 let fake: FakePrisma;
 type AuthApi = typeof import('../src/services/auth.service.js');
 let api: AuthApi;
 
 before(async () => {
+  await registerFakeFirebase();
   mock.module('../src/config/prisma.js', {
     namedExports: {
       prisma: new Proxy({} as any, { get: (_t, prop: string) => (fake as any)[prop] }),

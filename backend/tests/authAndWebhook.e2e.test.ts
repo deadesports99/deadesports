@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { after, before, beforeEach, describe, it, mock } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { FakePrisma } from './helpers/fakePrisma.js';
+import { registerFakeFirebase } from './helpers/fakeFirebase.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -19,6 +20,7 @@ let env: typeof import('../src/config/env.js').env;
 const tenantId = 'tenant-1';
 
 before(async () => {
+  await registerFakeFirebase();
   mock.module('../src/config/prisma.js', {
     namedExports: {
       prisma: new Proxy({} as any, { get: (_t, prop: string) => (fake as any)[prop] }),

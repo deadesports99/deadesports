@@ -8,3 +8,7 @@ tests
 coverage
 *.log
 src/generated
+# dev harnesses (lifecycle/realtime/payment test drivers) - never shipped
+src/scripts
+public/demo-checkout.html
+public/demo-checkout.js

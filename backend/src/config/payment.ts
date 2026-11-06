@@ -58,36 +58,61 @@ export function isPaymentConfigured(): boolean {
   return Boolean(paymentConfig.razorpay.keyId && paymentConfig.razorpay.keySecret);
 }
 
+export interface PaymentConfigInput {
+  nodeEnv: string;
+  provider: PaymentProviderName;
+  minAmountPaise: number;
+  maxAmountPaise: number;
+  razorpay: { keyId?: string; keySecret?: string; webhookSecret?: string };
+}
+
+/**
+ * The launch rules, as a pure function so they can be unit-tested without
+ * reloading `env` (imports freeze it).
+ */
+export function paymentConfigProblems(input: PaymentConfigInput): string[] {
+  const problems: string[] = [];
+
+  if (input.minAmountPaise > input.maxAmountPaise) {
+    problems.push('PAYMENT_MIN_AMOUNT_PAISE cannot exceed PAYMENT_MAX_AMOUNT_PAISE');
+  }
+
+  if (input.provider === 'razorpay') {
+    if (!input.razorpay.keyId) problems.push('RAZORPAY_KEY_ID is required for razorpay');
+    if (!input.razorpay.keySecret) problems.push('RAZORPAY_KEY_SECRET is required for razorpay');
+  }
+
+  if (input.nodeEnv === 'production' && input.provider === 'mock') {
+    // Fatal, not a warning: a typo here means every real customer gets a demo
+    // order and no money is ever collected. Refusing to boot is the loud,
+    // cheap failure (see PRODUCTION_CLOUD_EXECUTION_PLAN V2-A).
+    problems.push(
+      'PAYMENT_PROVIDER=mock is not allowed in production — set razorpay and the live keys',
+    );
+  }
+
+  return problems;
+}
+
 /**
  * Fail fast at boot instead of failing on the first player top-up.
  * Called from `server.ts` before listening.
  */
 export function assertPaymentConfig(): void {
-  const problems: string[] = [];
-
-  if (paymentConfig.minAmountPaise > paymentConfig.maxAmountPaise) {
-    problems.push('PAYMENT_MIN_AMOUNT_PAISE cannot exceed PAYMENT_MAX_AMOUNT_PAISE');
-  }
-
-  if (paymentConfig.provider === 'razorpay') {
-    if (!paymentConfig.razorpay.keyId) problems.push('RAZORPAY_KEY_ID is required for razorpay');
-    if (!paymentConfig.razorpay.keySecret) problems.push('RAZORPAY_KEY_SECRET is required for razorpay');
-    if (!paymentConfig.razorpay.webhookSecret) {
-      // Not fatal (checkout verify still works) but webhooks will be rejected.
-      console.warn(
-        '⚠ RAZORPAY_WEBHOOK_SECRET is not set — /api/payments/webhook will reject every event.',
-      );
-    }
-  }
-
-  if (env.NODE_ENV === 'production' && paymentConfig.provider === 'mock') {
-    // Warning, not fatal: a demo deploy must not lose tournaments/wallet over
-    // this. Payments still work end-to-end, just without real money.
+  if (paymentConfig.provider === 'razorpay' && !paymentConfig.razorpay.webhookSecret) {
+    // Not fatal (checkout verify still works) but webhooks will be rejected.
     console.warn(
-      '⚠ PAYMENT_PROVIDER=mock in production — no real money will be collected. ' +
-        'Set razorpay + live keys before go-live.',
+      '⚠ RAZORPAY_WEBHOOK_SECRET is not set — /api/payments/webhook will reject every event.',
     );
   }
+
+  const problems = paymentConfigProblems({
+    nodeEnv: env.NODE_ENV,
+    provider: paymentConfig.provider,
+    minAmountPaise: paymentConfig.minAmountPaise,
+    maxAmountPaise: paymentConfig.maxAmountPaise,
+    razorpay: paymentConfig.razorpay,
+  });
 
   if (problems.length > 0) {
     throw new Error(

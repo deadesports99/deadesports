@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { before, beforeEach, describe, it, mock } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { FakePrisma } from './helpers/fakePrisma.js';
+import { registerFakeFirebase, setFakeGoogleUser } from './helpers/fakeFirebase.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -14,20 +15,9 @@ type AuthApi = typeof import('../src/services/auth.service.js');
 let api: AuthApi;
 let env: typeof import('../src/config/env.js').env;
 
-/** Google tokens are stubbed; phone tokens use the real mock_otp_ bypass. */
-let googleUser: Record<string, unknown> | null = null;
-
+/** Firebase is stubbed by the test helper (production has no token bypass). */
 before(async () => {
-  const realFirebase = await import('../src/services/firebase.service.js');
-  mock.module('../src/services/firebase.service.js', {
-    namedExports: {
-      ...realFirebase,
-      verifyFirebaseGoogleToken: async () => {
-        if (!googleUser) throw new Error('Invalid Google token');
-        return googleUser;
-      },
-    },
-  });
+  await registerFakeFirebase();
   mock.module('../src/config/prisma.js', {
     namedExports: {
       prisma: new Proxy({} as any, { get: (_t, prop: string) => (fake as any)[prop] }),
@@ -136,11 +126,11 @@ describe('loginWithPhone', () => {
 describe('googleLoginOrRegister', () => {
   beforeEach(() => {
     seed();
-    googleUser = null;
+    setFakeGoogleUser(null);
   });
 
   it('creates a player on first Google sign-in', async () => {
-    googleUser = { uid: 'g-123456789', email: 'new@gmail.com', name: 'New Gamer' };
+    setFakeGoogleUser({ uid: 'g-123456789', email: 'new@gmail.com', name: 'New Gamer' });
 
     const out = await api.googleLoginOrRegister({ tenantId, idToken: 'google-token' });
     assert.equal(out.user.email, 'new@gmail.com');
@@ -150,7 +140,7 @@ describe('googleLoginOrRegister', () => {
   });
 
   it('logs an existing player in, but never a banned one', async () => {
-    googleUser = { uid: 'g-1', email: 'player@example.com', name: 'Ravi' };
+    setFakeGoogleUser({ uid: 'g-1', email: 'player@example.com', name: 'Ravi' });
     const out = await api.googleLoginOrRegister({ tenantId, idToken: 'google-token' });
     assert.equal(out.user.id, 'user-1');
     assert.equal(fake.rowsOf('user').length, 3, 'no duplicate account');
@@ -158,7 +148,7 @@ describe('googleLoginOrRegister', () => {
     seed({
       users: [{ id: 'u-banned', tenantId, email: 'bad@example.com', isBanned: true, phoneNumber: '9', role: 'USER' }],
     });
-    googleUser = { uid: 'g-2', email: 'bad@example.com' };
+    setFakeGoogleUser({ uid: 'g-2', email: 'bad@example.com' });
     await assert.rejects(
       () => api.googleLoginOrRegister({ tenantId, idToken: 'google-token' }),
       /banned/i,
