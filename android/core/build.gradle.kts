@@ -1,4 +1,5 @@
 plugins {
+    id("jacoco")
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -34,6 +35,36 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // JVM unit tests (`./gradlew :core:testDebugUnitTest`), no emulator needed.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+// JaCoCo XML for SonarCloud (sonar.coverage.jacoco.xmlReportPaths).
+jacoco {
+    toolVersion = libs.versions.jacoco.get()
+}
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    val kotlinClasses = fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) {
+        exclude("**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/*_Factory.*", "**/*JsonAdapter.*")
+    }
+    classDirectories.setFrom(kotlinClasses)
+    sourceDirectories.setFrom(files("src/main/java"))
+    // AGP writes the exec file under outputs/unit_test_code_coverage, not jacoco/.
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("outputs/unit_test_code_coverage/**/*.exec")
+            include("jacoco/*.exec")
+        },
+    )
 }
 
 dependencies {
@@ -57,6 +88,11 @@ dependencies {
     implementation(libs.retrofit.converter.moshi)
     implementation(libs.moshi)
     ksp(libs.moshi.codegen)
+    // JVM unit tests — fast, no device, no Robolectric.
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+
     // Exposed because TourneyApi's CSV export returns okhttp3.ResponseBody.
     api(libs.okhttp)
     implementation(libs.okhttp.logging)

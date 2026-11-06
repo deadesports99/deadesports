@@ -1,96 +1,95 @@
-# Next Phase Plan (after Phases 1–11)
+# Next Phase Plan — small steps (tick as we go)
 
-> Written after the payment gateway + admin visibility + quality workstream closed.
-> Current baseline: `npm test` **254/254**, Sonar gate **OK** (0 issues, 1.2 %
-> duplication, 89.6 % overall / 95.7 % new-code coverage on backend lines),
-> backend 92 % of statements, Android verified on device.
+> Rule of this file: **no big phases, only small steps.** Each step is 15–45 min,
+> has a visible check, and gets `[x]` the moment it is done and pushed.
+> If a test file turns out to be unnecessary, it gets **deleted**, not kept.
 
-## Where we stand (one screen)
+Baseline at start: `npm test` 254/254, Sonar gate OK, 0 issues, backend 92 % lines.
 
-| Area | State |
-| --- | --- |
-| Backend API (auth, tournaments, slots, sweep, results, payouts, wallets, admin, settlement) | Done, tested |
-| Real-money top-ups (Razorpay + mock, webhook, idempotent settlement, reconcile) | Done, tested (mock provider) |
-| Admin wallet console incl. Online tab | Done, on device |
-| Player wallet + Add Money | Done, on device |
-| Test suite / quality gate | Done (254 tests, gate OK) |
-| Android unit tests | **None** - biggest remaining gap |
-| Live Razorpay run | Blocked on keys |
-| Cloud deployment | Not started (plan ready in `PRODUCTION_CLOUD_EXECUTION_PLAN.md`) |
+---
 
-## Priority order
+## Progress tracker
 
-### P1 - Kotlin unit tests + JaCoCo (re-include Android in coverage)
-**Why:** the client is 4 148 Kotlin lines with zero automated checks. Every wallet,
-join and payout rule is only proven on the server; a wrong client state (double
-tap on Pay, stale balance, missing tenant header) still ships.
+| Step | Kaam | Status |
+| --- | --- | --- |
+| A1 | Gradle test deps + JaCoCo in `core` | ✅ |
+| A2 | First Kotlin test file (models) | ✅ |
+| A3 | `PlayerViewModel` add-money tests | ⬜ |
+| A4 | `AdminViewModel` tests (online tab + sync) | ⬜ |
+| A5 | JaCoCo XML into Sonar, Android back in coverage | ⬜ |
+| B1 | Backend `GET /payments/my` | ⬜ |
+| B2 | Wallet screen "Recent top-ups" list | ⬜ |
+| C1 | Auto-reconcile sweep | ⬜ |
+| D1 | Live Razorpay run (needs keys) | ⬜ |
+| E1 | Go-live cleanup (Section V2) | ⬜ |
 
-**Scope (pure JVM, no emulator, runs in CI):**
+---
 
-1. Add to `android/gradle/libs.versions.toml`: `junit4`, `mockk`, `kotlinx-coroutines-test`, `turbine`.
-2. `core` module: `testImplementation` deps + `jacocoTestReport` producing XML.
-3. Tests to write first (highest risk, no Android framework needed):
-   - `ApiEnvelope` / `ApiError` mapping (server envelope to UI error text)
-   - `Payment.kt` model parsing (status, amount formatting, `payable` helpers)
-   - `SessionManager` (token/tenant persistence contract via a fake DataStore)
-   - `PlayerViewModel`: add-money -> order -> verify success/failure, balance refresh, join fee guard
-   - `AdminViewModel`: online-payments list, `demoMode` banner, sync (reconcile) path, approve/reject guards
-   - `TimeAuthority` server-offset maths
-4. Wire `sonar.coverage.jacoco.xmlReportPaths=android/*/build/reports/jacoco/test/jacocoTestReport.xml`.
-5. Remove `android/**` from `sonar.coverage.exclusions`; keep Compose screens excluded
-   only if they still have no UI tests (document why).
+## A. Kotlin unit tests (biggest gap: 4 148 lines, 0 tests)
 
-**Done when:** `./gradlew test` green, JaCoCo XML exists for `core` + both app modules,
-Sonar shows Android coverage > 0 and the gate is still OK.
+**A1 — build setup (15 min)** — ✅ done
+- [x] `android/gradle/libs.versions.toml`: `junit 4.13.2`, `mockk 1.13.13`, `kotlinx-coroutines-test`, `jacoco 0.8.12`.
+- [x] `android/core/build.gradle.kts`: `testImplementation` + `jacocoTestReport` task (XML).
+- [x] `gradle/verification-metadata.xml` refreshed (dependency verification was blocking the new jars).
+- Check: `./gradlew :core:testDebugUnitTest` green.
 
-### P2 - Player payment history screen
-**Why:** players cannot see their own top-ups; support currently answers "did my
-money come?" by hand.
+**A2 — first test, pure models (30 min)** — ✅ done
+- [x] `android/core/src/test/java/com/tourney/core/model/PaymentModelTest.kt` — 6 tests: paise→rupees,
+      razorpay vs mock checkout, CAPTURED-only rule, settlement flags, gateway limits, admin label fallback.
+- Check: `tests="6" failures="0"`, JaCoCo XML written (`core/build/reports/jacoco/jacocoTestReport/`).
 
-- Backend: `GET /api/v1/payments/my` (paginated, own orders only, status + amount +
-  time + provider id). Reuse `paymentAdmin.service` shape, add tenant/user scoping.
-- Android: list inside the Wallet screen ("Recent top-ups"), tap -> detail sheet with
-  status explanation and a **Re-check** button wired to the existing reconcile path.
-- Tests: backend HTTP e2e (own orders only, cross-player 404, pagination), plus a
-  `PlayerViewModel` unit test for the new state.
+**A3 — `PlayerViewModel` money flow (45 min)**
+- [ ] Fake API returns order → verify → balance refresh; verify failure keeps balance unchanged;
+      double-tap Pay sends only one order.
+- Check: `:app-player:test` green; no Compose needed (coroutines-test only).
 
-**Done when:** a player can prove their ₹500 top-up reached the wallet, and a failed
-one explains why.
+**A4 — `AdminViewModel` online tab (45 min)**
+- [ ] Today's collected total, status filter, `demoMode` banner flag, Sync calls reconcile once.
+- Check: `:app-admin:test` green.
 
-### P3 - Auto-reconcile sweep
-**Why:** if a webhook never arrives (proxy, cold start), money sits in "pending"
-until a human taps Sync.
+**A5 — coverage plumbed (20 min)**
+- [ ] `sonar.coverage.jacoco.xmlReportPaths=android/*/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml`.
+- [ ] Remove `android/**` from `sonar.coverage.exclusions` **only when Kotlin line coverage is high
+      enough that the gate stays green** (right now `core` is 2.3 % of 2 070 lines). Until then the
+      exclusion stays and the Android number is tracked in the report instead of the gate.
+- Check: Sonar shows a non-zero Kotlin coverage number without turning the gate red.
 
-- `paymentReconcileSweep`: every N minutes, take orders `CREATED/AUTHORIZED` older
-  than 5 minutes but not expired, call `reconcilePaymentOrder`, log outcome.
-- Reuse the expiry sweep interval pattern; make it disable-able by env.
-- Tests: sweep reconciles a stale pending order exactly once, skips fresh orders,
-  skips mock provider (nothing remote to ask).
+## B. Player payment history
 
-**Done when:** killing the webhook route still ends with the correct balance.
+**B1 — backend (45 min)**
+- [ ] `GET /api/v1/payments/my` — own orders only, paginated, `{ items, pagination }`.
+- [ ] Tests: own-only, cross-player 404, page clamps. Reuse `FakePrisma`, no new test file
+      unless the existing `api.e2e.test.ts` is the wrong home.
 
-### P4 - Live gateway verification (needs keys)
-- `.env` with `rzp_test_*`, `PAYMENT_PROVIDER=razorpay`, real webhook secret.
-- One ₹1 UPI top-up from a device: order created, checkout, signature verified,
-  single credit, webhook retry does nothing.
-- One failure path (cancel checkout) -> order stays pending -> sweep or Sync expires it.
-- One refund test in the Razorpay dashboard for a captured order.
+**B2 — Android (45 min)**
+- [ ] Wallet screen: "Recent top-ups (5)" list + tap for detail + **Re-check** (reconcile).
+- Check: on device, a FAILED order shows why and Re-check updates it.
 
-**Done when:** screenshots of the payment in the Razorpay dashboard + the matching
-ledger row in the app.
+## C. Auto-reconcile sweep
 
-### P5 - Go-live hardening (then deploy)
-- Run `PRODUCTION_CLOUD_EXECUTION_PLAN.md` Phase 1 blockers and **Section V2**
-  (demo/test/debug removal) end to end.
-- `PAYMENT_PROVIDER=razorpay`, HTTPS webhook URL, `TRUST_PROXY=true`, per-tenant limits.
-- Then Phases 0-10 of the cloud plan: Render + Upstash + Supabase + domain + signed APKs.
+**C1 (45 min)**
+- [ ] `paymentReconcileSweep`: pending orders older than 5 min → `reconcilePaymentOrder`,
+      env on/off, same interval pattern as the expiry sweep.
+- [ ] Tests: reconciles once, skips fresh orders, no-op in mock mode.
 
-## Out of scope for now
-- iOS app, player screenshot upload (official results model), per-tenant Razorpay keys,
-  SaaS billing for white-label clients.
+## D. Live gateway (blocked on keys)
 
-## Suggested sequence
-`P1 -> P2 -> P3 -> P4 (when keys arrive) -> P5`
+**D1** — `rzp_test_*` keys, one ₹1 UPI top-up, retry idempotency, one cancel, one refund.
 
-P1 is the only one that removes a real risk without new infrastructure; P2/P3 are
-small and user-visible; P4/P5 are gated on external inputs (keys, domain).
+## E. Go-live
+
+**E1** — `PRODUCTION_CLOUD_EXECUTION_PLAN.md` Phase 1 + **Section V2** (demo code removal),
+then deploy.
+
+---
+
+## Test file rule (apply every step)
+
+1. Ek behaviour ka ek hi ghar: naya test purane file me fit ho to **naya file mat banao**.
+2. Jo file sirf do-line smoke test hai aur usse koi regression nahi pakadta → **delete**.
+3. Jo test production code delete hone se mar gaya → test bhi saath delete.
+4. Har deletion ke baad `npm test` chalao; coverage gir gaya to wajah likho, chhupao nahi.
+
+Current audit: koi duplicate test file nahi mila. Merge candidates sirf
+`apiResponse.test.ts` (2 tests, envelope) hai — `utils.test.ts` me daal sakte hain,
+par value zero hai, isliye abhi chhod diya.
