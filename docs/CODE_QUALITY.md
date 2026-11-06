@@ -37,6 +37,15 @@ the scanner runs with `backend/coverage/lcov.info` (manual scan or CI). The excl
 list below is stored both in `sonar-project.properties` and in the project settings, so
 both modes analyse the same files.
 
+### Android and the coverage metric
+
+`android/**` is excluded from **coverage only** (`sonar.coverage.exclusions`). The
+Android modules have no JVM unit-test harness at all, so every Kotlin line reports
+0 % and the project-wide number stops describing the code that *is* tested
+(backend: 92 % lines / 254 tests). Kotlin is still fully analysed for bugs,
+vulnerabilities, smells and duplication. Next ratchet: add JUnit + MockK tests for
+the ViewModels/models, publish a JaCoCo XML, then remove the exclusion.
+
 ### What is analysed
 
 Saved browser page dumps are not source and are kept out of the repo (a 1.5 MB
