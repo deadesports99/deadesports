@@ -47,6 +47,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -323,10 +326,11 @@ private fun GameTitleCard(game: GameTitle, selected: Boolean, onClick: () -> Uni
             .widthIn(min = 155.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(DemoRadius.Field))
+            // Dim only the surface, never the glyphs: the demo's `opacity-45`
+            // on a light card left "SOON" unreadable.
             .background(
-                if (selected) DemoColors.CardElevated else DemoColors.CardMuted
+                if (selected) DemoColors.CardElevated else DemoColors.CardMuted.copy(alpha = 0.75f)
             )
-            .alpha(if (selected) 1f else 0.45f)
             .border(
                 width = if (selected) 2.dp else 1.dp,
                 color = if (selected) DemoColors.TextPrimary else DemoColors.BorderSoft,
@@ -352,18 +356,32 @@ private fun GameTitleCard(game: GameTitle, selected: Boolean, onClick: () -> Uni
             )
         }
 
-        Column(modifier = Modifier.weight(1f, fill = false)) {
+        Column(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            // text-[11px] leading-tight
             Text(
                 game.name,
-                fontSize = DemoText.Small,
-                fontWeight = FontWeight.Black,
+                style = TextStyle(
+                    fontSize = DemoText.Small,
+                    lineHeight = 13.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.2).sp,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    lineHeightStyle = LineHeightStyle(
+                        alignment = LineHeightStyle.Alignment.Center,
+                        trim = LineHeightStyle.Trim.None,
+                    ),
+                ),
                 color = if (selected) DemoColors.TextPrimary else DemoColors.TextSecondary,
-                letterSpacing = (-0.2).sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+
+            // mt-0.5 status row: dot/lock + label, one tight line so the icon and
+            // the text share a single optical baseline (demo: inline-flex gap-1).
             Row(
-                modifier = Modifier.padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -385,29 +403,39 @@ private fun GameTitleCard(game: GameTitle, selected: Boolean, onClick: () -> Uni
                             .clip(RoundedCornerShape(50))
                             .background(DemoColors.Success),
                     )
-                    Text(
-                        "LIVE NOW",
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Black,
-                        color = DemoColors.Success,
-                    )
+                    StatusLabel("LIVE NOW", DemoColors.Success, FontWeight.Black)
                 } else {
                     Icon(
                         Icons.Filled.Lock,
                         contentDescription = null,
                         tint = DemoColors.TextMuted,
-                        modifier = Modifier.size(8.dp),
+                        modifier = Modifier.size(9.dp),
                     )
-                    Text(
-                        game.tag,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DemoColors.TextMuted,
-                    )
+                    StatusLabel(game.tag, DemoColors.TextMuted, FontWeight.Bold)
                 }
             }
         }
     }
+}
+
+/** text-[8px] label that keeps its box exactly as tall as the glyphs. */
+@Composable
+private fun StatusLabel(text: String, color: Color, weight: FontWeight) {
+    Text(
+        text,
+        style = TextStyle(
+            fontSize = 8.sp,
+            lineHeight = 9.sp,
+            fontWeight = weight,
+            platformStyle = PlatformTextStyle(includeFontPadding = false),
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Center,
+                trim = LineHeightStyle.Trim.None,
+            ),
+        ),
+        color = color,
+        maxLines = 1,
+    )
 }
 
 @Composable
