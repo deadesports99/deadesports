@@ -1,4 +1,6 @@
 import { prisma } from '../config/prisma.js';
+import { ApiError } from '../utils/ApiError.js';
+import type { TournamentStatus } from '../generated/prisma/client.js';
 import { realtimeService } from './realtime.service.js';
 import { DEFAULT_ROOM_REVEAL_MINUTES, MINUTE_MS } from './roomReveal.js';
 
@@ -127,6 +129,94 @@ export async function sweepMatchStates(
     ranAt: effectiveNow.toISOString(),
     wentLive,
     movedToReview,
+  };
+}
+
+/**
+ * 🎮 MANUAL KICKOFF — the organiser presses "Go LIVE" on the spot.
+ *
+ * Why this exists: the sweep only flips a match at `matchTime`, and a LIVE
+ * match auto-demotes to UNDER_REVIEW 2h after kickoff. In a real tournament the
+ * lobby often starts late (or a match is replayed), so the spectator needs to
+ * say "this one is live NOW" instead of editing the database by hand.
+ *
+ * Behaviour:
+ *   - any pre-match status  -> LIVE, and `matchTime` is pinned to now so the
+ *     2h auto-review window starts counting from the real kickoff.
+ *   - already LIVE          -> no-op re-announce (re-broadcasts the status so a
+ *     player app that missed the event refreshes).
+ *   - COMPLETED / CANCELLED -> rejected; those must never be resurrected.
+ */
+export interface ForceLiveResult {
+  id: string;
+  matchNumber: number | null;
+  title: string;
+  status: string;
+  matchTime: Date;
+  /** false when the match was already LIVE (idempotent re-announce). */
+  changed: boolean;
+}
+
+/** 404 when the match is gone, 409 when its state forbids a kickoff. */
+export class MatchNotStartableError extends ApiError {
+  constructor(message: string, statusCode: 404 | 409 = 409) {
+    super(statusCode, message);
+    this.name = 'MatchNotStartableError';
+  }
+}
+
+/** Typed as the Prisma enum so the conditional updateMany below stays type-safe. */
+const STARTABLE_STATUSES: TournamentStatus[] = [...PRE_MATCH_STATUSES, 'LIVE'];
+
+export async function forceMatchLive(
+  tournamentId: string,
+  tenantId: string,
+  now: Date = new Date(),
+): Promise<ForceLiveResult> {
+  const match = await prisma.tournament.findFirst({
+    where: { id: tournamentId, tenantId },
+    select: { id: true, matchNumber: true, title: true, status: true, matchTime: true },
+  });
+  if (!match) throw new MatchNotStartableError('Match not found', 404);
+
+  if (match.status === 'LIVE') {
+    // Idempotent: re-announce so late-joining clients catch up.
+    realtimeService.broadcast('MATCH_STATUS_CHANGED', { tournamentId: match.id, status: 'LIVE' });
+    return {
+      id: match.id,
+      matchNumber: match.matchNumber,
+      title: match.title,
+      status: 'LIVE',
+      matchTime: match.matchTime,
+      changed: false,
+    };
+  }
+
+  if (!STARTABLE_STATUSES.includes(match.status)) {
+    throw new MatchNotStartableError(
+      `A ${match.status.replace('_', ' ').toLowerCase()} match cannot be started. ` +
+        'Only matches that have not finished yet can go LIVE.',
+    );
+  }
+
+  // Conditional update keeps this safe against a concurrent sweep flipping it first.
+  const flipped = await prisma.tournament.updateMany({
+    where: { id: match.id, status: { in: STARTABLE_STATUSES } },
+    data: { status: 'LIVE', matchTime: now },
+  });
+  if (flipped.count !== 1) {
+    throw new MatchNotStartableError('Match state changed while starting it — refresh and retry.');
+  }
+
+  realtimeService.broadcast('MATCH_STATUS_CHANGED', { tournamentId: match.id, status: 'LIVE' });
+
+  return {
+    id: match.id,
+    matchNumber: match.matchNumber,
+    title: match.title,
+    status: 'LIVE',
+    matchTime: now,
+    changed: true,
   };
 }
 

@@ -25,13 +25,13 @@ describe('playerCodePrefix', () => {
 
 describe('autoMatchTitle', () => {
   it('builds a readable title from known map and type labels', () => {
-    assert.equal(autoMatchTitle('BERMUDA', 'SOLO', 12), 'Bermuda Solo #12');
-    assert.equal(autoMatchTitle('PURGATORY', 'SQUAD', 3), 'Purgatory Squad #3');
+    assert.equal(autoMatchTitle('BERMUDA', 'SOLO', 12), '12 | Bermuda Solo');
+    assert.equal(autoMatchTitle('PURGATORY', 'SQUAD', 3), '3 | Purgatory Squad');
   });
 
   it('keeps unknown values verbatim instead of dropping them', () => {
-    assert.equal(autoMatchTitle('KALAHARI', 'DUO', 5), 'Kalahari Duo #5');
-    assert.equal(autoMatchTitle('ARENA', 'SOLO', 1), 'ARENA Solo #1');
-    assert.equal(autoMatchTitle('BERMUDA', 'TDM', 2), 'Bermuda TDM #2');
+    assert.equal(autoMatchTitle('KALAHARI', 'DUO', 5), '5 | Kalahari Duo');
+    assert.equal(autoMatchTitle('ARENA', 'SOLO', 1), '1 | ARENA Solo');
+    assert.equal(autoMatchTitle('BERMUDA', 'TDM', 2), '2 | Bermuda TDM');
   });
 });

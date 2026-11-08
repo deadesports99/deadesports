@@ -80,6 +80,11 @@ export async function updateRoomCredentials(
   // Editing an already published room updates the players silently.
   await announceRoomReveal(staffUser.tenantId, updated, !wasRevealed);
 
+  // Guard rail: a published room with no seated players means nobody can ever
+  // enter (the room code is only shown to confirmed players). The publish still
+  // succeeds — the admin is told loudly instead of being blocked.
+  const seatedPlayers = await prisma.tournamentSlot.count({ where: { tournamentId } });
+
   return {
     ...roomRevealMeta(updated, now),
     id: updated.id,
@@ -87,6 +92,12 @@ export async function updateRoomCredentials(
     status: updated.status,
     roomRevealedAt: updated.roomRevealedAt,
     room: { roomId: updated.roomId, roomPassword: updated.roomPassword },
+    seatedPlayers,
+    warning:
+      seatedPlayers === 0
+        ? 'No player has joined this match yet — the Room ID is only shown to joined players. ' +
+          'Share the room in your WhatsApp/Telegram group, or cancel and re-post the match.'
+        : null,
   };
 }
 
@@ -487,7 +498,11 @@ export async function getTournamentResults(tenantId: string, tournamentId: strin
 export interface PayoutResultInput {
   userId: string;
   verifiedKills: number;
-  rank: number;
+  /**
+   * 1..48, or null when the spectator never ranked this player (died early,
+   * quiet match). A null rank pays kills only and gets no rank-prize share.
+   */
+  rank: number | null;
   isDisqualified?: boolean;
   disqualifyReason?: string;
 }
@@ -501,7 +516,7 @@ export interface PayoutSummary {
     userId: string;
     inGameName: string | null;
     verifiedKills: number;
-    rank: number;
+    rank: number | null;
     rankPrize: number;
     killPrize: number;
     totalPrize: number;
@@ -579,7 +594,9 @@ export async function distributeTournamentPrizes(
         });
         if (approved?.isApproved) continue;
 
-        const rankPrize = round2((RANK_PRIZE_SHARE[entry.rank] ?? 0) * pool);
+        const rankPrize = entry.rank === null
+          ? 0
+          : round2((RANK_PRIZE_SHARE[entry.rank] ?? 0) * pool);
         const killPrize = round2(entry.verifiedKills * perKill);
         const totalPrize = round2(rankPrize + killPrize);
 
@@ -600,7 +617,7 @@ export async function distributeTournamentPrizes(
             category: 'WINNING_PRIZE',
             balanceAfter: creditedUser.winningBalance,
             referenceId: tournamentId,
-            notes: `Prize: rank ${entry.rank} (${rankPrize}) + ${entry.verifiedKills} kills x ${perKill} (${killPrize})`,
+            notes: `Prize: ${entry.rank === null ? 'unranked' : `rank ${entry.rank}`} (${rankPrize}) + ${entry.verifiedKills} kills x ${perKill} (${killPrize})`,
           },
         });
 

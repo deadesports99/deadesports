@@ -13,6 +13,23 @@ import { realtimeService } from './services/realtime.service.js';
 assertPaymentConfig();
 assertDevAuthConfig();
 
+// Loud boot warning: bypass mode means "any phone + any OTP" can sign in.
+if (env.PHONE_OTP_BYPASS === 'true') {
+  console.warn(
+    '\n⚠️  PHONE_OTP_BYPASS=true — Firebase SMS verification is SKIPPED.\n' +
+      '    Any 10-digit phone + any 6-digit OTP can log in as a player.\n' +
+      '    Set PHONE_OTP_BYPASS=false before going live.\n',
+  );
+}
+
+// Loud boot warning: rate-limit allowlist weakens brute-force protection.
+if (env.NODE_ENV !== 'production' && (env.RATE_LIMIT_ALLOW_IPS ?? '').trim().length > 0) {
+  console.warn(
+    `\n⚠️  RATE_LIMIT_ALLOW_IPS=${env.RATE_LIMIT_ALLOW_IPS} — rate limiting is DISABLED for these IPs.\n` +
+      '    Empty this before going live (plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md §V3).\n',
+  );
+}
+
 /**
  * HTTP server listener with graceful shutdown.
  * On SIGINT / SIGTERM we: stop accepting connections -> close HTTP server

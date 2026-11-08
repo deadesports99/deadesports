@@ -237,7 +237,7 @@ describe('match management', () => {
     });
 
     assert.equal(res.status, 201, JSON.stringify(res.body));
-    assert.match(res.body.data.title, /Bermuda Squad #\d+/);
+    assert.match(res.body.data.title, /\d+ \| Bermuda Squad/);
     assert.equal(res.body.data.status, 'OPEN');
     assert.equal(res.body.data.entryFee, 40);
     assert.equal(fake.rowsOf('tournament').length, 2);

@@ -4,6 +4,8 @@ import { type Role } from '../generated/prisma/client.js';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { ADMIN_SESSION_COOKIE, readCookie } from '../utils/cookies.js';
+import { assertAccessKeyUsable } from '../services/adminAuth.service.js';
 import type { AuthUser, PermissionKey, TokenPayload } from '../types/auth.js';
 
 interface CachedAuth {
@@ -19,18 +21,39 @@ export function invalidateAuthCache(userId?: string) {
   else authCache.clear();
 }
 
+/**
+ * CSRF gate for cookie sessions: state-changing requests must come from the
+ * configured admin origin. Bearer-token (Android) requests skip this check.
+ */
+function assertCookieRequestOrigin(req: Request): void {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
+
+  // `*` is a development-only CORS setting; do not weaken local testing.
+  if (env.CORS_ORIGIN.includes('*')) return;
+
+  const origin = (req.headers.origin ?? req.headers.referer ?? '').toString();
+  if (!origin) throw ApiError.forbidden('Blocked cross-site request');
+
+  const allowed = [env.ADMIN_WEB_ORIGIN, ...env.CORS_ORIGIN].filter((value) => value && value !== '*');
+  const sameOrigin = allowed.some((base) => origin === base || origin.startsWith(`${base}/`));
+  if (!sameOrigin) throw ApiError.forbidden('Blocked cross-site request');
+}
+
 /** Extract + verify the Bearer token, then load the fresh user from the DB. */
 export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
+    // Android: Authorization header. Admin web: httpOnly cookie (no token in JS).
     const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
+    const bearerToken = header?.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+    const cookieToken = readCookie(req, ADMIN_SESSION_COOKIE);
+    const fromCookie = !bearerToken && Boolean(cookieToken);
+    const token = bearerToken || cookieToken;
+
+    if (!token) {
       throw ApiError.unauthorized('Missing or malformed Authorization header');
     }
 
-    const token = header.slice('Bearer '.length).trim();
-    if (!token) {
-      throw ApiError.unauthorized('Missing bearer token');
-    }
+    if (fromCookie) assertCookieRequestOrigin(req);
 
     let payload: TokenPayload;
     try {
@@ -38,9 +61,19 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       if (!decoded.userId || !decoded.tenantId || !decoded.role) {
         throw new Error('Token payload incomplete');
       }
-      payload = { userId: decoded.userId, tenantId: decoded.tenantId, role: decoded.role };
+      payload = {
+        userId: decoded.userId,
+        tenantId: decoded.tenantId,
+        role: decoded.role,
+        ...(decoded.accessKeyId ? { accessKeyId: decoded.accessKeyId } : {}),
+      };
     } catch {
       throw ApiError.unauthorized('Invalid or expired token');
+    }
+
+    // Staff sessions are bound to a permission key: revoking it kills the session.
+    if (fromCookie && payload.accessKeyId) {
+      await assertAccessKeyUsable(payload.accessKeyId);
     }
 
     // In-memory caching (30s TTL) eliminates 400ms sequential DB round trips on every request

@@ -115,6 +115,9 @@ before(async () => {
 
   // Env BEFORE any config module is imported (they freeze on import).
   process.env.NODE_ENV = 'test';
+  // Phone OTP kill switch is deployment config — pin it ON for this suite.
+  process.env.PHONE_OTP_ENABLED = 'true';
+process.env.PHONE_OTP_BYPASS = 'false';
   process.env.PAYMENT_PROVIDER = 'razorpay';
   process.env.RAZORPAY_KEY_ID = KEY_ID;
   process.env.RAZORPAY_KEY_SECRET = KEY_SECRET;

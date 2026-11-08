@@ -27,6 +27,37 @@ export function isDevAuthEnabled(): boolean {
   return process.env.NODE_ENV === 'development' && process.env.DEV_FAKE_FIREBASE === 'true';
 }
 
+/**
+ * Global kill switch for Firebase **Phone (SMS) OTP** authentication.
+ *
+ * Operators flip `PHONE_OTP_ENABLED=false` when the Firebase phone-auth provider is
+ * not usable (billing/quota/SHA-1/Play Integrity problems) so every player falls
+ * back to Email OTP or Google sign-in instead of hitting a dead SMS flow.
+ *
+ * Defaults to `true` so unit tests and self-hosted dev machines behave exactly as
+ * before; only an explicit `false` turns phone auth off.
+ * ADMIN / SUB_ADMIN logins are never blocked by this switch (see auth.service).
+ */
+export function isPhoneOtpEnabled(): boolean {
+  // Read live `process.env` (not the frozen `env` object) so ops/tests can flip it.
+  return process.env.PHONE_OTP_ENABLED !== 'false';
+}
+
+/**
+ * DEMO / BREAK-GLASS switch for Firebase **Phone (SMS) OTP**.
+ *
+ * When `PHONE_OTP_BYPASS=true` the server accepts a client-generated
+ * `dev_otp_<phone>` token for ANY 10-digit number and provisions a player account
+ * on first login — i.e. any phone + any 6-digit OTP can sign in.
+ *
+ * ⚠️ This removes real SMS verification: only enable it while the Firebase phone
+ * provider is broken (demo/pilot). Set `PHONE_OTP_BYPASS=false` to restore real
+ * verification; `PHONE_OTP_ENABLED=false` is the safe "phone off" switch.
+ */
+export function isPhoneOtpBypassEnabled(): boolean {
+  return process.env.PHONE_OTP_BYPASS === 'true';
+}
+
 /** Throws if a production deploy still has the development login flag on. */
 export function assertDevAuthConfig(): void {
   if (process.env.NODE_ENV === 'production' && process.env.DEV_FAKE_FIREBASE === 'true') {
@@ -35,6 +66,10 @@ export function assertDevAuthConfig(): void {
     );
   }
 }
+
+/** Human-readable message shown to players when phone OTP is switched off. */
+export const PHONE_OTP_DISABLED_MESSAGE =
+  'Phone (SMS) OTP is temporarily unavailable. Please continue with Email OTP or Google sign-in.';
 
 export function getFirebaseApp(): App | null {
   if (app) return app;
@@ -101,6 +136,16 @@ export async function verifyFirebasePhoneToken(
   if (isDevAuthEnabled() && idToken.startsWith('dev_otp_')) {
     const norm = normalizePhoneNumber(idToken.slice('dev_otp_'.length));
     return { uid: `dev_${norm.national}`, e164: norm.e164, national: norm.national };
+  }
+
+  // Demo mode: any 10-digit number is accepted without a real Firebase session.
+  if (isPhoneOtpBypassEnabled() && idToken.startsWith('dev_otp_')) {
+    const norm = normalizePhoneNumber(idToken.slice('dev_otp_'.length));
+    if (!/^\d{10}$/.test(norm.national)) {
+      throw ApiError.badRequest('A 10-digit mobile number is required for OTP login');
+    }
+    console.warn(`[firebase] PHONE_OTP_BYPASS active — skipping SMS verification for +91 ${norm.national}`);
+    return { uid: `bypass_${norm.national}`, e164: norm.e164, national: norm.national };
   }
 
   const fbApp = getFirebaseApp();

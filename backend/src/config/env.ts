@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+/** Development fallback — production boot refuses this exact value. */
+const DEV_PEPPER = 'dev-only-insecure-pepper-change-me-0123456789';
+
 /**
  * Zod schema for ALL environment variables used by the application.
  * The process is terminated immediately with a descriptive error if any
@@ -25,8 +28,33 @@ const envSchema = z.object({
   /** JWT token lifetime, e.g. "7d", "24h". */
   JWT_EXPIRES_IN: z.string().default('7d'),
 
+  /** Admin-web session lifetime (httpOnly cookie). Shorter than player JWTs. */
+  ADMIN_SESSION_TTL_HOURS: z.coerce.number().int().positive().max(72).default(12),
+
+  /**
+   * Exact admin-web origin allowed to send cookie-authenticated mutations.
+   * Used for the CSRF Origin/Referer gate. Dev default: Vite on 5174.
+   */
+  ADMIN_WEB_ORIGIN: z.string().url().default('http://localhost:5174'),
+
+  /** Email transport for admin OTPs. Real providers are wired in Phase 6. */
+  EMAIL_PROVIDER: z.enum(['console', 'smtp', 'resend', 'brevo']).default('console'),
+
+  /** From address shown to the owner ("Brand <no-reply@...>"). */
+  EMAIL_FROM: z.string().default('Apex Free Fire Club <no-reply@apexff.com>'),
+
   /** Comma-separated list of allowed client origins. */
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
+
+  /**
+   * Secret pepper for admin/staff permission keys (24-char API-key style) and
+   * hashed email OTPs. Must be 32+ chars. Production boot is refused while the
+   * development default is still in place (see the guard below).
+   */
+  ACCESS_KEY_PEPPER: z
+    .string()
+    .min(32, 'ACCESS_KEY_PEPPER must be at least 32 characters long')
+    .default(DEV_PEPPER),
 
   /** Reverse-proxy trust flag for Render/Caddy deployments. */
   TRUST_PROXY: z.string().default('false').transform((value) => value === 'true' || value === '1'),
@@ -49,6 +77,28 @@ const envSchema = z.object({
    * with it set is fatal (see assertDevAuthConfig).
    */
   DEV_FAKE_FIREBASE: z.string().optional(),
+
+  /**
+   * Kill switch for Firebase Phone (SMS) OTP auth. `false` disables phone
+   * signup/login for players (they fall back to Email OTP / Google).
+   * Defaults to `true`; ADMIN / SUB_ADMIN logins stay unaffected.
+   */
+  PHONE_OTP_ENABLED: z.enum(['true', 'false']).default('true'),
+
+  /**
+   * ⚠️ DEMO ONLY. `true` accepts ANY 10-digit phone + ANY 6-digit OTP: the server
+   * skips Firebase SMS verification and provisions the player account on first
+   * login. Use while the Firebase phone provider is broken, then set back to `false`.
+   */
+  PHONE_OTP_BYPASS: z.enum(['true', 'false']).default('false'),
+
+  /**
+   * ⚠️ DEMO / LOCAL TESTING ONLY. Comma-separated IPs that skip every rate
+   * limiter (auth, deposit, withdrawal, join). Ignored when NODE_ENV is
+   * 'production', and booting production with it set is a startup warning.
+   * Remove before launch — see plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md §V3.
+   */
+  RATE_LIMIT_ALLOW_IPS: z.string().optional(),
 
   // ─── Online payment gateway (wallet top-up) ───────────────────────────
   /** `mock` = no keys needed (demo), `razorpay` = real Indian gateway. */
@@ -120,5 +170,13 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+// ─── Production-only safety guards ──────────────────────────────────────
+if (env.NODE_ENV === 'production' && env.ACCESS_KEY_PEPPER === DEV_PEPPER) {
+  console.error(
+    '❌ ACCESS_KEY_PEPPER is still the development default. Set a unique 32+ character secret before running in production.',
+  );
+  process.exit(1);
+}
 
 export type Env = typeof env;

@@ -199,6 +199,32 @@ export async function updateTournamentVisibility(req: Request, res: Response, ne
 }
 
 /**
+ * 🎮 Manual kickoff — the organiser presses "Go LIVE" on a specific match.
+ *
+ * The time sweep is the normal path; this is the override for a lobby that
+ * starts late (or a replay). It also re-pins `matchTime` to now so the 2h
+ * auto-review window counts from the *real* kickoff instead of the schedule.
+ */
+export async function forceMatchLive(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const result = await matchSweepService.forceMatchLive(
+      String(req.params.id),
+      req.user.tenantId,
+      new Date(),
+    );
+    sendResponse(
+      res,
+      200,
+      result.changed ? 'Match is now LIVE' : 'Match was already LIVE',
+      result,
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Time-based lifecycle sweep (manual trigger) — same engine the background
  * scheduler runs every minute. Useful for ops "advance now" during a demo.
  */

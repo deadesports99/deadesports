@@ -24,9 +24,11 @@ export interface FakePrismaOptions {
   tournamentSlots?: Row[];
   matchResults?: Row[];
   emailOtps?: Row[];
+  staffAccessKeys?: Row[];
+  adminAuditLogs?: Row[];
 }
 
-const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger', 'tournament', 'tournamentSlot', 'matchResult', 'emailOtp'] as const;
+const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger', 'tournament', 'tournamentSlot', 'matchResult', 'emailOtp', 'staffAccessKey', 'adminAuditLog'] as const;
 type ModelName = (typeof MODELS)[number];
 
 const plain = (v: unknown) => (typeof v === 'number' ? v : Number(String(v)));
@@ -128,6 +130,8 @@ export class FakePrisma {
       tournamentSlot: (options.tournamentSlots ?? []).map((r) => ({ ...r })),
       matchResult: (options.matchResults ?? []).map((r) => ({ ...r })),
       emailOtp: (options.emailOtps ?? []).map((r) => ({ ...r })),
+      staffAccessKey: (options.staffAccessKeys ?? []).map((r) => ({ ...r })),
+      adminAuditLog: (options.adminAuditLogs ?? []).map((r) => ({ ...r })),
     };
   }
 
@@ -303,6 +307,23 @@ export class FakePrisma {
         rows.forEach((r) => applyData(r, args.data));
         return { count: rows.length };
       },
+      /** `groupBy({ by: ['deviceIdSnapshot'], where, _count: { _all: true } })` */
+      groupBy: async (args: any = {}) => {
+        this.log(model, 'groupBy', args);
+        const by: string[] = args.by ?? [];
+        const groups = new Map<string, { key: Row; rows: Row[] }>();
+        for (const row of this.rows(model).filter((r) => matches(r, args.where))) {
+          const key: Row = {};
+          for (const field of by) key[field] = row[field];
+          const id = JSON.stringify(key);
+          if (!groups.has(id)) groups.set(id, { key, rows: [] });
+          groups.get(id)!.rows.push(row);
+        }
+        return [...groups.values()].map(({ key, rows }) => ({
+          ...key,
+          _count: args._count?._all ? { _all: rows.length } : undefined,
+        }));
+      },
     };
   }
 
@@ -316,6 +337,8 @@ export class FakePrisma {
   get tournamentSlot() { return this.delegate('tournamentSlot'); }
   get emailOtp() { return this.delegate('emailOtp'); }
   get matchResult() { return this.delegate('matchResult'); }
+  get staffAccessKey() { return this.delegate('staffAccessKey'); }
+  get adminAuditLog() { return this.delegate('adminAuditLog'); }
 
   /** Resolve `where: { user: { inGameUid } }` style relation filters. */
   private static readonly RELATIONAL: readonly ModelName[] = ['tournamentSlot', 'matchResult', 'walletLedger'];
@@ -332,7 +355,21 @@ export class FakePrisma {
 
     let result: Row = row;
     if (FakePrisma.RELATIONAL.includes(model) && include.user) {
-      result = { ...result, user: this.store.user.find((u) => u.id === result.userId) };
+      const userInclude = include.user as Row;
+      const select = userInclude.select as Row | undefined;
+      let owner: Row | undefined = this.store.user.find((u) => u.id === result.userId);
+      if (owner) {
+        owner = { ...owner };
+        // Nested relation inside `include: { user: { select: { matchResults } } }`.
+        const nested = select?.matchResults as Row | undefined;
+        if (nested) {
+          const rows = this.store.matchResult
+            .filter((m) => m.userId === owner!.id && matches(m, nested.where as Row | undefined))
+            .map((m) => project(m, nested.select as Row | undefined) ?? {});
+          owner.matchResults = rows;
+        }
+      }
+      result = { ...result, user: owner };
     }
 
     // `include: { _count: { select: { slots: true } } }`
@@ -346,10 +383,104 @@ export class FakePrisma {
     return result;
   }
 
-  /** `SELECT ... FOR UPDATE` used to lock the tournament row. */
-  async $queryRaw(): Promise<Row[]> {
+  /**
+   * Raw SQL emulation for the three statements the services actually run:
+   *  1. `SELECT ... FROM "Tournament" t ... generate_series(...)` — join context
+   *     (match row + booked count + lowest free seat).
+   *  2. `UPDATE "User" SET ... RETURNING ...` — conditional wallet debit.
+   *  3. `SELECT ... FOR UPDATE` on a tournament row (returns id + status).
+   */
+  async $queryRaw(strings?: unknown, ...values: unknown[]): Promise<Row[]> {
     this.log('$queryRaw', 'query', {});
+    const sql = Array.isArray(strings) ? strings.join('?') : String(strings ?? '');
+
+    if (sql.includes('UPDATE "User"')) {
+      return this.rawDebit(sql, values);
+    }
+
+    // Post-commit "is this match full now?" reconciliation.
+    if (sql.includes('UPDATE "Tournament"') && sql.includes('SLOTS_FULL')) {
+      const tournamentId = String(values.filter((v) => typeof v === 'string')[0] ?? '');
+      const match = this.store.tournament.find((t) => t.id === tournamentId);
+      if (!match) return [];
+      const booked = this.store.tournamentSlot.filter((s) => s.tournamentId === match.id).length;
+      const full = booked >= Number(match.totalSlots ?? 48);
+      const preMatch = ['OPEN', 'UPCOMING', 'DRAFT'].includes(String(match.status));
+      if (full && preMatch) {
+        match.status = 'SLOTS_FULL';
+        return [{ status: 'SLOTS_FULL' }];
+      }
+      return [];
+    }
+
+    // The free-seat sub-query now arrives as an interpolated `Prisma.sql`
+    // fragment, so its text is not part of `strings` any more — match on the
+    // outer select instead.
+    if (sql.includes('generate_series') || sql.includes('bookedCount') || sql.includes('freeSlot')) {
+      return this.rawJoinContext(values);
+    }
+
     return this.store.tournament.map((t) => ({ id: t.id, status: t.status }));
+  }
+
+  /** Free-seat lookup fallback (older callers pass totalSlots + tournamentId). */
+  private rawFreeSeat(totalSlots: number, tournamentId: string): Row[] {
+    const booked = new Set(
+      this.store.tournamentSlot
+        .filter((slot) => slot.tournamentId === tournamentId)
+        .map((slot) => slot.slotNumber),
+    );
+    for (let slot = 1; slot <= totalSlots; slot += 1) {
+      if (!booked.has(slot)) return [{ slot }];
+    }
+    return [];
+  }
+
+  /** `SELECT ... FROM "Tournament" t` with booked count + lowest free seat. */
+  private rawJoinContext(values: unknown[]): Row[] {
+    // The real query interpolates a `Prisma.sql` fragment for the free-seat
+    // sub-query (lowest seat, or a random one on a retry), so plain string
+    // params have to be filtered out of the value list here.
+    const params = values.filter((v) => typeof v === 'string') as string[];
+    const [tournamentId, tenantId] = params;
+    const match = this.store.tournament.find(
+      (t) => t.id === tournamentId && (!tenantId || t.tenantId === tenantId),
+    );
+    if (!match) return [];
+    const slots = this.store.tournamentSlot.filter((s) => s.tournamentId === match.id);
+    const totalSlots = Number(match.totalSlots ?? 48);
+    return [
+      {
+        ...match,
+        entryFee: String(match.entryFee ?? 0),
+        totalSlots,
+        bookedCount: slots.length,
+        freeSlot: slots.length >= totalSlots ? null : this.rawFreeSeat(totalSlots, match.id)[0]?.slot ?? null,
+      },
+    ];
+  }
+
+  /** `UPDATE "User" SET "depositBalance" = ... RETURNING ...` with the balance guard. */
+  private rawDebit(sql: string, values: unknown[]): Row[] {
+    const column = sql.includes('"winningBalance" = "winningBalance" -')
+      ? 'winningBalance'
+      : 'depositBalance';
+    const fee = plain(values[0]);
+    const userId = String(values[1]);
+    const row = this.store.user.find((u) => u.id === userId);
+    if (!row || row.isBanned === true) return [];
+    if (plain(row[column]) < fee) return [];
+    row[column] = round2(plain(row[column]) - fee);
+    this.log('user', 'update', { id: userId, [column]: { decrement: fee } });
+    return [
+      {
+        depositBalance: String(row.depositBalance),
+        winningBalance: String(row.winningBalance),
+        inGameName: row.inGameName ?? null,
+        inGameUid: row.inGameUid ?? null,
+        deviceId: row.deviceId ?? null,
+      },
+    ];
   }
 
   async $transaction<T>(cb: (tx: FakePrisma) => Promise<T>, _options?: unknown): Promise<T> {

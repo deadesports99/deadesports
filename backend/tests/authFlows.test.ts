@@ -7,8 +7,13 @@ import { before, beforeEach, describe, it, mock } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { FakePrisma } from './helpers/fakePrisma.js';
 import { registerFakeFirebase, setFakeGoogleUser } from './helpers/fakeFirebase.js';
+import { hashOtp } from '../src/utils/accessKey.js';
 
 process.env.NODE_ENV = 'test';
+// Phone OTP kill switch is deployment config — pin it ON for this suite so a
+// developer's local .env cannot change test outcomes.
+process.env.PHONE_OTP_ENABLED = 'true';
+process.env.PHONE_OTP_BYPASS = 'false';
 
 let fake: FakePrisma;
 type AuthApi = typeof import('../src/services/auth.service.js');
@@ -168,7 +173,9 @@ describe('email + OTP auth', () => {
 
   it('sends a 6-digit code and replaces the previous one', async () => {
     seed({
-      emailOtps: [{ id: 'old', tenantId, email: 'player@example.com', code: '111111', type: 'LOGIN' }],
+      emailOtps: [
+        { id: 'old', tenantId, email: 'player@example.com', codeHash: hashOtp('111111'), type: 'LOGIN' },
+      ],
     });
 
     const out = await api.sendEmailOtp({
@@ -182,7 +189,8 @@ describe('email + OTP auth', () => {
     assert.match(out.debugOtp ?? '', /^\d{6}$/);
     const stored = fake.rowsOf('emailOtp');
     assert.equal(stored.length, 1, 'old code deleted');
-    assert.equal(stored[0].code, out.debugOtp);
+    assert.equal(stored[0].codeHash, hashOtp(out.debugOtp!));
+    assert.equal('code' in stored[0], false, 'plain OTP is never stored');
     assert.ok(new Date(stored[0].expiresAt).getTime() > Date.now());
   });
 
@@ -253,7 +261,7 @@ describe('email + OTP auth', () => {
           id: 'expired',
           tenantId,
           email: 'player@example.com',
-          code: '222222',
+          codeHash: hashOtp('222222'),
           type: 'LOGIN',
           expiresAt: new Date(Date.now() - 1000),
         },
@@ -270,7 +278,7 @@ describe('email + OTP auth', () => {
           id: 'ok',
           tenantId,
           email: 'player@example.com',
-          code: sent.debugOtp!,
+          codeHash: hashOtp(sent.debugOtp!),
           type: 'LOGIN',
           expiresAt: new Date(Date.now() + 600_000),
         },

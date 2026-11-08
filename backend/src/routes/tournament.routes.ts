@@ -41,6 +41,14 @@ tournamentRouter.post(
   tournamentController.joinTournament,
 );
 
+// Manual kickoff — organiser starts a specific match right now.
+tournamentRouter.patch(
+  '/:id/go-live',
+  authenticate,
+  requirePermission('canCreateMatch'),
+  tournamentController.forceMatchLive,
+);
+
 tournamentRouter.post(
   '/sweep/states',
   authenticate,

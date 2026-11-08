@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma, type TournamentStatus } from '../generated/prisma/client.js';
 import { prisma } from '../config/prisma.js';
+import { noteDeviceActivity } from './deviceWatch.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { AuthUser } from '../types/auth.js';
 import {
@@ -41,7 +42,8 @@ export const JOIN_CUTOFF_MS = 60 * 1000;
 /** Tournament statuses from which an admin may cancel + refund. */
 const CANCELLABLE_STATUSES = ['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
 
-/** Statuses whose visibility window can no longer be edited. */
+/** Statuses a player may still book a seat in (ROOM_REVEALED is included: a
+ *  published room does not close the entry window — only kickoff-1min does). */
 const VISIBILITY_EDITABLE_STATUSES = [
   'DRAFT',
   'UPCOMING',
@@ -229,7 +231,34 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
   if (!tournament) throw ApiError.internal('Could not allocate a match number — retry');
 
   clearFeedCache();
+  broadcastFeedChanged(tournament.tenantId, tournament.id, tournament.status, 'CREATED');
   return sanitizeTournament(tournament, true);
+}
+
+/**
+ * Tell every connected player "the feed changed, re-fetch it".
+ *
+ * Joins and results already push SLOT_BOOKED / MATCH_STATUS_CHANGED, but a
+ * brand-new match had no event at all: the DB row existed while the app kept
+ * rendering its cached list until someone tapped refresh. MATCH_CREATED is
+ * deliberately status-agnostic — clients just call GET /tournaments again, so
+ * visibility rules, pagination and ordering stay server-authoritative.
+ */
+function broadcastFeedChanged(
+  tenantId: string,
+  tournamentId: string,
+  status: string,
+  reason: 'CREATED' | 'CLONED' | 'VISIBILITY_UPDATED' | 'CANCELLED' | 'UPDATED',
+): void {
+  try {
+    realtimeService.broadcastToTenant(tenantId, 'MATCH_CREATED', {
+      tournamentId,
+      status,
+      reason,
+    });
+  } catch (rtErr) {
+    console.warn('[Realtime Feed Broadcast Error]:', rtErr);
+  }
 }
 
 // ─── In-Memory Feed Cache (eliminates 1.5s DB roundtrip to Supabase) ────────
@@ -438,6 +467,221 @@ export interface JoinTournamentResult {
   entryFee: number;
   balanceAfter: number;
   tournamentStatus: string;
+  /** Present when the organiser already published the room before this join. */
+  roomId?: string | null;
+}
+
+/** A lost seat race — the caller retries on the next free seat. */
+class JoinRaceLoss extends Error {}
+
+/** Prisma errors are duck-typed: `instanceof` is unreliable across client builds. */
+function prismaCodeOf(error: unknown): string | undefined {
+  return (error as { code?: unknown } | null | undefined)?.code as string | undefined;
+}
+
+function prismaTargetOf(error: unknown): string {
+  const meta = (error as { meta?: { target?: unknown } } | null | undefined)?.meta;
+  return String(meta?.target ?? '');
+}
+
+/**
+ * True when the failure is "someone else got there first" and a retry on the
+ * next free seat can succeed: seat unique-violation, serialization conflict,
+ * transaction timeout, or a saturated connection pool.
+ */
+function isJoinRaceLoss(error: unknown): boolean {
+  if (error instanceof JoinRaceLoss) return true;
+  const code = prismaCodeOf(error);
+  if (!code) return false;
+  // Pool starvation / transaction timeouts are capacity problems, not seat races.
+  // Retrying them multiplies the load, so they surface as a clean "busy" message.
+  if (code === 'P2034' || code === 'P2028') return true;
+  if (code === 'P2024') return false;
+  if (code === 'P2002') {
+    const target = prismaTargetOf(error);
+    // Seat unique index (tournamentId, slotNumber) — never the user index.
+    return !target.includes('userId');
+  }
+  return false;
+}
+
+/** Turn a leftover Prisma failure into a clean 4xx for the app. */
+function mapJoinError(error: unknown): Error {
+  if (process.env.JOIN_DEBUG === '1') {
+    const e = error as { name?: string; code?: string; message?: string };
+    console.error('[join-debug]', e?.name, e?.code, e?.message);
+  }
+  const code = prismaCodeOf(error);
+  if (code === 'P2002') {
+    return prismaTargetOf(error).includes('userId')
+      ? ApiError.conflict('You have already joined this tournament')
+      : ApiError.conflict('That seat was just taken — please try again');
+  }
+  if (code === 'P2034') return ApiError.conflict('Booking conflict — please retry');
+  if (code === 'P2024' || code === 'P2028') {
+    return ApiError.serviceUnavailable('The server is busy right now — please tap join again');
+  }
+  const message = String((error as { message?: string } | null)?.message ?? '');
+  if (/timeout exceeded when trying to connect|Connection pool|ECONNRESET/i.test(message)) {
+    return ApiError.serviceUnavailable('The server is busy right now — please tap join again');
+  }
+  return error instanceof Error ? error : new Error('Booking failed');
+}
+
+/** Everything the join path needs from the match row, in one query. */
+interface JoinMatch {
+  id: string;
+  status: string;
+  visibleFrom: Date | null;
+  matchTime: Date;
+  totalSlots: number;
+  entryFee: string;
+  title: string;
+  roomId: string | null;
+  roomRevealedAt: Date | null;
+  matchType: string;
+  /** Seats already taken (read in the same round-trip). */
+  bookedCount: number;
+  /** Lowest free seat number, or null when the match is full. */
+  freeSlot: number | null;
+}
+
+/** Minimal shape shared by PrismaClient and its transaction client. */
+type JoinDb = {
+  $queryRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
+};
+
+/**
+ * Match row + booked count + lowest free seat in ONE round-trip.
+ *
+ * The join path used to spend three queries here (find match, list every booked
+ * seat, then count them again inside the transaction). Against a remote database
+ * each round-trip is ~200 ms, so fusing them is the difference between a ~2.4 s
+ * and a ~1 s join.
+ */
+/**
+ * Closes an over-full match even when two joins raced past each other.
+ *
+ * The in-transaction flip counts the seats *this* transaction can see, so with
+ * two last-seat joins in flight both may read 47 booked and neither flips the
+ * status (the match then sits in OPEN with 48/48). This single conditional
+ * UPDATE runs after the commit, where the true count is visible, and only ever
+ * touches a match that is genuinely full.
+ *
+ * @returns the status the match ends up in, or null when nothing changed.
+ */
+async function reconcileFullStatus(tournamentId: string): Promise<string | null> {
+  const rows = (await prisma.$queryRaw`
+    UPDATE "Tournament" t
+       SET status = 'SLOTS_FULL'
+     WHERE t.id = ${tournamentId}
+       AND t.status IN ('OPEN', 'UPCOMING', 'DRAFT')
+       AND (SELECT count(*) FROM "TournamentSlot" s
+             WHERE s."tournamentId" = t.id) >= t."totalSlots"
+    RETURNING t.status`) as Array<{ status: string }>;
+  return rows[0]?.status ?? null;
+}
+
+async function loadJoinContext(
+  db: JoinDb,
+  tournamentId: string,
+  tenantId: string,
+  /**
+   * `true` on a retry after losing a seat race.
+   *
+   * Every join asks for the *lowest* free seat, so N simultaneous joins all aim
+   * at the same number and N-1 of them lose. On a retry we pick a random free
+   * seat instead: the crowd spreads over the free seats and the second attempt
+   * wins immediately.
+   */
+  randomSeat = false,
+): Promise<JoinMatch | null> {
+  const freeSlot =
+    randomSeat
+      ? Prisma.sql`(SELECT gs FROM generate_series(1, t."totalSlots") gs
+             WHERE NOT EXISTS (SELECT 1 FROM "TournamentSlot" s2
+                                WHERE s2."tournamentId" = t.id AND s2."slotNumber" = gs)
+             ORDER BY random() LIMIT 1)`
+      : Prisma.sql`(SELECT gs FROM generate_series(1, t."totalSlots") gs
+             WHERE NOT EXISTS (SELECT 1 FROM "TournamentSlot" s2
+                                WHERE s2."tournamentId" = t.id AND s2."slotNumber" = gs)
+             ORDER BY gs LIMIT 1)`;
+
+  const rows = (await db.$queryRaw`
+    SELECT t.id,
+           t.status,
+           t."visibleFrom",
+           t."matchTime",
+           t."totalSlots",
+           t."entryFee",
+           t.title,
+           t."roomId",
+           t."roomRevealedAt",
+           t."matchType",
+           (SELECT count(*)::int FROM "TournamentSlot" s
+             WHERE s."tournamentId" = t.id) AS "bookedCount",
+           ${freeSlot} AS "freeSlot"
+      FROM "Tournament" t
+     WHERE t.id = ${tournamentId} AND t."tenantId" = ${tenantId}
+     LIMIT 1`) as JoinMatch[];
+  return rows[0] ?? null;
+}
+
+/**
+ * Join concurrency gate.
+ *
+ * Why: a nearly-full match turns into a stampede — 100+ taps at the same
+ * instant, all wanting the last seat. Supabase's session pooler only gives us
+ * 15 server connections, so without a gate Prisma's own pool spills
+ * `P2024 timeout exceeded when trying to connect` (a 500/503) for the overflow.
+ *
+ * Here the queue lives in memory instead: at most JOIN_MAX_INFLIGHT joins touch
+ * the DB at once, the rest wait their turn (which is fine — the seat is decided
+ * by the DB, not by who asked first) and overflow past JOIN_MAX_QUEUE is told
+ * to retry instead of being queued forever.
+ */
+const JOIN_MAX_INFLIGHT = Math.max(1, Number(process.env.JOIN_MAX_INFLIGHT ?? 12));
+const JOIN_MAX_QUEUE = Math.max(1, Number(process.env.JOIN_MAX_QUEUE ?? 400));
+
+let joinsInflight = 0;
+const joinWaiters: Array<() => void> = [];
+
+function acquireJoinSlot(): Promise<void> {
+  if (joinsInflight < JOIN_MAX_INFLIGHT) {
+    joinsInflight += 1;
+    return Promise.resolve();
+  }
+  if (joinWaiters.length >= JOIN_MAX_QUEUE) {
+    return Promise.reject(ApiError.serviceUnavailable('Everyone is joining this match right now — please tap join again'));
+  }
+  return new Promise<void>((resolve) => {
+    joinWaiters.push(() => {
+      joinsInflight += 1;
+      resolve();
+    });
+  });
+}
+
+function releaseJoinSlot(): void {
+  joinsInflight = Math.max(0, joinsInflight - 1);
+  const next = joinWaiters.shift();
+  if (next) next();
+}
+
+/**
+ * Player-facing words for "no seats left".
+ *
+ * A burst on the last seats used to answer with
+ * "Tournament is not accepting entries (status: SLOTS_FULL)" — that is a
+ * database status, not something a player should ever read. The app shows this
+ * string verbatim (join sheet message) and turns the join button into "Slot Full".
+ */
+export const SLOT_FULL_MESSAGE = 'Slot Full — all seats are taken';
+export const ENTRY_CLOSED_MESSAGE = 'Entry closed — this match is no longer accepting players';
+
+/** Maps a non-joinable match status to the sentence the player sees. */
+function closedStatusMessage(status: string | null | undefined): string {
+  return status === 'SLOTS_FULL' ? SLOT_FULL_MESSAGE : ENTRY_CLOSED_MESSAGE;
 }
 
 export async function joinTournament(
@@ -449,10 +693,30 @@ export async function joinTournament(
   inGameUid?: string,
   saveAsDefault: boolean = true,
 ): Promise<JoinTournamentResult> {
-  const tournament = await prisma.tournament.findFirst({
-    where: { id: tournamentId, tenantId: user.tenantId },
-  });
-  if (!tournament) throw ApiError.notFound('Tournament not found');
+  await acquireJoinSlot();
+  try {
+    return await joinTournamentInner(user, tournamentId, slotNumber, teamCode, inGameName, inGameUid, saveAsDefault);
+  } finally {
+    releaseJoinSlot();
+  }
+}
+
+async function joinTournamentInner(
+  user: AuthUser,
+  tournamentId: string,
+  slotNumber?: number,
+  teamCode?: string,
+  inGameName?: string,
+  inGameUid?: string,
+  saveAsDefault: boolean = true,
+): Promise<JoinTournamentResult> {
+  // One round-trip for the match row, the booked count and the lowest free seat.
+  const loaded = await loadJoinContext(prisma, tournamentId, user.tenantId);
+  if (!loaded) throw ApiError.notFound('Tournament not found');
+
+  /** Non-null alias: TS narrowing does not reach the nested retry helper. */
+  const matchRow = loaded;
+  const tournament = loaded;
 
   // Registration only opens once the admin's visibility window is reached.
   if (tournament.visibleFrom && tournament.visibleFrom.getTime() > Date.now()) {
@@ -462,239 +726,311 @@ export async function joinTournament(
     );
   }
 
-  if (!(JOINABLE_STATUSES as readonly string[]).includes(tournament.status)) {
-    throw ApiError.conflict(`Tournament is not accepting entries (status: ${tournament.status})`);
+  // A published Room ID & Password means players are already filing into the
+  // custom room. Publishing the room also flips the match to ROOM_REVEALED, so
+  // that status must still accept entries — otherwise a player who was not
+  // seated before the publish could never join (old bug: "join is blocked
+  // although the match has not started yet").
+  const roomPublished = Boolean(tournament.roomRevealedAt || tournament.status === 'ROOM_REVEALED');
+
+  if (!(JOINABLE_STATUSES as readonly string[]).includes(tournament.status) && !roomPublished) {
+    throw ApiError.conflict(closedStatusMessage(tournament.status));
   }
 
-  // Joining closes 1 minute before the match starts (see JOIN_CUTOFF_MS).
+  // Joining closes 1 minute before the match starts (see JOIN_CUTOFF_MS) — this
+  // is the ONLY time rule, and it does not care whether the room was published.
   if (tournament.matchTime.getTime() - Date.now() <= JOIN_CUTOFF_MS) {
     throw ApiError.conflict(
       'Entry closed — joining stops 1 minute before the match starts',
     );
   }
 
-  if ((inGameName || inGameUid) && saveAsDefault) {
+  // ── Concurrency: seat races are retried, never surfaced as 500s ─────
+  // Two players tapping the same free seat at the same instant is normal on a
+  // hot match. The DB is the source of truth (unique seat + serializable tx),
+  // so a lost race is retried on the next free seat instead of failing.
+const MAX_JOIN_ATTEMPTS = 8;
+  const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  for (let attempt = 1; attempt <= MAX_JOIN_ATTEMPTS; attempt += 1) {
     try {
-      await prisma.user.update({
-        where: { id: user.userId },
-        data: {
-          ...(inGameName ? { inGameName: inGameName.trim() } : {}),
-          ...(inGameUid ? { inGameUid: inGameUid.trim() } : {}),
-        },
-      });
-    } catch {
-      // Non-fatal if profile sync fails
+      return await joinOnce(attempt > 1);
+    } catch (err) {
+      if (!isJoinRaceLoss(err)) throw mapJoinError(err);
+      if (attempt === MAX_JOIN_ATTEMPTS) break;
+      await wait(5 + attempt * 8 + Math.floor(Math.random() * 12));
     }
   }
+  throw ApiError.conflict('Every seat is being taken right now — please tap join again');
 
-  let targetSlot = slotNumber;
-  if (!targetSlot || targetSlot < 1) {
-    const booked = await prisma.tournamentSlot.findMany({
-      where: { tournamentId },
-      select: { slotNumber: true },
-    });
-    const bookedSet = new Set(booked.map((s) => s.slotNumber));
-    for (let i = 1; i <= tournament.totalSlots; i++) {
-      if (!bookedSet.has(i)) {
-        targetSlot = i;
-        break;
-      }
+  /** One full join attempt: pick a free seat, reserve it, commit the DB tx. */
+  async function joinOnce(randomSeat: boolean): Promise<JoinTournamentResult> {
+    const tournament = matchRow;
+    const teamSize = getTeamSize(tournament.matchType);
+    const maxSlots = tournament.totalSlots;
+
+    // An explicit seat tap wins; otherwise the transaction itself picks the
+    // lowest free seat (fresh inside the tx) — no extra round-trip needed here.
+    const requestedSlot = slotNumber && slotNumber > 0 ? slotNumber : undefined;
+    if (requestedSlot && requestedSlot > maxSlots) {
+      throw ApiError.badRequest(`slotNumber must be between 1 and ${maxSlots}`);
     }
-    if (!targetSlot) {
-      throw ApiError.conflict('Tournament is full');
-    }
-  }
+    let targetSlot = requestedSlot ?? tournament.freeSlot ?? undefined;
+    if (!targetSlot) throw ApiError.conflict(SLOT_FULL_MESSAGE);
 
-  if (targetSlot < 1 || targetSlot > tournament.totalSlots) {
-    throw ApiError.badRequest(`slotNumber must be between 1 and ${tournament.totalSlots}`);
-  }
+      // ── Squad wiring (DUO / SQUAD) ─────────────────────────────────────
+      let teamId: string | undefined;
+      let isTeamLeader = false;
+      let leaderTeamCode: string | undefined;
+      let joinedByCode: string | undefined;
 
-  const teamSize = getTeamSize(tournament.matchType);
-  const maxSlots = tournament.totalSlots;
-
-  // ── Squad wiring (DUO / SQUAD) ─────────────────────────────────────
-  let teamId: string | undefined;
-  let isTeamLeader = false;
-  let leaderTeamCode: string | undefined;
-  let joinedByCode: string | undefined;
-
-  if (teamSize > 1) {
-    if (teamCode) {
-      const joined = await joinTeam(tournamentId, teamCode.trim(), teamSize);
-      if (!joined.ok) {
-        if (joined.code === 'TEAM_FULL') throw ApiError.conflict('Squad is already full');
-        throw ApiError.notFound('Invalid squad code');
-      }
-      teamId = joined.teamId;
-      joinedByCode = teamCode.trim();
-    } else {
-      // Leader flow: generate a unique 6-digit code (retry on collision).
-      isTeamLeader = true;
-      teamId = randomUUID();
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const code = generateTeamCode();
-        if (await createTeam(tournamentId, code, teamId, teamSize)) {
-          leaderTeamCode = code;
-          break;
-        }
-      }
-      if (!leaderTeamCode) {
-        throw ApiError.internal('Could not generate a unique squad code, try again');
-      }
-    }
-  }
-
-  // ── Redis atomic seat reservation ──────────────────────────────────
-  const reserved = await reserveSlot(tournamentId, targetSlot!, user.userId, maxSlots);
-  if (!reserved.ok) {
-    if (isTeamLeader && leaderTeamCode) {
-      await deleteTeam(tournamentId, leaderTeamCode);
-    } else if (joinedByCode) {
-      await decrementTeamMembers(tournamentId, joinedByCode);
-    }
-    const message =
-      reserved.code === 'SLOT_TAKEN'
-        ? `Slot ${targetSlot} is already booked`
-        : reserved.code === 'ALREADY_JOINED'
-          ? 'You have already joined this tournament'
-          : 'Tournament is full';
-    throw ApiError.conflict(message);
-  }
-
-  const rollbackRedis = async (rawError: unknown): Promise<never> => {
-    await releaseSlot(tournamentId, targetSlot, user.userId);
-    if (isTeamLeader && leaderTeamCode) {
-      // Leader's team never made it into the DB — remove the dangling code.
-      await deleteTeam(tournamentId, leaderTeamCode);
-    } else if (joinedByCode) {
-      await decrementTeamMembers(tournamentId, joinedByCode);
-    }
-    if (
-      rawError instanceof Prisma.PrismaClientKnownRequestError &&
-      rawError.code === 'P2002'
-    ) {
-      throw ApiError.conflict('You have already joined this tournament');
-    }
-    if (
-      rawError instanceof Prisma.PrismaClientKnownRequestError &&
-      rawError.code === 'P2034'
-    ) {
-      throw ApiError.conflict('Booking conflict — please retry');
-    }
-    throw rawError;
-  };
-
-  // ── ACID database transaction ──────────────────────────────────────
-  try {
-    const result = await prisma.$transaction(
-      async (tx) => {
-        // Re-check tournament status inside the transaction (fresh read).
-        const liveTournament = await tx.tournament.findUnique({ where: { id: tournamentId } });
-        if (!liveTournament || !(JOINABLE_STATUSES as readonly string[]).includes(liveTournament.status)) {
-          throw ApiError.conflict(`Tournament is not accepting entries (status: ${liveTournament?.status})`);
-        }
-
-        // 1) Conditional atomic balance debit (No lost-update race):
-        const depositDebited = await tx.user.updateMany({
-          where: { id: user.userId, isBanned: false, depositBalance: { gte: tournament.entryFee } },
-          data: { depositBalance: { decrement: tournament.entryFee } },
-        });
-        let balanceType: 'DEPOSIT' | 'WINNING' = 'DEPOSIT';
-
-        if (depositDebited.count !== 1) {
-          // Fall back to the winning balance if the deposit balance is short.
-          const winningDebited = await tx.user.updateMany({
-            where: { id: user.userId, isBanned: false, winningBalance: { gte: tournament.entryFee } },
-            data: { winningBalance: { decrement: tournament.entryFee } },
-          });
-          if (winningDebited.count !== 1) {
-            throw ApiError.badRequest('Insufficient balance to join this tournament');
+      if (teamSize > 1) {
+        if (teamCode) {
+          const joined = await joinTeam(tournamentId, teamCode.trim(), teamSize);
+          if (!joined.ok) {
+            if (joined.code === 'TEAM_FULL') throw ApiError.conflict('Squad is already full');
+            throw ApiError.notFound('Invalid squad code');
           }
-          balanceType = 'WINNING';
+          teamId = joined.teamId;
+          joinedByCode = teamCode.trim();
+        } else {
+          // Leader flow: generate a unique 6-digit code (retry on collision).
+          isTeamLeader = true;
+          teamId = randomUUID();
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const code = generateTeamCode();
+            if (await createTeam(tournamentId, code, teamId, teamSize)) {
+              leaderTeamCode = code;
+              break;
+            }
+          }
+          if (!leaderTeamCode) {
+            throw ApiError.internal('Could not generate a unique squad code, try again');
+          }
         }
+      }
 
-        const freshUser = await tx.user.findUniqueOrThrow({ where: { id: user.userId } });
 
-        // 2) Double-entry ledger: DEBIT / JOIN_FEE.
-        await tx.walletLedger.create({
-          data: {
-            tenantId: user.tenantId,
-            userId: user.userId,
-            amount: tournament.entryFee,
-            balanceType,
-            type: 'DEBIT',
-            category: 'JOIN_FEE',
-            balanceAfter: balanceType === 'DEPOSIT' ? freshUser.depositBalance : freshUser.winningBalance,
-            referenceId: tournamentId,
-            notes: `Entry fee for "${tournament.title}"`,
-          },
-        });
-
-        // 3) Seat ticket (unique constraints are the final correctness backstop).
-        const slot = await tx.tournamentSlot.create({
-          data: {
-            tournamentId,
-            userId: user.userId,
-            slotNumber: targetSlot!,
-            teamId: teamId ?? null,
-          },
-        });
-
-        // 4) Flip to SLOTS_FULL the moment the last seat is taken.
-        const booked = await tx.tournamentSlot.count({ where: { tournamentId } });
-        let status = liveTournament.status;
-        if (booked >= maxSlots && status !== 'SLOTS_FULL') {
-          await tx.tournament.update({
-            where: { id: tournamentId },
-            data: { status: 'SLOTS_FULL' },
-          });
-          status = 'SLOTS_FULL';
-        }
-
-        return { slot, freshUser, status };
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-        maxWait: 5000,
-        timeout: 15000,
-      },
-    );
-
-    clearFeedCache();
-
-    // ⚡ Realtime broadcast: slot booked & live wallet update
-    try {
-      const bookedCount = await prisma.tournamentSlot.count({ where: { tournamentId } });
-      realtimeService.broadcastToTenant(user.tenantId, 'SLOT_BOOKED', {
-        tournamentId,
-        slotsBooked: bookedCount,
-        totalSlots: maxSlots,
-        remainingSlots: Math.max(0, maxSlots - bookedCount),
-        fillFraction: Math.min(1, bookedCount / maxSlots),
-        isFull: bookedCount >= maxSlots,
-        status: result.status,
-      });
-
-      realtimeService.sendToUser(user.userId, 'WALLET_UPDATED', {
-        userId: user.userId,
-        depositBalance: String(Number(result.freshUser.depositBalance)),
-        winningBalance: String(Number(result.freshUser.winningBalance)),
-        totalBalance: String(Number(result.freshUser.depositBalance) + Number(result.freshUser.winningBalance)),
-      });
-    } catch (rtErr) {
-      console.warn('[Realtime Join Broadcast Error]:', rtErr);
+    // ── Redis atomic seat reservation (no-op when Redis is offline) ────
+    const reserved = await reserveSlot(tournamentId, targetSlot!, user.userId, maxSlots);
+    if (!reserved.ok) {
+      if (isTeamLeader && leaderTeamCode) {
+        await deleteTeam(tournamentId, leaderTeamCode);
+      } else if (joinedByCode) {
+        await decrementTeamMembers(tournamentId, joinedByCode);
+      }
+      if (reserved.code === 'SLOT_TAKEN') throw new JoinRaceLoss('seat taken during reservation');
+      if (reserved.code === 'ALREADY_JOINED') {
+        throw ApiError.conflict('You have already joined this tournament');
+      }
+      throw ApiError.conflict(SLOT_FULL_MESSAGE);
     }
-    return {
-      slotNumber: result.slot.slotNumber,
-      teamId: result.slot.teamId,
-      ...(leaderTeamCode ? { teamCode: leaderTeamCode } : {}),
-      entryFee: Number(tournament.entryFee),
-      balanceAfter: Number(result.freshUser.depositBalance) + Number(result.freshUser.winningBalance),
-      tournamentStatus: result.status,
+
+    /** Give the reserved seat back when this attempt does not reach the DB. */
+    const releaseReservation = async (): Promise<void> => {
+      await releaseSlot(tournamentId, targetSlot!, user.userId);
+      if (isTeamLeader && leaderTeamCode) {
+        await deleteTeam(tournamentId, leaderTeamCode);
+      } else if (joinedByCode) {
+        await decrementTeamMembers(tournamentId, joinedByCode);
+      }
     };
-  } catch (err) {
-    // Critical: never leave a Redis seat dangling when the DB says no.
-    return await rollbackRedis(err);
+
+    try {
+        const result = await prisma.$transaction(
+          async (tx) => {
+            // Re-check tournament status inside the transaction (fresh read).
+            // A published room (ROOM_REVEALED) may still take entries until the
+            // kickoff-1min cutoff, so it must pass this guard too.
+            // Same fused query inside the transaction: fresh status + seat count.
+            const liveTournament = await loadJoinContext(
+              tx as unknown as JoinDb,
+              tournamentId,
+              user.tenantId,
+              randomSeat,
+            );
+            const liveRoomPublished = Boolean(
+              liveTournament?.roomRevealedAt || liveTournament?.status === 'ROOM_REVEALED',
+            );
+            if (
+              !liveTournament ||
+              (!(JOINABLE_STATUSES as readonly string[]).includes(liveTournament.status) && !liveRoomPublished)
+            ) {
+              throw ApiError.conflict(closedStatusMessage(liveTournament?.status));
+            }
+            // The outer check can be stale by a few seconds — enforce the
+            // 1-minute cutoff against the fresh row as well.
+            if (liveTournament.matchTime.getTime() - Date.now() <= JOIN_CUTOFF_MS) {
+              throw ApiError.conflict('Entry closed — joining stops 1 minute before the match starts');
+            }
+
+            // The seat is chosen here, inside the transaction, so it is fresh even
+            // when the retry loop runs after losing a race.
+            const seat = requestedSlot ?? liveTournament.freeSlot;
+            if (!seat) throw ApiError.conflict(SLOT_FULL_MESSAGE);
+
+            // 1) Conditional atomic balance debit — one round-trip that also returns
+            //    the fresh balances and the profile values for the seat snapshot.
+            const fee = tournament.entryFee;
+            type Balances = {
+              depositBalance: string;
+              winningBalance: string;
+              inGameName: string | null;
+              inGameUid: string | null;
+              deviceId: string | null;
+            };
+            const depositRows = (await tx.$queryRaw`
+              UPDATE "User"
+                 SET "depositBalance" = "depositBalance" - ${fee}::numeric
+               WHERE id = ${user.userId} AND "isBanned" = false AND "depositBalance" >= ${fee}::numeric
+              RETURNING "depositBalance", "winningBalance", "inGameName", "inGameUid", "deviceId"`) as Balances[];
+            let balanceType: 'DEPOSIT' | 'WINNING' = 'DEPOSIT';
+            let freshUser = depositRows[0];
+
+            if (!freshUser) {
+              // Fall back to the winning balance if the deposit balance is short.
+              const winningRows = (await tx.$queryRaw`
+                UPDATE "User"
+                   SET "winningBalance" = "winningBalance" - ${fee}::numeric
+                 WHERE id = ${user.userId} AND "isBanned" = false AND "winningBalance" >= ${fee}::numeric
+                RETURNING "depositBalance", "winningBalance", "inGameName", "inGameUid", "deviceId"`) as Balances[];
+              freshUser = winningRows[0];
+              if (!freshUser) {
+                throw ApiError.badRequest('Insufficient balance to join this tournament');
+              }
+              balanceType = 'WINNING';
+            }
+
+            // 2) Double-entry ledger: DEBIT / JOIN_FEE.
+            await tx.walletLedger.create({
+              data: {
+                tenantId: user.tenantId,
+                userId: user.userId,
+                amount: tournament.entryFee,
+                balanceType,
+                type: 'DEBIT',
+                category: 'JOIN_FEE',
+                balanceAfter: balanceType === 'DEPOSIT' ? freshUser.depositBalance : freshUser.winningBalance,
+                referenceId: tournamentId,
+                notes: `Entry fee for "${tournament.title}"`,
+              },
+            });
+
+            // 3) Seat ticket (unique constraints are the final correctness backstop).
+            //    The IGN / FF UID / device are snapshotted here so a later profile
+            //    edit can never rewrite this match's identity (reward disputes,
+            //    cheat reports). Typed values win over the stored profile.
+            const snapshotName =
+              inGameName?.trim() || freshUser.inGameName?.trim() || null;
+            const snapshotUid =
+              inGameUid?.trim() || freshUser.inGameUid?.trim() || null;
+            const slot = await tx.tournamentSlot.create({
+              data: {
+                tournamentId,
+                userId: user.userId,
+                slotNumber: seat,
+                teamId: teamId ?? null,
+                inGameNameSnapshot: snapshotName,
+                inGameUidSnapshot: snapshotUid,
+                deviceIdSnapshot: freshUser.deviceId?.trim() || null,
+              },
+            });
+
+            // 3b) Persist the game identity as the player's new default. Overwrites the
+            //     previous IGN/UID (no history row), so the next join pre-fills the latest
+            //     values the player entered.
+            if (saveAsDefault && (inGameName?.trim() || inGameUid?.trim())) {
+              await tx.user.update({
+                where: { id: user.userId },
+                data: {
+                  ...(inGameName?.trim() ? { inGameName: inGameName.trim() } : {}),
+                  ...(inGameUid?.trim() ? { inGameUid: inGameUid.trim() } : {}),
+                },
+              });
+            }
+
+            // 4) Flip to SLOTS_FULL the moment the last seat is taken. The seat count
+            //    comes from the fused query above (+1 for the seat we just inserted),
+            //    so no extra COUNT round-trip is needed.
+            const booked = liveTournament.bookedCount + 1;
+            let status = liveTournament.status;
+            if (booked >= maxSlots && status !== 'SLOTS_FULL') {
+              await tx.tournament.update({
+                where: { id: tournamentId },
+                data: { status: 'SLOTS_FULL' },
+              });
+              status = 'SLOTS_FULL';
+            }
+
+            return { slot, freshUser, status, bookedCount: booked };
+          },
+          {
+            // ReadCommitted on purpose: the unique (tournamentId, slotNumber) index
+            // stops double-selling a seat, the conditional updateMany debit stops a
+            // negative wallet, and (tournamentId, userId) stops a double join.
+            // Serializable made 50 simultaneous joins queue for ~10s each and time
+            // out (P2034) instead of failing fast and retrying the next free seat.
+            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+            // Queue behind the pool instead of throwing: a player would rather wait
+            // a second longer than get "busy" while seats are still free.
+            maxWait: 30000,
+            timeout: 20000,
+          },
+        );
+
+        clearFeedCache();
+
+        // ⚡ Realtime broadcast: slot booked & live wallet update
+        try {
+          const bookedCount = result.bookedCount;
+          // The last seat may have been taken by a transaction we could not see
+          // from inside ours — settle the status with the post-commit count.
+          const finalStatus = (await reconcileFullStatus(tournamentId)) ?? result.status;
+          result.status = finalStatus;
+          realtimeService.broadcastToTenant(user.tenantId, 'SLOT_BOOKED', {
+            tournamentId,
+            slotsBooked: bookedCount,
+            totalSlots: maxSlots,
+            remainingSlots: Math.max(0, maxSlots - bookedCount),
+            fillFraction: Math.min(1, bookedCount / maxSlots),
+            isFull: bookedCount >= maxSlots,
+            status: result.status,
+          });
+
+          realtimeService.sendToUser(user.userId, 'WALLET_UPDATED', {
+            userId: user.userId,
+            depositBalance: String(Number(result.freshUser.depositBalance)),
+            winningBalance: String(Number(result.freshUser.winningBalance)),
+            totalBalance: String(Number(result.freshUser.depositBalance) + Number(result.freshUser.winningBalance)),
+          });
+        } catch (rtErr) {
+          console.warn('[Realtime Join Broadcast Error]:', rtErr);
+        }
+
+        // 🔭 Watchlist: if this device is being watched, note the fresh activity.
+        // Fire-and-forget — anti-cheat bookkeeping must never block a join.
+        void noteDeviceActivity(
+          user.tenantId,
+          result.slot.deviceIdSnapshot ?? null,
+          user.userId,
+        );
+
+        return {
+          slotNumber: result.slot.slotNumber,
+          teamId: result.slot.teamId,
+          ...(leaderTeamCode ? { teamCode: leaderTeamCode } : {}),
+          entryFee: Number(tournament.entryFee),
+          balanceAfter: Number(result.freshUser.depositBalance) + Number(result.freshUser.winningBalance),
+          tournamentStatus: result.status,
+          // The room may already be published: the app can show the code right away.
+          roomId: tournament.roomId,
+        };
+
+    } catch (err) {
+      // Never leave a Redis seat or a squad code dangling when the DB says no.
+      await releaseReservation();
+      throw err;
+    }
   }
 }
 
@@ -785,6 +1121,9 @@ export async function cancelTournamentAndRefundAll(
   // Wipe Redis seat state so the room immediately frees up.
   await clearTournamentRedis(tournamentId);
 
+  // Players still listing the match must drop it now, not on their next refresh.
+  broadcastFeedChanged(adminUser.tenantId, tournamentId, 'CANCELLED', 'CANCELLED');
+
   // Push: refund alert to every confirmed participant.
   void pushToTournamentParticipants(tournamentId, {
     type: 'MATCH_CANCELLED',
@@ -853,6 +1192,7 @@ export async function cloneTournament(
   if (!cloned) throw ApiError.internal('Could not allocate a match number — retry');
 
   clearFeedCache();
+  broadcastFeedChanged(cloned.tenantId, cloned.id, cloned.status, 'CLONED');
   return sanitizeTournament(cloned, true);
 }
 
@@ -892,5 +1232,6 @@ export async function updateTournamentVisibility(
   });
 
   clearFeedCache();
+  broadcastFeedChanged(updated.tenantId, updated.id, updated.status, 'VISIBILITY_UPDATED');
   return sanitizeTournament(updated, true);
 }

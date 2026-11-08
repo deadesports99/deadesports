@@ -8,6 +8,11 @@ let fake: FakePrisma;
 type AuthApi = typeof import('../src/services/auth.service.js');
 let api: AuthApi;
 
+// Firebase phone OTP is deployment-configurable (PHONE_OTP_ENABLED). Pin it ON so a
+// developer's local .env can never change test outcomes.
+process.env.PHONE_OTP_ENABLED = 'true';
+process.env.PHONE_OTP_BYPASS = 'false';
+
 before(async () => {
   await registerFakeFirebase();
   mock.module('../src/config/prisma.js', {
@@ -161,6 +166,23 @@ describe('registerPlayer', () => {
 
     seed({ tenant: { allowPhoneAuth: false } });
     await assert.rejects(() => api.registerPlayer({ tenantId, idToken: 'mock_otp_9876543210' }), /disabled/i);
+  });
+
+  it('honours the PHONE_OTP_ENABLED=false kill switch for players', async () => {
+    seed();
+    process.env.PHONE_OTP_ENABLED = 'false';
+    try {
+      await assert.rejects(
+        () => api.registerPlayer({ tenantId, idToken: 'mock_otp_9876543210' }),
+        /temporarily unavailable/i,
+      );
+      // Owner / staff logins must keep working even with the switch off.
+      seed({ users: [{ id: 'admin-1', tenantId, phoneNumber: '9000000009', role: 'ADMIN' }] });
+      const admin = await api.loginWithPhone({ tenantId, idToken: 'mock_otp_9000000009' });
+      assert.equal(admin.user.role, 'ADMIN');
+    } finally {
+      process.env.PHONE_OTP_ENABLED = 'true';
+    }
   });
 
   it('requires a Firebase idToken', async () => {

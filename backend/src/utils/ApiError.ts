@@ -46,6 +46,11 @@ export class ApiError extends Error {
     return new ApiError(409, message, details);
   }
 
+  /** 503 — the server is momentarily saturated (DB pool / dependency down). */
+  public static serviceUnavailable(message: string = 'Server is busy — please try again in a moment'): ApiError {
+    return new ApiError(503, message);
+  }
+
   /** 500 Internal Server Error — unexpected failure (non-operational). */
   public static internal(message: string = 'Internal Server Error'): ApiError {
     return new ApiError(500, message, undefined, false);

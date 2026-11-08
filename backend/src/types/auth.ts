@@ -22,6 +22,11 @@ export interface TokenPayload {
   userId: string;
   tenantId: string;
   role: Role;
+  /**
+   * Present only on admin-web sessions that logged in with a staff permission
+   * key. The middleware re-checks this key so a revoke kills the session.
+   */
+  accessKeyId?: string;
 }
 
 /** Authenticated user attached to `req.user` by the authenticate middleware. */

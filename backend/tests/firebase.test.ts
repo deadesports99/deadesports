@@ -11,6 +11,7 @@ import { after, before, describe, it } from 'node:test';
 import jwt from 'jsonwebtoken';
 
 process.env.NODE_ENV = 'test';
+process.env.PHONE_OTP_BYPASS = 'false';
 
 type FbApi = typeof import('../src/services/firebase.service.js');
 let fb: FbApi;

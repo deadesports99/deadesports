@@ -6,8 +6,16 @@ import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import { invalidateAuthCache } from '../middlewares/auth.middleware.js';
 import { PERMISSION_KEYS, type PermissionsInput, type TokenPayload } from '../types/auth.js';
-import { normalizePhoneNumber, verifyFirebaseGoogleToken, verifyFirebasePhoneToken } from './firebase.service.js';
+import {
+  PHONE_OTP_DISABLED_MESSAGE,
+  isPhoneOtpBypassEnabled,
+  isPhoneOtpEnabled,
+  normalizePhoneNumber,
+  verifyFirebaseGoogleToken,
+  verifyFirebasePhoneToken,
+} from './firebase.service.js';
 import { allocatePlayerCode } from './identity.service.js';
+import { generateOtpCode, hashOtp, verifyOtpHash } from '../utils/accessKey.js';
 
 /** Sign a JWT for a given identity (role included for cheap client-side checks). */
 export function generateToken(payload: TokenPayload): string {
@@ -153,8 +161,13 @@ export async function registerPlayer(data: RegisterPlayerInput): Promise<{ user:
     where: { id: data.tenantId },
     select: { allowPhoneAuth: true },
   });
-  if (tenant?.allowPhoneAuth === false) {
+  if (tenant?.allowPhoneAuth === false && !isPhoneOtpBypassEnabled()) {
     throw ApiError.forbidden('Phone OTP authentication is currently disabled by administrator');
+  }
+  // Global kill switch (env PHONE_OTP_ENABLED=false) — player signup falls back to
+  // Email OTP / Google while the Firebase SMS provider is out of action.
+  if (!isPhoneOtpEnabled() && !isPhoneOtpBypassEnabled()) {
+    throw ApiError.forbidden(PHONE_OTP_DISABLED_MESSAGE);
   }
 
   if (!data.idToken) {
@@ -259,13 +272,12 @@ export interface LoginWithPhoneInput {
 export async function loginWithPhone(data: LoginWithPhoneInput): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
   await assertTenantActive(data.tenantId);
 
+  // NOTE: phone-OTP switches are enforced AFTER the user row is loaded, so that
+  // ADMIN / SUB_ADMIN logins are never gated (they cannot lock themselves out).
   const tenant = await prisma.tenant.findUnique({
     where: { id: data.tenantId },
     select: { allowPhoneAuth: true },
   });
-  if (tenant?.allowPhoneAuth === false) {
-    throw ApiError.forbidden('Phone OTP authentication is currently disabled by administrator');
-  }
 
   if (!data.idToken) {
     throw ApiError.badRequest('Firebase idToken is required for Phone OTP verification');
@@ -276,14 +288,39 @@ export async function loginWithPhone(data: LoginWithPhoneInput): Promise<{ user:
 
 
   const norm = normalizePhoneNumber(targetPhone);
-  const user = await prisma.user.findFirst({
+  let user = await prisma.user.findFirst({
     where: {
       tenantId: data.tenantId,
       phoneNumber: { in: [norm.national, norm.e164] },
     },
   });
+
+  // Demo mode (PHONE_OTP_BYPASS=true): unknown numbers are provisioned on the fly so
+  // "any 10-digit phone + any 6-digit OTP" lands inside the app.
+  if (!user && isPhoneOtpBypassEnabled()) {
+    user = await prisma.user.create({
+      data: {
+        tenantId: data.tenantId,
+        phoneNumber: norm.national,
+        playerCode: await allocatePlayerCode(data.tenantId),
+        role: 'USER',
+      },
+    });
+    console.log(`[auth] bypass login provisioned new player +91 ${norm.national}`);
+  }
+
   if (!user) throw ApiError.unauthorized('User not registered — please register first');
   if (user.isBanned) throw ApiError.forbidden('Your account has been banned');
+
+  // Phone-OTP switches gate PLAYERS only (bypass mode ignores them on purpose).
+  if (user.role === 'USER' && !isPhoneOtpBypassEnabled()) {
+    if (tenant?.allowPhoneAuth === false) {
+      throw ApiError.forbidden('Phone OTP authentication is currently disabled by administrator');
+    }
+    if (!isPhoneOtpEnabled()) {
+      throw ApiError.forbidden(PHONE_OTP_DISABLED_MESSAGE);
+    }
+  }
 
   const token = generateToken({ userId: user.id, tenantId: user.tenantId, role: user.role });
   return { user: sanitizeUser(user), token };
@@ -566,8 +603,9 @@ export async function sendEmailOtp(
     }
   }
 
-  // Generate 6-digit random code (CSPRNG — never Math.random for OTPs)
-  const code = crypto.randomInt(100_000, 1_000_000).toString();
+  // Generate 6-digit random code (CSPRNG — never Math.random for OTPs).
+  // Only the HMAC hash is stored; the plain code goes out by email.
+  const code = generateOtpCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   // Delete previous OTPs for this email in this tenant
@@ -579,7 +617,7 @@ export async function sendEmailOtp(
     data: {
       tenantId: data.tenantId,
       email: normalizedEmail,
-      code,
+      codeHash: hashOtp(code),
       type: data.type,
       expiresAt,
     },
@@ -615,12 +653,19 @@ export async function verifyEmailOtp(
     where: {
       tenantId: data.tenantId,
       email: normalizedEmail,
-      code: data.code.trim(),
       expiresAt: { gt: now },
     },
+    orderBy: { createdAt: 'desc' },
   });
 
-  if (!otp) {
+  // Constant-time compare against the stored hash; a wrong code bumps attempts.
+  if (!otp || !verifyOtpHash(data.code, otp.codeHash)) {
+    if (otp) {
+      await prisma.emailOtp.update({
+        where: { id: otp.id },
+        data: { attempts: { increment: 1 } },
+      });
+    }
     throw ApiError.badRequest('Invalid or expired verification code');
   }
 

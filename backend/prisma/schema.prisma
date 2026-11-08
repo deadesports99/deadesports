@@ -10,72 +10,79 @@ generator client {
 
 // 1. TENANT (CLIENT / TOURNAMENT ORGANIZER)
 model Tenant {
-  id              String         @id @default(uuid())
-  subdomain       String         @unique // e.g. "alpha" -> alpha.tourney.com
+  id              String  @id @default(uuid())
+  subdomain       String  @unique // e.g. "alpha" -> alpha.tourney.com
   brandName       String
   logoUrl         String?
-  primaryColor    String         @default("#FF4757")
-  commissionRate  Float          @default(10.0) // 10% commission on matches
+  primaryColor    String  @default("#FF4757")
+  commissionRate  Float   @default(10.0) // 10% commission on matches
   cashfreeApiKey  String?
   razorpayKey     String?
-  upiId           String?        // Collecting UPI handle (players pay here)
-  upiName         String?        // Payee name shown in the UPI app / QR
-  supportWhatsapp String?        // Digits only, e.g. "919999900001"
-  minDeposit      Int            @default(10)
-  allowPhoneAuth  Boolean        @default(true)
+  upiId           String? // Collecting UPI handle (players pay here)
+  upiName         String? // Payee name shown in the UPI app / QR
+  supportWhatsapp String? // Digits only, e.g. "919999900001"
+  minDeposit      Int     @default(10)
+  allowPhoneAuth  Boolean @default(true)
 
-  allowGoogleAuth Boolean        @default(true)
-  allowEmailAuth  Boolean        @default(true)
-  isActive        Boolean        @default(true)
-  createdAt       DateTime       @default(now())
-  
-  users           User[]
-  tournaments     Tournament[]
-  withdrawals     WithdrawalRequest[]
-  deposits        DepositRequest[]
-  walletLedgers   WalletLedger[]
-  paymentOrders   PaymentOrder[]
+  allowGoogleAuth Boolean  @default(true)
+  allowEmailAuth  Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  users         User[]
+  tournaments   Tournament[]
+  withdrawals   WithdrawalRequest[]
+  deposits      DepositRequest[]
+  walletLedgers WalletLedger[]
+  paymentOrders PaymentOrder[]
+  staffAccessKeys StaffAccessKey[]
 }
 
 // 2. USER PROFILE (ADMIN, SUB_ADMIN / STAFF, & PLAYERS)
 model User {
-  id              String         @id @default(uuid())
-  tenantId        String
-  tenant          Tenant         @relation(fields: [tenantId], references: [id])
-  phoneNumber     String
-  email           String?        // Useful for Admin & Staff login
-  name            String?
-  inGameName      String?        // Free Fire IGN (e.g. "RAISTAR_99") - Required for Players
-  inGameUid       String?        // Free Fire UID (e.g. "1928374612") - Required for Players
-  role            Role           @default(USER) // ADMIN, SUB_ADMIN, USER
-  
+  id          String  @id @default(uuid())
+  tenantId    String
+  tenant      Tenant  @relation(fields: [tenantId], references: [id])
+  phoneNumber String
+  email       String? // Useful for Admin & Staff login
+  name        String?
+  inGameName  String? // Free Fire IGN (e.g. "RAISTAR_99") - Required for Players
+  inGameUid   String? // Free Fire UID (e.g. "1928374612") - Required for Players
+  role        Role    @default(USER) // ADMIN, SUB_ADMIN, USER
+
   // Sub-Admin (Staff) Permissions controlled by the Client Admin
-  canCreateMatch     Boolean     @default(false)
-  canUpdateRoomId    Boolean     @default(false)
-  canDistributePrize Boolean     @default(false)
-  canManageWallet    Boolean     @default(false)
+  canCreateMatch     Boolean @default(false)
+  canUpdateRoomId    Boolean @default(false)
+  canDistributePrize Boolean @default(false)
+  canManageWallet    Boolean @default(false)
 
   // Staff linkage: who hired this sub-admin
-  adminId         String?
-  admin           User?          @relation("AdminStaff", fields: [adminId], references: [id])
-  staffMembers    User[]         @relation("AdminStaff")
+  adminId      String?
+  admin        User?   @relation("AdminStaff", fields: [adminId], references: [id])
+  staffMembers User[]  @relation("AdminStaff")
 
-  depositBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
-  winningBalance  Decimal        @default(0.00) @db.Decimal(10, 2)
-  isBanned        Boolean        @default(false)
-  /** Readable auto-generated player ID (e.g. "APX-0001"), unique per tenant. */
-  playerCode      String?
-  deviceId        String?
-  passwordHash    String?
-  fcmToken        String?        // last registered FCM push token
-  createdAt       DateTime       @default(now())
+  depositBalance Decimal  @default(0.00) @db.Decimal(10, 2)
+  winningBalance Decimal  @default(0.00) @db.Decimal(10, 2)
+  isBanned       Boolean  @default(false)
+  /**
+   * Readable auto-generated player ID (e.g. "APX-0001"), unique per tenant.
+   */
+  playerCode     String?
+  deviceId       String?
+  passwordHash   String?
+  fcmToken       String? // last registered FCM push token
+  lastLoginAt    DateTime?
+  lastLoginIp    String?
+  createdAt      DateTime @default(now())
 
-  slots           TournamentSlot[]
-  ledgers         WalletLedger[]
-  withdrawals     WithdrawalRequest[]
-  deposits        DepositRequest[]
-  matchResults    MatchResult[]
-  paymentOrders   PaymentOrder[]
+  slots         TournamentSlot[]
+  ledgers       WalletLedger[]
+  withdrawals   WithdrawalRequest[]
+  deposits      DepositRequest[]
+  matchResults  MatchResult[]
+  paymentOrders PaymentOrder[]
+  watchEntries  DeviceWatch[]
+  staffAccessKeys StaffAccessKey[]
 
   @@unique([tenantId, phoneNumber])
   @@unique([tenantId, playerCode])
@@ -83,32 +90,34 @@ model User {
 }
 
 enum Role {
-  ADMIN       // The Client / Tournament Owner who bought the system
-  SUB_ADMIN   // Staff hired by the Admin with granular permissions
-  USER        // Gamer / Player
+  ADMIN // The Client / Tournament Owner who bought the system
+  SUB_ADMIN // Staff hired by the Admin with granular permissions
+  USER // Gamer / Player
 }
 
 // 3. TOURNAMENT (FREE FIRE MATCHES)
 model Tournament {
-  id              String            @id @default(uuid())
-  tenantId        String
-  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  id           String           @id @default(uuid())
+  tenantId     String
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
   /**
    * Auto-generated human title ("Bermuda Solo #12") — the admin UI no longer
    * asks for a title; the match number is the real identity.
    */
-  title           String            // e.g. "Bermuda Solo #12"
-  /** Auto-increment match number per tenant: 1, 2, 3 … (shown to admin/players). */
-  matchNumber     Int?
-  gameMode        GameMode          // BATTLE_ROYALE, CLASH_SQUAD
-  matchType       MatchType         // SOLO, DUO, SQUAD
-  mapType         MapType           // BERMUDA, PURGATORY, KALAHARI, ALPINE
-  entryFee        Decimal           @db.Decimal(10, 2)
-  prizePool       Decimal           @db.Decimal(10, 2)
-  perKillPrize    Decimal           @default(0.00) @db.Decimal(10, 2)
-  totalSlots      Int               @default(48)
-  matchTime       DateTime
-  status          TournamentStatus  @default(UPCOMING)
+  title        String // e.g. "Bermuda Solo #12"
+  /**
+   * Auto-increment match number per tenant: 1, 2, 3 … (shown to admin/players).
+   */
+  matchNumber  Int?
+  gameMode     GameMode // BATTLE_ROYALE, CLASH_SQUAD
+  matchType    MatchType // SOLO, DUO, SQUAD
+  mapType      MapType // BERMUDA, PURGATORY, KALAHARI, ALPINE
+  entryFee     Decimal          @db.Decimal(10, 2)
+  prizePool    Decimal          @db.Decimal(10, 2)
+  perKillPrize Decimal          @default(0.00) @db.Decimal(10, 2)
+  totalSlots   Int              @default(48)
+  matchTime    DateTime
+  status       TournamentStatus @default(UPCOMING)
 
   // Player-feed visibility window (admin decides when the match is listed):
   //   visibilityHours = null  -> listed immediately after creation
@@ -122,15 +131,15 @@ model Tournament {
   //   roomRevealMinutes = auto-reveal N minutes before matchTime (default 15)
   //   roomRevealedAt    = when credentials actually became visible to players
   //                       (auto sweep at the window, or admin "Reveal Now")
-  roomRevealMinutes Int             @default(15)
-  roomId          String?
-  roomPassword    String?
-  roomRevealedAt  DateTime?
+  roomRevealMinutes Int       @default(15)
+  roomId            String?
+  roomPassword      String?
+  roomRevealedAt    DateTime?
 
-  createdAt       DateTime          @default(now())
-  
-  slots           TournamentSlot[]
-  results         MatchResult[]
+  createdAt DateTime @default(now())
+
+  slots   TournamentSlot[]
+  results MatchResult[]
 
   @@unique([tenantId, matchNumber])
   @@index([tenantId, status, matchTime])
@@ -170,35 +179,49 @@ enum TournamentStatus {
 
 // 4. TOURNAMENT SLOTS (ANTI-OVERBOOKING)
 model TournamentSlot {
-  id            String      @id @default(uuid())
-  tournamentId  String
-  tournament    Tournament  @relation(fields: [tournamentId], references: [id])
-  userId        String
-  user          User        @relation(fields: [userId], references: [id])
-  slotNumber    Int         // 1 to 48
-  teamId        String?     // For Duo / Squad grouping
-  joinedAt      DateTime    @default(now())
+  id           String     @id @default(uuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  slotNumber   Int // 1 to 48
+  teamId       String? // For Duo / Squad grouping
+  joinedAt     DateTime   @default(now())
+
+  // Join-time identity snapshot — the exact IGN / FF UID / device the player
+  // had when they booked the seat. Never overwritten, so a later profile edit
+  // cannot rewrite match history (anti-cheat proof for reward disputes).
+  inGameNameSnapshot String?
+  inGameUidSnapshot  String?
+  deviceIdSnapshot   String?
+
+  // Match-scoped ban: blocks this player in THIS match only (account stays
+  // usable elsewhere). Account-wide bans live on User.isBanned.
+  isBanned  Boolean   @default(false)
+  banReason String?
+  bannedAt  DateTime?
+  bannedBy  String? // admin/staff user id who applied it
 
   @@unique([tournamentId, slotNumber])
   @@unique([tournamentId, userId])
+  @@index([tournamentId, isBanned])
 }
-
 
 // 5. DOUBLE-ENTRY WALLET LEDGER
 model WalletLedger {
-  id              String          @id @default(uuid())
-  tenantId        String
-  tenant          Tenant          @relation(fields: [tenantId], references: [id])
-  userId          String
-  user            User            @relation(fields: [userId], references: [id])
-  amount          Decimal         @db.Decimal(10, 2)
-  balanceType     BalanceType     // DEPOSIT or WINNING
-  type            TransactionType // CREDIT or DEBIT
-  category        Category        // ADD_MONEY, JOIN_FEE, WINNING_PRIZE, WITHDRAWAL, REFUND
-  balanceAfter    Decimal         @db.Decimal(10, 2)
-  referenceId     String?         // Razorpay ID / Tournament ID
-  notes           String?
-  createdAt       DateTime        @default(now())
+  id           String          @id @default(uuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  userId       String
+  user         User            @relation(fields: [userId], references: [id])
+  amount       Decimal         @db.Decimal(10, 2)
+  balanceType  BalanceType // DEPOSIT or WINNING
+  type         TransactionType // CREDIT or DEBIT
+  category     Category // ADD_MONEY, JOIN_FEE, WINNING_PRIZE, WITHDRAWAL, REFUND
+  balanceAfter Decimal         @db.Decimal(10, 2)
+  referenceId  String? // Razorpay ID / Tournament ID
+  notes        String?
+  createdAt    DateTime        @default(now())
 
   @@index([userId, createdAt])
 }
@@ -213,10 +236,10 @@ model WithdrawalRequest {
   amount        Decimal          @db.Decimal(10, 2)
   upiId         String
   status        WithdrawalStatus @default(PENDING)
-  deviceId      String?          // fraud signal captured at request time
-  utrNumber     String?          // admin fills on approval
+  deviceId      String? // fraud signal captured at request time
+  utrNumber     String? // admin fills on approval
   rejectionNote String?
-  reviewedBy    String?          // admin/staff user id
+  reviewedBy    String? // admin/staff user id
   reviewedAt    DateTime?
   createdAt     DateTime         @default(now())
 
@@ -232,10 +255,10 @@ model DepositRequest {
   userId        String
   user          User          @relation(fields: [userId], references: [id])
   amount        Decimal       @db.Decimal(10, 2)
-  utrNumber     String        // 12-char UPI reference the player submits as proof
+  utrNumber     String // 12-char UPI reference the player submits as proof
   status        DepositStatus @default(PENDING)
   rejectionNote String?
-  reviewedBy    String?       // admin/staff user id
+  reviewedBy    String? // admin/staff user id
   reviewedAt    DateTime?
   createdAt     DateTime      @default(now())
 
@@ -276,49 +299,47 @@ enum Category {
 
 // 6. OFFICIAL MATCH RESULT & SPECTATOR VERIFICATION (No player screenshot upload needed)
 model MatchResult {
-  id              String          @id @default(uuid())
-  tournamentId    String
-  tournament      Tournament      @relation(fields: [tournamentId], references: [id])
-  userId          String
-  user            User            @relation(fields: [userId], references: [id])
-  screenshotUrl   String?         // Optional: Official spectator match end screenshot
-  verifiedKills   Int             @default(0) // Verified by Spectator/Staff
-  rank            Int?            // Official Rank (1 = Booyah!)
-  prizeWon        Decimal         @default(0.00) @db.Decimal(10, 2)
-  isApproved      Boolean         @default(false)
-  isDisqualified  Boolean         @default(false) // Flagged by Spectator for hacking/teaming
+  id               String     @id @default(uuid())
+  tournamentId     String
+  tournament       Tournament @relation(fields: [tournamentId], references: [id])
+  userId           String
+  user             User       @relation(fields: [userId], references: [id])
+  screenshotUrl    String? // Optional: Official spectator match end screenshot
+  verifiedKills    Int        @default(0) // Verified by Spectator/Staff
+  rank             Int? // Official Rank (1 = Booyah!)
+  prizeWon         Decimal    @default(0.00) @db.Decimal(10, 2)
+  isApproved       Boolean    @default(false)
+  isDisqualified   Boolean    @default(false) // Flagged by Spectator for hacking/teaming
   disqualifyReason String?
-  reviewedAt      DateTime?
+  reviewedAt       DateTime?
 
   @@unique([tournamentId, userId])
 }
 
-
-
 // 9. ONLINE PAYMENT ORDERS (Razorpay / mock gateway -> wallet top-up)
 // Amounts are stored in PAISE (integer) so no float rounding ever touches money.
 model PaymentOrder {
-  id                String        @id @default(uuid())
-  tenantId          String
-  tenant            Tenant        @relation(fields: [tenantId], references: [id])
-  userId            String
-  user              User          @relation(fields: [userId], references: [id])
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
 
-  provider          String        // "mock" | "razorpay"
+  provider          String // "mock" | "razorpay"
   providerOrderId   String        @unique // gateway order id (mock: order_mock_*, razorpay: order_*)
-  providerPaymentId String?       // gateway payment id after capture
+  providerPaymentId String? // gateway payment id after capture
   amountPaise       Int
   currency          String        @default("INR")
   receipt           String        @unique
-  signature         String?       // checkout signature once verified
+  signature         String? // checkout signature once verified
   status            PaymentStatus @default(CREATED)
   failureReason     String?
   notes             String?
 
-  expiresAt         DateTime
-  capturedAt        DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  expiresAt  DateTime
+  capturedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([tenantId, status])
   @@index([userId, createdAt])
@@ -338,10 +359,85 @@ model EmailOtp {
   id        String   @id @default(uuid())
   tenantId  String
   email     String
-  code      String
+  /// HMAC-SHA256 of the 6-digit code — the plain code is never stored.
+  codeHash  String
   type      String   @default("LOGIN")
+  /// Wrong-code attempts; the admin auth flow locks after 5.
+  attempts  Int      @default(0)
+  usedAt    DateTime?
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   @@index([tenantId, email])
+}
+
+// 8. STAFF ACCESS KEYS (admin web login)
+//
+// Sub-admins do not have their own login: they enter the owner's email + a
+// 24-character permission key + the OTP the owner receives. The key identifies
+// WHICH sub-admin is logging in; permissions stay live on the User row.
+// Only the HMAC hash is stored — the plain key is shown once at generate time.
+model StaffAccessKey {
+  id          String    @id @default(uuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  /// HMAC-SHA256(ACCESS_KEY_PEPPER, key) — unique so the same key can never exist twice.
+  keyHash     String    @unique
+  /// Last 4 characters, for the "...5cB6" hint in the staff list.
+  keyHint     String
+  /// Permissions captured when the key was issued (audit only; live perms are on User).
+  permissions Json?
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, userId])
+  @@index([userId, revokedAt])
+}
+
+// 9. ADMIN AUDIT LOG (append-only)
+// Every sensitive admin action (login, key issue/revoke, money approvals, payout,
+// ban) is recorded so a payout can always be traced back to a person.
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  actorId    String?
+  actorRole  String?
+  action     String
+  targetType String?
+  targetId   String?
+  meta       Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+// 9. DEVICE WATCHLIST (anti-cheat follow-up)
+// Admin marks a device as "watch". The moment any account joins a match from a
+// watched device, an alert row is written so the dashboard can surface it.
+model DeviceWatch {
+  id         String    @id @default(uuid())
+  tenantId   String
+  deviceId   String
+  note       String?
+  createdBy  String? // admin/staff user id who flagged it
+  lastSeenAt DateTime?
+  /// Unacknowledged new-account events. Cleared when the admin reviews the device.
+  alertCount Int       @default(0)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User?     @relation(fields: [userId], references: [id])
+  userId     String?
+
+  @@unique([tenantId, deviceId])
+  @@index([tenantId, isActive, alertCount])
 }

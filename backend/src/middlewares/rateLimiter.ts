@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { sendResponse } from '../utils/ApiResponse.js';
+import { env } from '../config/env.js';
 
 /**
  * Rate Limiting Middleware — in-memory sliding-window limiter.
@@ -22,6 +23,30 @@ interface RateLimiterOptions {
   message?: string;
   /** Name used in the X-RateLimit-* headers, e.g. "auth", "deposit". */
   name: string;
+}
+
+/**
+ * Demo/test IP allowlist — every limiter is skipped for these addresses.
+ *
+ * Only honoured outside production. Set `RATE_LIMIT_ALLOW_IPS=127.0.0.1,::1` in
+ * `.env` to load-test from the dev machine without tripping the 5/min login
+ * cap. MUST be empty in production (see plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md §V3).
+ */
+const ALLOWED_IPS: ReadonlySet<string> =
+  env.NODE_ENV === 'production'
+    ? new Set<string>()
+    : new Set(
+        (env.RATE_LIMIT_ALLOW_IPS ?? '')
+          .split(',')
+          .map((entry) => entry.trim().replace(/^::ffff:/, ''))
+          .filter(Boolean),
+      );
+
+/** Is this request allowed to skip rate limiting? */
+function isAllowlisted(req: Request): boolean {
+  if (ALLOWED_IPS.size === 0) return false;
+  const ip = (req.ip ?? '').replace(/^::ffff:/, '');
+  return ALLOWED_IPS.has(ip) || ALLOWED_IPS.has(req.ip ?? '');
 }
 
 /** Sliding window bucket: timestamps of recent hits, newest at the end. */
@@ -49,9 +74,11 @@ export function createRateLimiter(options: RateLimiterOptions) {
 
   return function rateLimiter(req: Request, res: Response, next: NextFunction): void {
     // Test suites can disable limits only by running the server in NODE_ENV=test.
-    // Never trust a client-supplied bypass header in development or production.
-    if (process.env.NODE_ENV === 'test' || req.headers['x-stress-test'] === 'apex-ff-internal') {
-      return next();
+    // `x-stress-test` is a demo-only escape hatch: it is refused in production.
+    // `RATE_LIMIT_ALLOW_IPS` whitelists the dev machine's IPs (never in production).
+    if (env.NODE_ENV === 'test') return next();
+    if (env.NODE_ENV !== 'production') {
+      if (req.headers['x-stress-test'] === 'apex-ff-internal' || isAllowlisted(req)) return next();
     }
     const now = Date.now();
     // Namespace each limiter's buckets so auth / deposit / withdraw / join
@@ -101,6 +128,13 @@ function ipKey(req: Request): string {
 /** Key helper: authenticated user id (per-user spam protection). */
 function userKey(req: Request): string {
   return `user:${req.user?.userId ?? req.ip ?? 'unknown'}`;
+}
+
+/** Key helper: email from the JSON body + IP (admin web login). */
+function emailKey(req: Request): string {
+  const body = req.body as { email?: unknown } | undefined;
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : 'unknown';
+  return `${email}|${req.ip ?? 'unknown'}`;
 }
 
 // ─── App-wide limiters (Phase 6B) ───────────────────────────────────────
@@ -158,3 +192,29 @@ export const withdrawalRateLimiter = createRateLimiter({
 export function resetRateLimiters(): void {
   buckets.clear();
 }
+
+// ─── Admin web login (Phase 2) ───────────────────────────────────────────
+
+/**
+ * OTP request cap — 3 per 10 minutes per email+IP. An attacker cannot mine
+ * the owner's inbox or burn email-provider quota.
+ */
+export const adminOtpRequestLimiter = createRateLimiter({
+  name: 'admin-otp-request',
+  windowMs: 10 * 60_000,
+  max: 3,
+  key: emailKey,
+  message: 'Too many code requests — try again in a few minutes.',
+});
+
+/**
+ * OTP verify cap — 5 per 15 minutes per email+IP. Together with the per-OTP
+ * `attempts` counter (5) this makes 6-digit guessing impractical.
+ */
+export const adminLoginLimiter = createRateLimiter({
+  name: 'admin-login',
+  windowMs: 15 * 60_000,
+  max: 5,
+  key: emailKey,
+  message: 'Too many sign-in attempts — try again in 15 minutes.',
+});

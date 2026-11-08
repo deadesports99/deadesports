@@ -5,6 +5,8 @@ import { env } from '../config/env.js';
 
 export type RealtimeEventType =
   | 'SLOT_BOOKED'
+  /** A match was created / cloned / made visible / cancelled: clients re-fetch the feed. */
+  | 'MATCH_CREATED'
   | 'MATCH_STATUS_CHANGED'
   | 'WALLET_UPDATED'
   | 'ROOM_CREDENTIALS_REVEALED'

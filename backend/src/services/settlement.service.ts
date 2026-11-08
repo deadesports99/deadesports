@@ -1,3 +1,4 @@
+import { csvEscape } from '../utils/csv.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 
@@ -177,11 +178,6 @@ export async function getDailySettlement(
 
 const CSV_HEADER =
   'S.No,Date,Time,Player,Phone,In-Game Name,Category,Type,Balance,Amount,Balance After,Reference,Notes';
-
-function csvEscape(value: string | number | null | undefined): string {
-  const raw = value === null || value === undefined ? '' : String(value);
-  return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
-}
 
 /**
  * Clean, spreadsheet-ready CSV of the day's full ledger (money in/out),

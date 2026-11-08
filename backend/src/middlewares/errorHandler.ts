@@ -73,6 +73,21 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
     return;
   }
 
+  // 3b) Saturated connection pool / lost DB connection -> 503, never a 500.
+  //     Under a burst (hundreds of taps on the last seats) Prisma throws
+  //     "timeout exceeded when trying to connect"; the app should hear
+  //     "busy, try again" instead of "something broke".
+  const errMessage = String((err as Error)?.message ?? '');
+  if (
+    /timeout exceeded when trying to connect|Timed out fetching a new connection|Can't reach database server|Connection pool|ECONNRESET|ETIMEDOUT/i.test(
+      errMessage,
+    )
+  ) {
+    res.setHeader('Retry-After', '3');
+    sendResponse(res, 503, 'Server is busy — please try again in a moment');
+    return;
+  }
+
   // 4) JSON body parse errors from express.json().
   if (
     err instanceof SyntaxError &&

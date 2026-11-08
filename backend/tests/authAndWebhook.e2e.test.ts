@@ -11,6 +11,10 @@ import { FakePrisma } from './helpers/fakePrisma.js';
 import { registerFakeFirebase } from './helpers/fakeFirebase.js';
 
 process.env.NODE_ENV = 'test';
+// Phone OTP kill switch is deployment config — pin it ON so a local .env
+// (PHONE_OTP_ENABLED=false) cannot change test outcomes.
+process.env.PHONE_OTP_ENABLED = 'true';
+process.env.PHONE_OTP_BYPASS = 'false';
 
 let fake: FakePrisma;
 let server: import('node:http').Server;

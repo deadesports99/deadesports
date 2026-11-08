@@ -125,9 +125,37 @@ describe('joinTournament — entry fee on the money path', () => {
     assert.equal(fake.rowsOf('tournament')[0].status, 'SLOTS_FULL');
   });
 
+  it('tells a player "Slot Full" (not a raw status) when the last seat is gone', async () => {
+    seed({ slots: [{ id: 's1', tournamentId, userId: 'other', slotNumber: 1 }], deposit: 500 });
+    fake.rowsOf('tournament')[0].totalSlots = 1;
+
+    await assert.rejects(
+      () => api.joinTournament(user, tournamentId),
+      (err: Error) => {
+        assert.match(err.message, /Slot Full/i);
+        // The app prints this string verbatim — no database vocabulary.
+        assert.doesNotMatch(err.message, /SLOTS_FULL|not accepting entries|status/i);
+        return true;
+      },
+    );
+    assert.equal(fake.rowsOf('walletLedger').length, 0);
+  });
+
+  it('answers a full match that switched to SLOTS_FULL with the same friendly words', async () => {
+    seed({ status: 'SLOTS_FULL' });
+    await assert.rejects(
+      () => api.joinTournament(user, tournamentId, 1),
+      (err: Error) => {
+        assert.match(err.message, /Slot Full/i);
+        assert.doesNotMatch(err.message, /SLOTS_FULL|not accepting entries/i);
+        return true;
+      },
+    );
+  });
+
   it('rejects closed matches and hidden (future visibility) matches', async () => {
     seed({ status: 'COMPLETED' });
-    await assert.rejects(() => api.joinTournament(user, tournamentId, 1), /not accepting entries/i);
+    await assert.rejects(() => api.joinTournament(user, tournamentId, 1), /Entry closed/i);
 
     seed();
     fake.rowsOf('tournament')[0].visibleFrom = new Date(Date.now() + 600_000);

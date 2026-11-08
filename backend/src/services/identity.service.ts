@@ -74,9 +74,9 @@ export async function nextMatchNumber(tenantId: string): Promise<number> {
   return (agg._max.matchNumber ?? 0) + 1;
 }
 
-/** "Bermuda Solo #12" — auto title when the admin does not type one. */
+/** "50 | Bermuda Solo" — auto title when the admin does not type one. */
 export function autoMatchTitle(mapType: string, matchType: string, matchNumber: number): string {
   const map = MAP_LABEL[mapType] ?? mapType;
   const type = MATCH_TYPE_LABEL[matchType] ?? matchType;
-  return `${map} ${type} #${matchNumber}`;
+  return `${matchNumber} | ${map} ${type}`;
 }

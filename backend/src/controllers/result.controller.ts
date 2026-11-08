@@ -35,7 +35,9 @@ const payoutSchema = z.object({
       z.object({
         userId: z.string().min(1, 'userId is required'),
         verifiedKills: z.coerce.number().int().min(0).max(99),
-        rank: z.coerce.number().int().min(1, 'rank must be >= 1').max(48),
+        // null = the spectator never ranked this player (died early / quiet match).
+        // A null rank means kills-only credit and no rank prize share.
+        rank: z.coerce.number().int().min(1, 'rank must be >= 1').max(48).nullable().optional(),
         isDisqualified: z.boolean().optional(),
         disqualifyReason: z.string().trim().max(255).optional(),
       }),
@@ -120,7 +122,10 @@ export async function distributeTournamentPrizes(req: Request, res: Response, ne
   try {
     if (!req.user) throw new Error('Authenticated user missing');
     const { results } = payoutSchema.parse(req.body);
-    const summary = await resultService.distributeTournamentPrizes(req.user, String(req.params.id), results);
+    // `rank` is optional in the wire schema; normalise "absent" to null so an
+    // untouched player is stored as unranked instead of rejected.
+    const normalised = results.map((r) => ({ ...r, rank: r.rank ?? null }));
+    const summary = await resultService.distributeTournamentPrizes(req.user, String(req.params.id), normalised);
     sendResponse(res, 200, 'Payout completed', summary);
   } catch (err) {
     next(err);
