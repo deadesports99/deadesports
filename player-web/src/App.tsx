@@ -16,7 +16,8 @@ import {
 } from './data/mockData';
 import { generateUTR } from './utils/formatters';
 import { api, ApiError, DEV_AUTH, getStoredUser } from './lib/api';
-import { isFeedMatch, isJoinClosed, toMatch } from './lib/mappers';
+import { connectRealtime } from './lib/realtime';
+import { identityLabel, isFeedMatch, isJoinClosed, toMatch } from './lib/mappers';
 import type { ApiWallet } from './lib/api';
 
 // Common Components
@@ -98,7 +99,7 @@ export function App() {
     const stored = getStoredUser();
     return {
       name: stored?.name ?? stored?.inGameName ?? 'Spartan Player',
-      identifier: stored?.phoneNumber ? `+91 ${stored.phoneNumber}` : '+91 98765 43210',
+      identifier: stored ? identityLabel(stored) : '+91 98765 43210',
       provider: 'phone',
     };
   });
@@ -114,7 +115,7 @@ export function App() {
 
   // Navigation & Screens state
   const [activeTab, setActiveTab] = useState<NavTab>('tournaments');
-  const [selectedFilter, setSelectedFilter] = useState<FilterCategory>('All Matches');
+  const [selectedFilter, setSelectedFilter] = useState<FilterCategory>('Upcoming');
   const [matches, setMatches] = useState<TournamentMatch[]>([]);
   const [joinedIds, setJoinedIds] = useState<string[]>([]);
   const [heroJoined, setHeroJoined] = useState(false);
@@ -127,6 +128,8 @@ export function App() {
   const [joinError, setJoinError] = useState<string | undefined>(undefined);
   const [profileIgn, setProfileIgn] = useState('');
   const [profileUid, setProfileUid] = useState('');
+  /** Room ID & Password for the sheet that is open (seated players only). */
+  const [sheetRoom, setSheetRoom] = useState<{ roomId: string | null; roomPassword: string | null } | null>(null);
 
   // Wallet state
   const [depositCash, setDepositCash] = useState(120);
@@ -171,9 +174,12 @@ export function App() {
     return summary;
   };
 
-  /** Pull the player feed + wallet from the API (called on sign-in and refresh). */
-  const loadFeed = async () => {
-    setFeedLoading(true);
+  /**
+   * Pull the player feed + wallet from the API (sign-in, refresh chip, realtime).
+   * `silent` skips the loading state so a pushed update never flashes the list.
+   */
+  const loadFeed = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) setFeedLoading(true);
     try {
       const [list, wallet, me] = await Promise.all([
         api.tournaments.list(),
@@ -193,14 +199,42 @@ export function App() {
         setProfileUid(me.inGameUid ?? '');
       }
     } catch (error) {
-      showToast(error instanceof ApiError ? error.message : 'Could not load the lobby', 'error');
+      if (!options.silent) {
+        showToast(error instanceof ApiError ? error.message : 'Could not load the lobby', 'error');
+      }
     } finally {
-      setFeedLoading(false);
+      if (!options.silent) setFeedLoading(false);
     }
   };
 
   useEffect(() => {
     if (step === 'APP') void loadFeed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // ⚡ Live lobby: the server pushes MATCH_CREATED the moment a match is
+  // published (plus SLOT_BOOKED / status changes), so a newly created match
+  // appears without anyone tapping the refresh chip. Bursts are debounced into
+  // one refetch because 48 joins land within a few seconds of each other.
+  useEffect(() => {
+    if (step !== 'APP') return;
+    let debounce: number | undefined;
+    const disconnect = connectRealtime(({ type }) => {
+      if (
+        type !== 'MATCH_CREATED' &&
+        type !== 'MATCH_STATUS_CHANGED' &&
+        type !== 'ROOM_CREDENTIALS_REVEALED' &&
+        type !== 'SLOT_BOOKED'
+      ) {
+        return;
+      }
+      if (debounce !== undefined) window.clearTimeout(debounce);
+      debounce = window.setTimeout(() => void loadFeed({ silent: true }), 400);
+    });
+    return () => {
+      if (debounce !== undefined) window.clearTimeout(debounce);
+      disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -243,7 +277,7 @@ export function App() {
     setJoinError(undefined);
     try {
       // The API owns the money move: it debits the fee and books the seat.
-      await api.tournaments.join(match.id, {
+      const result = await api.tournaments.join(match.id, {
         slotNumber: rawMatches[match.id]?.mySlot?.slotNumber,
         inGameName: identity.inGameName,
         inGameUid: identity.inGameUid,
@@ -252,15 +286,41 @@ export function App() {
 
       setProfileIgn(identity.inGameName);
       setProfileUid(identity.inGameUid);
-      setSelectedMatch(null);
       showToast(`Slot confirmed for ${match.title}!`);
       await loadFeed();
+
+      // The organiser may have published the room before this join — hand the
+      // code over immediately instead of closing the sheet on the player.
+      if (rawMatches[match.id]?.status === 'ROOM_REVEALED' || result.roomId) {
+        try {
+          const room = await api.tournaments.room(match.id);
+          setSheetRoom({ roomId: room.roomId, roomPassword: room.roomPassword });
+          return; // keep the sheet open so the player can copy the code
+        } catch {
+          // Room not readable yet — fall through and close normally.
+        }
+      }
+      setSelectedMatch(null);
     } catch (error) {
       const message = error instanceof ApiError ? error.message : (error as Error).message;
       setJoinError(message);
       showToast(message, 'error');
     } finally {
       setJoining(false);
+    }
+  };
+
+  /** Opening a match: a seated player on a published room gets the code at once. */
+  const openMatchSheet = async (match: TournamentMatch) => {
+    setJoinError(undefined);
+    setSheetRoom(null);
+    setSelectedMatch(match);
+    if (rawMatches[match.id]?.status !== 'ROOM_REVEALED') return;
+    try {
+      const room = await api.tournaments.room(match.id);
+      setSheetRoom({ roomId: room.roomId, roomPassword: room.roomPassword });
+    } catch {
+      // Not seated / not readable — the sheet shows the "join to unlock" state.
     }
   };
 
@@ -366,7 +426,7 @@ export function App() {
 
       setUser({
         name: session.user.name ?? session.user.inGameName ?? 'Spartan Player',
-        identifier: `+91 ${session.user.phoneNumber ?? phone}`,
+        identifier: identityLabel(session.user),
         provider,
       });
       setStep('APP');
@@ -454,7 +514,7 @@ export function App() {
             theme={theme}
             matches={matches}
             joinedIds={joinedIds}
-            onOpenMatch={(match) => setSelectedMatch(match)}
+            onOpenMatch={(match) => void openMatchSheet(match)}
             selectedFilter={selectedFilter}
             onFilter={(filter) => setSelectedFilter(filter)}
             onLockedGame={(name) =>
@@ -465,7 +525,7 @@ export function App() {
             heroJoined={heroJoined}
             onHeroJoin={() => {
               const hero = matches[0];
-              if (hero) setSelectedMatch(hero);
+              if (hero) void openMatchSheet(hero);
             }}
           />
         )}
@@ -508,6 +568,13 @@ export function App() {
               window.open('https://wa.me/919999900001?text=Help%20with%20Tournament', '_blank');
               showToast('Opening WhatsApp support channel...');
             }}
+            onRequestDeletion={() => {
+              const message = encodeURIComponent(
+                'Hi! Please delete my Spartan Arena account and all my data (name, Free Fire IGN/UID, wallet history). I understand this cannot be undone.'
+              );
+              window.open(`https://wa.me/919999900001?text=${message}`, '_blank');
+              showToast('Opening account deletion request...');
+            }}
             showToast={showToast}
           />
         )}
@@ -528,8 +595,13 @@ export function App() {
           joinError={joinError}
           joining={joining}
           joinClosed={rawMatches[selectedMatch.id] ? isJoinClosed(rawMatches[selectedMatch.id]) : false}
+          hasCredentials={joinedIds.includes(selectedMatch.id) && Boolean(sheetRoom)}
+          roomPending={!joinedIds.includes(selectedMatch.id) && rawMatches[selectedMatch.id]?.status === 'ROOM_REVEALED'}
+          room={sheetRoom}
+          onCopied={(label) => showToast(`${label} copied to clipboard`)}
           onClose={() => {
             setSelectedMatch(null);
+            setSheetRoom(null);
             setJoinError(undefined);
           }}
           onJoin={(identity) => void joinMatch(selectedMatch, identity)}

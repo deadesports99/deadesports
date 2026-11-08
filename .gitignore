@@ -49,3 +49,15 @@ video_page.html
 
 # local device screenshots
  tmp_screens/
+
+# Local run artefacts / scratch folders (never part of the product)
+*.pid
+dev-server.pid
+tmp_uitest/
+tmp_screens/
+{
+backend/scripts_join_after_publish.mts
+
+# Generated demo assets kept only locally
+images/
+deliverables/

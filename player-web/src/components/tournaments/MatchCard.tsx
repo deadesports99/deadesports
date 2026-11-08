@@ -64,7 +64,7 @@ export function MatchCard({ theme, match, joined, onOpen }: MatchCardProps) {
       {/* 3-Column Prize / Kill / Entry Stats */}
       <div
         className={cx(
-          'mt-2.5 grid grid-cols-3 gap-2 rounded-xl border px-3 py-2',
+          'mt-2.5 flex items-stretch justify-between rounded-xl border px-3.5 py-2',
           isDark ? 'border-white/5 bg-slate-900/75' : 'border-slate-200 bg-slate-50'
         )}
       >
@@ -76,7 +76,9 @@ export function MatchCard({ theme, match, joined, onOpen }: MatchCardProps) {
             {formatINR(match.prizePool)}
           </span>
         </div>
-        <div className={cx('border-x px-2', isDark ? 'border-white/10' : 'border-slate-200')}>
+        {/* Rules are centred with a gap above and below, equally far from the text */}
+        <span aria-hidden className={cx('w-px shrink-0 self-stretch', isDark ? 'bg-white/10' : 'bg-slate-200')} />
+        <div className="min-w-0">
           <span className={cx('block text-[9px] font-bold uppercase', isDark ? 'text-slate-400' : 'text-slate-500')}>
             Per Kill
           </span>
@@ -85,6 +87,7 @@ export function MatchCard({ theme, match, joined, onOpen }: MatchCardProps) {
             {match.perKill ? formatINR(match.perKill) : 'Win Only'}
           </span>
         </div>
+        <span aria-hidden className={cx('w-px shrink-0 self-stretch', isDark ? 'bg-white/10' : 'bg-slate-200')} />
         <div className="text-right">
           <span className={cx('block text-[9px] font-bold uppercase', isDark ? 'text-slate-400' : 'text-slate-500')}>
             Entry Fee

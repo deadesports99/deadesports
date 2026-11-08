@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Clock3, X, CheckCircle2, User, Gamepad2 } from 'lucide-react';
+import { MapPin, Clock3, X, CheckCircle2, User, Gamepad2, KeyRound, Copy, Check } from 'lucide-react';
 import { Theme, TournamentMatch } from '../../types';
 import { cx, formatINR } from '../../utils/formatters';
 
@@ -20,13 +20,23 @@ interface MatchSheetProps {
   joining?: boolean;
   /** Entry closes 1 minute before kickoff. */
   joinClosed?: boolean;
+  /**
+   * The organiser already published the custom room. `hasCredentials` = the
+   * player is seated and may read the Room ID & Password now;
+   * `roomPending` = published, but this player has not joined yet — the code
+   * unlocks the moment the join succeeds.
+   */
+  hasCredentials?: boolean;
+  roomPending?: boolean;
+  room?: { roomId?: string | null; roomPassword?: string | null } | null;
+  /** Fired after a successful copy so the app can show a toast. */
+  onCopied?: (label: string) => void;
 }
 
 const IGN_RE = /^[\s\S]{2,30}$/;
 const UID_RE = /^\d{6,12}$/;
 
-export function MatchSheet({
-  theme,
+export function MatchSheet({  theme,
   match,
   balance,
   joined,
@@ -38,10 +48,23 @@ export function MatchSheet({
   joinError,
   joining = false,
   joinClosed = false,
+  hasCredentials = false,
+  roomPending = false,
+  room = null,
+  onCopied,
 }: MatchSheetProps) {
   const isDark = theme === 'dark';
   const [ign, setIgn] = useState(defaultIgn);
   const [uid, setUid] = useState(defaultUid);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const copyValue = (key: string, label: string, value: string) => {
+    if (!value) return;
+    navigator.clipboard?.writeText?.(value);
+    setCopiedKey(key);
+    onCopied?.(label);
+    window.setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 1600);
+  };
 
   useEffect(() => {
     setIgn(defaultIgn);
@@ -51,6 +74,10 @@ export function MatchSheet({
   const ignOk = IGN_RE.test(ign.trim());
   const uidOk = UID_RE.test(uid.trim());
   const identityOk = ignOk && uidOk;
+  const roomId = room?.roomId ?? '';
+  const roomPass = room?.roomPassword ?? '';
+  // The room can be read here only by a seated player; otherwise it is a teaser.
+  const showRoomValues = hasCredentials && Boolean(roomId || roomPass);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
@@ -120,7 +147,9 @@ export function MatchSheet({
               <Clock3 className="mr-1 inline h-3.5 w-3.5 text-slate-400" />
               {match.time}
             </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">Room ID 15 min before start</p>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              {hasCredentials ? 'Published by organiser' : 'Unlocks after you join'}
+            </p>
           </div>
         </div>
 
@@ -236,6 +265,57 @@ export function MatchSheet({
           )}
         </div>
 
+        {/* Room ID & Password — published by the organiser, readable after joining */}
+        {(hasCredentials || roomPending) && (
+          <div
+            className={cx(
+              'mt-2 rounded-xl border p-3',
+              isDark ? 'border-white/10 bg-[#0B1526]' : 'border-slate-200 bg-slate-50'
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-400">
+                <KeyRound className="h-3 w-3" /> Custom Room Details
+              </span>
+              <span
+                className={cx(
+                  'rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide',
+                  showRoomValues
+                    ? 'bg-emerald-500/15 text-emerald-500'
+                    : 'bg-amber-400/15 text-amber-500'
+                )}
+              >
+                {showRoomValues ? 'Published' : 'Join to unlock'}
+              </span>
+            </div>
+
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <RoomValueRow
+                label="Room ID"
+                value={showRoomValues ? roomId : ''}
+                masked={!showRoomValues}
+                copied={copiedKey === 'roomId'}
+                isDark={isDark}
+                onCopy={() => copyValue('roomId', 'Room ID', roomId)}
+              />
+              <RoomValueRow
+                label="Password"
+                value={showRoomValues ? roomPass : ''}
+                masked={!showRoomValues}
+                copied={copiedKey === 'roomPass'}
+                isDark={isDark}
+                onCopy={() => copyValue('roomPass', 'Room password', roomPass)}
+              />
+            </div>
+
+            <p className={cx('mt-2 text-[10px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              {showRoomValues
+                ? 'Room is open — copy the ID & password and enter the Free Fire custom room.'
+                : 'Organiser published the room. Join this match to see the Room ID & Password and copy them with one tap.'}
+            </p>
+          </div>
+        )}
+
         {/* Join button CTA */}
         <button
           type="button"
@@ -266,10 +346,85 @@ export function MatchSheet({
             'Add Cash to Join'
           )}
         </button>
+        {!joined && !joinClosed && (
+          <p
+            className={cx(
+              'mt-1.5 flex items-start justify-center gap-1 text-center text-[10px] font-semibold',
+              hasCredentials ? 'text-emerald-500' : isDark ? 'text-slate-400' : 'text-slate-500'
+            )}
+          >
+            <KeyRound className="mt-0.5 h-3 w-3 shrink-0" />
+            {hasCredentials
+              ? 'Room ID & Password are published — copy them in this sheet.'
+              : 'Custom Room ID & Password join karne ke baad yahin milenge (1-tap copy).'}
+          </p>
+        )}
         <p className={cx('mt-2 text-center text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
           By joining, you agree to the Arena fair-play rules.
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * One compact credential box (Room ID / Password) with a 1-tap copy button —
+ * sized like the demo's inner stat strips so two fit side by side on a phone.
+ */
+function RoomValueRow({
+  label,
+  value,
+  masked,
+  copied,
+  isDark,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  masked: boolean;
+  copied: boolean;
+  isDark: boolean;
+  onCopy: () => void;
+}) {
+  const disabled = masked || !value;
+  return (
+    <div
+      className={cx(
+        'flex items-center gap-1.5 rounded-lg border px-2 py-1.5',
+        isDark ? 'border-white/10 bg-[#060B14]' : 'border-slate-200 bg-white'
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+        <p
+          className={cx(
+            'truncate text-[13px] font-black leading-tight tracking-wide',
+            disabled ? 'text-slate-500' : isDark ? 'text-white' : 'text-slate-950'
+          )}
+        >
+          {masked ? '••••••' : value || '—'}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onCopy}
+        disabled={disabled}
+        aria-label={`Copy ${label}`}
+        className={cx(
+          'flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all active:scale-90',
+          disabled
+            ? isDark
+              ? 'border-white/5 text-slate-600'
+              : 'border-slate-200 text-slate-300'
+            : copied
+            ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-500'
+            : isDark
+            ? 'border-white/15 bg-white/5 text-slate-300 hover:text-white'
+            : 'border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-950'
+        )}
+      >
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
     </div>
   );
 }

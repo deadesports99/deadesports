@@ -164,7 +164,7 @@ export const INITIAL_TRANSACTIONS: TransactionItem[] = [
 ];
 
 export const FILTERS: FilterCategory[] = [
-  'All Matches',
+  'Upcoming',
   'Solo',
   'Duo',
   'Squad',

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Phone, Pencil, AlertTriangle, Clock3, RefreshCw, Headphones } from 'lucide-react';
 import { Theme } from '../../types';
 import { cx } from '../../utils/formatters';
-import { Crest } from '../../components/common/Crest';
 import { Ambient } from '../../components/common/Ambient';
 
 interface OtpScreenProps {
@@ -95,29 +94,6 @@ export function OtpScreen({
               <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
               <span>Back to Login</span>
             </button>
-
-            {/* Top Brand Lockup */}
-            <div className="mt-5 flex items-center gap-3">
-              <Crest />
-              <div className="min-w-0">
-                <p
-                  className={cx(
-                    'text-[10px] font-black uppercase tracking-widest',
-                    isDark ? 'text-slate-400' : 'text-slate-500'
-                  )}
-                >
-                  Verification
-                </p>
-                <p
-                  className={cx(
-                    'text-base font-black tracking-tight leading-tight',
-                    isDark ? 'text-white' : 'text-slate-950'
-                  )}
-                >
-                  Spartan Arena
-                </p>
-              </div>
-            </div>
 
             {/* Header info */}
             <div className="mt-5">

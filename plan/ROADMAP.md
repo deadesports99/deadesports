@@ -393,7 +393,233 @@ CREATE TABLE wallet_transactions (
 
 ---
 
-### 📍 Phase 12: Next Steps (Planned)
+### 📍 Phase 12: Match Participants — Reward, Cheat-Flags & Ban - ✅ COMPLETE
+Full detail: `plan/android/12_Match_Participants_Reward_and_Ban/PLAN.md`
+
+> **Boss:** "Match Manage me hi daal do — match number pe click karte hi saari user list aa jaaye,
+kisko kitna dena hai, aur ban ka option bhi mile. Card bada na ho."
+
+- [x] **Schema**: `TournamentSlot` gets join-time snapshots (`inGameNameSnapshot`,
+      `inGameUidSnapshot`, `deviceIdSnapshot`) + match-scoped ban (`isBanned`, `banReason`,
+      `bannedAt`, `bannedBy`). Backfill script for the 20 existing joins.
+- [x] **Backend**: `GET /admin/matches/:id/participants` (search + flags: `NO_FF_UID`,
+      `UID_MISMATCH`, `SAME_DEVICE`, `ACCOUNT_BANNED`, `DISQUALIFIED`),
+      `POST /admin/matches/:id/payout` (per-player rank/kills/amount, total ≤ prize pool,
+      banned players blocked, no double pay), `PATCH /admin/matches/:id/participants/:userId/ban`
+      (match-only vs whole account).
+- [x] **Admin app**: compact match card (no 6-button wall — actions move to `⋮`) with
+      match number / `👥 Players (N)` opening a full-screen roster + search + filter chips.
+- [x] **Reward sheet** per player: rank + kills → auto ₹ preview (same formula as server) → Pay.
+- [x] **Cheat signals live**: Supabase audit found **7 accounts on one device**
+      (`1d24b2b7de7dafdb`) and **4 players with no FF UID** — both surface as 🚨 badges.
+
+---
+
+### 📍 Phase 12.1: Match Number Identity & Match Search - ✅ COMPLETE
+> **Boss:** "Match number hona zaruri hai tabhi admin/sub-admin ko pata chalega kon sa match hai.
+> `#` nahi lagana — `50 | Bermuda . Solo` aise kar ke. Match Manage me bhi number ke saath
+> dikhaye, aur search bar bhi ho. Publish Room ID me bhi waise hi."
+
+- [x] **Number = match identity**: display `50 | Bermuda · Solo` everywhere (no `#`), map/dupe
+      label pehle, number sabse aage with a `|` separator.
+- [x] **DB repair**: 2 legacy matches with `matchNumber = NULL` backfilled (`#840`, `#841`);
+      script `backend/scripts/backfill_match_numbers.ts` (idempotent, dry-run + `--apply`).
+- [x] **Future safety**: every create/clone stamps the next per-tenant number; auto title
+      switched to `50 | Bermuda Solo` so the number survives in the DB record.
+- [x] **Manage Matches**: search bar (match number / map / mode / title) filters Live, Upcoming
+      and History tabs; card header is `841 | Purgatory · Solo` with the number in bold primary.
+- [x] **Publish Room ID**: flat rows `838 | Bermuda · Squad` → time · seats · 🔒 published state
+      (no more raw `BERMUDA SOLO #838` techy label).
+- [x] **Player app**: match number chip in `MatchCard` + `displayName` format parity.
+- [x] Tests updated for the new title format — **285/285 pass**; APK + emulator verified
+      (`tmp_screens/match_number_history.png`, `match_number_publish_room.png`).
+
+---
+
+### 📍 Phase 12.2: Roster CSV Export - ✅ COMPLETE
+> **Boss:** "Match ke saare players + UID + reward ek file me — cheating dispute ya record
+> rakhne ke liye kaam aayega."
+
+- [x] **Backend**: `GET /admin/matches/:id/participants/export.csv` → spreadsheet-ready CSV with
+      a match header block (number, status, IST time, fees, pool, seats, totals, flags) and one
+      row per participant (slot, Player ID, name, IGN, **FF UID**, phone, join time, rank, kills,
+      prize paid, paid/disqualified/banned states, ban reason, flags).
+- [x] **Android**: `⬇ Share / Download CSV` on the roster screen writes the file to app cache and
+      opens the Android share sheet (`roster-841.csv`) — same FileProvider path as the settlement CSV.
+- [x] Values come from the **join-time snapshot**, so the file is valid evidence even after a
+      player edits their profile.
+- [x] Verified on device: file written to `cache/exports/roster-841.csv` with correct content;
+      **285/285 backend tests pass**.
+
+---
+
+### 📍 Phase 12.3: Player 360° Detail - ✅ COMPLETE
+> **Boss:** "Kisi player pe tap karke dekho — kaun kaun se match khela, kitna jeeta,
+> kitni baar flagged hua. Repeat cheater turant pakda jayega."
+
+- [x] **Backend**: `GET /admin/players/:id` -> `getPlayerDetail()`. Returns the player, ledger-true
+      money totals (added / withdrew / won / spent on entries / **net in-out**), every match they
+      joined (number, map+mode, status, slot, rank, kills, prize, paid?, DQ?, match-ban?,
+      **same-device flag**, and the IGN/UID they used *at join time*), a playing-record summary
+      (matches, booyahs, win %, kills, avg kills, won) and **linked accounts** (every other player
+      who joined from the same device, with shared-match counts).
+- [x] **Android**: tapping a player card in Player Management opens `AdminPlayerDetailScreen`
+      - identity card (ID, IGN, UID, phone, account age, device) + Ban/Unban Account
+      - money card with net in/out highlighted
+      - playing record with red cheat alerts
+      - linked-device accounts list
+      - match history with `All / ✅ Paid / 🏆 Won / 🚨 Flagged` filters; tapping a row jumps
+        straight into that match's roster.
+- [x] **Cheat investigation in one place**: repeat offenders show up as a red count, and one device
+      with many accounts is obvious at a glance.
+- [x] Verified live on device with `APE-0211` (7 matches, 4 linked accounts, ₹1,137.50 won,
+      14.29% win rate). **296/296 backend tests pass**.
+
+---
+
+### 📍 Phase 12.4: Suspicious Players "Cheat Radar" - ✅ COMPLETE
+> **Boss:** "400 profile kholne ka time nahi. Kaun problem hai, seedha bata."
+
+- [x] **Backend**: `GET /admin/players/suspicious` -> scans every player with 4 bulk queries and
+      scores 7 provable signals: `DEVICE_SHARED` (2 accounts in one match), `DEVICE_FARM`
+      (3+ accounts on a device), `NET_POSITIVE` (withdrew more than paid in), `HIGH_WIN_RATE`,
+      `KILL_SPIKE`, `DQ_HISTORY`, `NO_FF_UID`.
+- [x] Score is sorting only - **nothing auto-bans**. Each signal ships its own weight + readable
+      reason so the owner sees *why* a player is listed.
+- [x] **Android**: `🚨 Suspicious Players` in Player Management. Score badge, top signals in plain
+      language, and `High / Medium / All / Everything` thresholds. Tap a row -> full 360 detail.
+- [x] Verified: `5 flagged of 16 scanned`, `APE-0006` scored 100 (2 matches with own account,
+      7 accounts on device), radar -> detail -> ban is one loop. **296/296 tests pass**.
+
+---
+
+### 📍 Phase 12.5: Device Groups (one phone, many accounts) - ✅ COMPLETE
+> **Boss:** "Device ID pe tap karo, uske saare account ek screen pe, aur ek saath ban ka option."
+
+- [x] **Backend**: `GET /admin/players/devices` (devices with 2+ accounts, ranked by matches they
+      played together), `GET /admin/players/devices/:deviceId` (every account + shared matches +
+      totals), `PATCH /admin/players/devices/:deviceId/ban` (ban/unban the whole device at once).
+- [x] Devices discovered from **slot snapshots and profiles both** - an account that played from
+      the phone and later edited its profile still shows up.
+- [x] **"Played together"** = matches where 2+ accounts of that device hold a slot, the cleanest
+      collusion proof we can derive.
+- [x] Ban-all also **invalidates every auth cache entry** - all sessions die immediately.
+- [x] **Android**: `📱 Devices` in Player Management -> list -> detail with totals, red net-out
+      warning, per-account rows (tap -> 360 detail), shared-match list, and one `Ban all N` button
+      whose confirm dialog names every account.
+- [x] Verified: 7 accounts on one device, 2 shared matches, ban-all round-trip `7 banned` ->
+      `7 unbanned` with final state clean. **296/296 tests pass**.
+
+---
+
+### 📍 Phase 12.6: Device CSV + Watchlist - ✅ COMPLETE
+> **Boss:** "Device ka CSV bana de, aur watch list — naya account aaye to alert."
+
+- [x] **Device CSV**: `GET /admin/players/devices/:deviceId/export.csv` - summary + account table +
+      shared-match table, all IST timestamps. `⬇ CSV` button on the device screen shares the file.
+- [x] **Watchlist** (`DeviceWatch` model): `GET/POST /watchlist`, `DELETE /watchlist/:id`,
+      `PATCH /watchlist/:id/ack`. Lives in `deviceWatch.service.ts`.
+- [x] **The trigger**: `joinTournament` calls `noteDeviceActivity()` (fire-and-forget). If the device
+      is watched and this is the account's *first ever* slot from it, `alertCount` increments -
+      a banned farmer coming back on a fresh account raises an alert on his **first** match.
+- [x] **Android**: `🔭 Watchlist` screen with red `🚨 N new` rows and `✅ Seen / Open / 🗑 Remove`;
+      `🔭 Watch` button on the device detail screen.
+- [x] Proven live: throwaway account on the watched device joined match 842 -> `totalAlerts: 1`
+      and the app showed `🚨 1 new alert(s)`. Test data removed after. **296/296 tests pass**.
+
+---
+
+### 📍 Phase 12.7: Dashboard Alert Badge - ✅ COMPLETE
+> **Boss:** "Dashboard pe ek chhota badge laga de — app khole aur turant dikhe ki kuch naya hua."
+
+- [x] Owner-only dashboard now loads watchlist + suspicion counters on mount.
+- [x] **Player Management** card shows a red circular badge (pending device alerts) and a red line
+      under the description: `🚨 N new device alert(s) · ⚠️ M suspicious account(s)`. Each half hides
+      itself at zero, so a clean tenant sees a clean card.
+- [x] Verified on device with `alertCount = 2` -> red badge **2** + red warning line.
+      **296/296 tests pass**. No backend changes needed.
+
+### 📍 Phase 12.8: Spectator Scorer Console Fix - ✅ COMPLETE
+> **Boss:** "Sirf live match dikhna chahiye, demo data nahi. Rank 0 se shuru ho. Ek toggle se Done button aaye, Done waale neeche jaayein, Save pe match Live se gayab ho jaye."
+
+- [x] **Only LIVE matches listed.** The old selector accepted `OPEN/SLOTS_FULL/ROOM_REVEALED/LIVE/UNDER_REVIEW`,
+      which listed **23** matches — 21 of them stale `UNDER_REVIEW` rows with 0 slots. That was the "demo data".
+      Now a `🔴 LIVE` | `🕓 Unscored backlog` filter pair: LIVE by default, backlog opt-in (and must have seats).
+- [x] **Nothing is pre-ranked.** `ScorerRoster` no longer `mapIndexed`s `rank = index + 1`; every player starts at
+      `rank = 0` (shown as an empty `—` box) and `verifiedKills = 0`. A half-finished console can never invent a winner.
+- [x] **Done switch** in the console toolbar (off by default). Turned ON, each running player gets
+      `✓ Done — player finished`; tapping it moves them to a **✅ Finished** section at the bottom.
+- [x] **Finished section keeps winners on top** — sorted rank 1..n first, then unranked by slot. Each row shows
+      `#rank`, kills, slot, DQ marker, and a `↩` to send the player back to Running if the spectator tapped early.
+- [x] **Save button reads** `💾 Save Results & Complete Match (N finished)` and the confirm dialog spells out
+      `🎯 N ranked • ❔ M unranked (kills only)` before locking anything.
+- [x] **Rank 0 now saves as `rank = null`** end-to-end: `PayoutResultInput.rank` is `number | null`,
+      `result.controller` normalises absent → `null`, rank-prize share becomes **0** and the ledger note says
+      `unranked` instead of failing validation (backend previously demanded `rank >= 1`).
+- [x] Verified live on the emulator: LIVE list showed only `841 | Purgatory • Solo`; console opened at
+      `0 ranked • 0 flagged` with empty rank boxes; Done toggle revealed both buttons; both players moved to
+      Finished; Save wrote 2 results with `rank = null` and **prize 0** (balances untouched).
+- [x] Ranked round-trip via API: `rank 1 + 5 kills` paid **₹675** (₹600 rank share + ₹75 kills).
+- [x] After save the match is `COMPLETED` and the LIVE feed returns **0** — it vanishes from the players' Live section.
+- [x] Test data restored (results cleared, prize rolled back, match back to `UNDER_REVIEW`).
+      **296/296 backend tests pass**, `tsc --noEmit` clean, admin APK installed.
+
+### 📍 Phase 12.9: Manual "Go LIVE Now" Button - ✅ COMPLETE
+> **Boss:** "Match LIVE karne ka koi button nahi hai — DB chhedna padta hai. Add kar do."
+
+- [x] **Backend** `PATCH /api/v1/tournaments/:id/go-live` (`canCreateMatch`).
+      `matchSweep.service.forceMatchLive()` flips any pre-match status to `LIVE` **and re-pins
+      `matchTime` to now**, so the 2h auto-review window counts from the real kickoff instead of
+      the old schedule (the reason a manual kickoff used to get demoted within seconds).
+- [x] **Idempotent**: calling it on an already-LIVE match returns `changed: false` and just
+      re-broadcasts `MATCH_STATUS_CHANGED` so a late-joining client refreshes.
+- [x] **Guarded**: `COMPLETED` / `CANCELLED` are rejected with **409** and a readable message
+      (`"A completed match cannot be started. Only matches that have not finished yet can go LIVE."`).
+      Unknown id -> **404**. Verified 200 / 409 / 404 on the live server.
+- [x] `MatchNotStartableError` now extends `ApiError`, so the global handler returns the right
+      status instead of a blanket 500.
+- [x] **Admin app**: `⋮` menu in Manage Matches gained **`▶️ Go LIVE Now`** (shown for every
+      not-yet-finished match). `AdminViewModel.goLiveNow()` refreshes Match Ops, the tournament
+      list and the Publish Room ID targets, then shows `✅ Match N is LIVE now — players may join
+      the custom room`.
+- [x] New `GoLiveResult` DTO + Retrofit `forceMatchLive()`.
+- [x] Verified end-to-end on the emulator: match 848 (45 players booked) went
+      `OPEN -> LIVE` from the UI alone, `matchTime` re-pinned to now.
+- [x] Test matches (`10000 GOLIVE TEST`, `SMOKE TEST 12.8`) deleted, match 848 restored to `OPEN`.
+      **296/296 tests pass**, `tsc --noEmit` clean, admin APK installed.
+
+### 📍 Phase 12.10: Player App - Dedicated LIVE Tab - ✅ COMPLETE
+> **Boss:** "All, Solo, Duo wagera ke jahan button hai na, wahan last me ek LIVE ka section add kar do.
+> Jitne bhi live match hone wo wahan chale jayenge, aur All wagera sab section se gayab ho jayenge.
+> Aur ye dekh lena ki match suru hote hi LIVE me jayega ya nahi — asia logic hai ya nahi."
+
+- [x] **New chip `🔴 LIVE (N)` placed LAST** in `FEED_FILTERS`:
+      `All Matches | Solo | Duo | Squad | Clash Squad (CS) | 🔴 LIVE (N)`.
+      The count sits in the label so the organiser can see at a glance how many are running.
+- [x] **A LIVE match is removed from every other tab.** The feed is partitioned once:
+      `liveMatches` (`status == LIVE`) and `lobbyMatches` (`status != LIVE`); every mode chip
+      filters `lobbyMatches`, only the LIVE chip uses `liveMatches`.
+- [x] List header reads **`LIVE MATCHES (N)`** on the LIVE tab (vs `MATCHES (N)` elsewhere),
+      and the LIVE tab has its own empty-state copy.
+- [x] **No backend change was needed.** The lifecycle was already correct:
+      sweep every 60s flips `matchTime <= now` to `LIVE` (plus the new manual `▶️ Go LIVE Now`),
+      and `LIVE -> UNDER_REVIEW` 2h after kickoff. Only the player app's **placement** was wrong.
+- [x] **Proven that kickoff really goes LIVE on its own, without touching the app:**
+      set match 849's kickoff 1 min in the past, ran the sweep, and left the player app on
+      All Matches. It updated by itself: `0 Live • 2 Upcoming` -> **`1 Live • 1 Upcoming`**,
+      `MATCHES (2)` -> **`MATCHES (1)`**, 849 gone. The `MATCH_STATUS_CHANGED` broadcast patches
+      the feed item in place and the screen re-partitions.
+- [x] Also proven earlier with match 851: `sweep -> wentLive: ['851 | Bermuda Solo']`.
+- [x] A LIVE match's action button reads **"Watch live"** (not "Join") because entry closes
+      60s before kickoff in both `isEntryClosed()` and the backend.
+- [x] Verified on the emulator: 848 LIVE -> All `MATCHES (1)` / Solo `MATCHES (1)` /
+      LIVE `LIVE MATCHES (1)`; 848 restored -> LIVE empty state + All back to `MATCHES (2)`.
+- [x] **296/296 tests pass**, `tsc --noEmit` clean, both APKs build and install.
+      Test state restored (848 -> `ROOM_REVEALED`, 849 -> `OPEN`).
+
+---
+
+### 📍 Phase 13: Next Steps (Planned)
 Full detail: `plan/NEXT_PHASE_PLAN.md`
 
 - [ ] **P1** Kotlin unit tests (JUnit + MockK + coroutines-test) + JaCoCo, then re-include `android/**` in the coverage metric.
@@ -401,6 +627,9 @@ Full detail: `plan/NEXT_PHASE_PLAN.md`
 - [ ] **P3** Auto-reconcile sweep for stale pending orders (webhook-independent recovery).
 - [ ] **P4** Live Razorpay verification with real `rzp_test_*` keys (₹1 UPI top-up, retry idempotency, one failure path).
 - [ ] **P5** Go-live hardening + cloud deployment (`plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md`, including Section V2 cleanup).
+      - [x] Code side done (V2-A..V2-E + **V2-F CSV formula injection**, see `NEXT_PHASE_PLAN.md` E1).
+      - [ ] Needs the owner: Razorpay live keys, release keystore, production tenant SQL,
+            Render ops flags (`TRUST_PROXY=true`, no OTP bypass), backups + rollback owner.
 
 ---
 

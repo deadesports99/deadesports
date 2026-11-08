@@ -10,9 +10,15 @@ import {
   ChevronRight,
   X,
   Shield,
+  Image as ImageIcon,
+  Info,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { Theme, UserProfile, AuthProvider } from '../types';
 import { cx } from '../utils/formatters';
+import { BG_OPTIONS, setBackground, useBackground } from '../lib/background';
+import { identityFieldLabel } from '../lib/mappers';
 
 interface SettingsScreenProps {
   theme: Theme;
@@ -24,8 +30,16 @@ interface SettingsScreenProps {
   onSecurity?: () => void;
   onSignOut: () => void;
   onWhatsApp: () => void;
+  onRequestDeletion?: () => void;
   showToast: (text: string, type?: 'success' | 'error') => void;
 }
+
+/** Real public policy page, only when a client configured one (never the placeholder). */
+const PRIVACY_URL = (((import.meta.env.VITE_PRIVACY_POLICY_URL as string | undefined) ?? '').trim());
+const HAS_PRIVACY_URL =
+  /^https?:\/\//.test(PRIVACY_URL) && !/example\.com/i.test(PRIVACY_URL);
+const GARENA_DISCLAIMER =
+  'This is a community esports tournament app. It is not affiliated with, endorsed by, or sponsored by Garena. Free Fire is a trademark of Garena International. All game assets belong to their respective owners.';
 
 export function SettingsScreen({
   theme,
@@ -35,6 +49,7 @@ export function SettingsScreen({
   joinedCount,
   onSignOut,
   onWhatsApp,
+  onRequestDeletion,
   showToast,
 }: SettingsScreenProps) {
   const isDark = theme === 'dark';
@@ -42,10 +57,18 @@ export function SettingsScreen({
   // Sub-modals inside Settings
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [fairPlayModalOpen, setFairPlayModalOpen] = useState(false);
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const bg = useBackground();
+  const bgOption = BG_OPTIONS.find((o) => o.id === bg.id) ?? BG_OPTIONS[0];
 
   const playerName = user?.name || 'Spartan Player';
-  const playerPhone = user?.identifier || '+91 98765 43210';
+  const playerContact = user?.identifier || '+91 98765 43210';
+  // A Google account has no real number — the field label follows the value.
+  const contactLabel = identityFieldLabel(playerContact);
+  const lockedTo = contactLabel === 'Email ID' ? 'this registered account' : 'this registered mobile number';
 
   const handleToggleNotifications = () => {
     const nextState = !notificationsEnabled;
@@ -93,7 +116,7 @@ export function SettingsScreen({
                 Account
               </span>
               <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                {playerName} • {playerPhone}
+                {playerName} • {playerContact}
               </p>
             </div>
           </div>
@@ -163,6 +186,100 @@ export function SettingsScreen({
         </div>
 
         <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+
+        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+
+        {/* 2b. Background image picker (demo) */}
+        <div className="p-3.5">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0EA5E9] text-white shadow-md shadow-[#0EA5E9]/25">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1 pr-3">
+              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+                Background
+              </span>
+              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                {bgOption.label} &bull; {bg.opacity}% opacity
+              </p>
+            </div>
+          </div>
+
+          {/* Thumbnail strip */}
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {BG_OPTIONS.map((option) => {
+              const active = option.id === bg.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setBackground({ id: option.id })}
+                  aria-pressed={active}
+                  aria-label={`Background ${option.label}`}
+                  className={cx(
+                    'shrink-0 rounded-lg border p-1 transition-all active:scale-95',
+                    active
+                      ? 'border-amber-400 ring-2 ring-amber-400/40'
+                      : isDark
+                      ? 'border-white/10 hover:border-white/30'
+                      : 'border-slate-200 hover:border-slate-400'
+                  )}
+                >
+                  {option.src ? (
+                    <img
+                      src={option.src}
+                      alt=""
+                      className="h-12 w-8 rounded object-cover"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div
+                      className={cx(
+                        'flex h-12 w-8 items-center justify-center rounded text-[9px] font-black',
+                        isDark ? 'bg-slate-900 text-slate-500' : 'bg-slate-100 text-slate-400'
+                      )}
+                    >
+                      OFF
+                    </div>
+                  )}
+                  <span
+                    className={cx(
+                      'mt-1 block w-8 truncate text-center text-[9px] font-bold',
+                      active ? 'text-amber-400' : isDark ? 'text-slate-400' : 'text-slate-500'
+                    )}
+                  >
+                    {option.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Opacity slider */}
+          <div className="mt-3 flex items-center gap-3">
+            <span className={cx('text-[11px] font-bold', isDark ? 'text-slate-300' : 'text-slate-600')}>
+              Opacity
+            </span>
+            <input
+              type="range"
+              min={10}
+              max={50}
+              step={2}
+              value={bg.opacity}
+              onChange={(e) => setBackground({ opacity: Number(e.target.value) })}
+              aria-label="Background opacity"
+              className="h-1 flex-1 accent-amber-400"
+            />
+            <span
+              className={cx(
+                'w-9 text-right text-[11px] font-black tabular-nums',
+                isDark ? 'text-white' : 'text-slate-950'
+              )}
+            >
+              {bg.opacity}%
+            </span>
+          </div>
+        </div>
 
         {/* 3. Match Notifications */}
         <div
@@ -279,6 +396,64 @@ export function SettingsScreen({
 
           <ChevronRight className={cx('h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', isDark ? 'text-slate-500' : 'text-slate-400')} />
         </button>
+
+        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+
+        {/* About & Garena disclaimer */}
+        <button
+          type="button"
+          onClick={() => setAboutModalOpen(true)}
+          className={cx(
+            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'
+          )}
+        >
+          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#6366F1] text-white shadow-md shadow-[#6366F1]/25">
+              <Info className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+                About &amp; Disclaimer
+              </span>
+              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                Community esports • Not affiliated with Garena
+              </p>
+            </div>
+          </div>
+
+          <ChevronRight className={cx('h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', isDark ? 'text-slate-500' : 'text-slate-400')} />
+        </button>
+
+        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+
+        {/* Privacy policy */}
+        <button
+          type="button"
+          onClick={() => setPrivacyModalOpen(true)}
+          className={cx(
+            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'
+          )}
+        >
+          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#06B6D4] text-white shadow-md shadow-[#06B6D4]/25">
+              <Shield className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+                Privacy Policy
+              </span>
+              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                What data we store &amp; why
+              </p>
+            </div>
+          </div>
+
+          <ChevronRight className={cx('h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', isDark ? 'text-slate-500' : 'text-slate-400')} />
+        </button>
       </div>
 
       {/* ============================================================== */}
@@ -292,6 +467,32 @@ export function SettingsScreen({
             : 'border-slate-200/90 bg-white shadow-sm'
         )}
       >
+        <button
+          type="button"
+          onClick={() => setDeleteModalOpen(true)}
+          className={cx(
+            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            isDark ? 'hover:bg-rose-500/10' : 'hover:bg-rose-50'
+          )}
+        >
+          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md shadow-[#EF4444]/25">
+              <Trash2 className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-bold text-rose-500">Delete Account</span>
+              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                Permanently remove my data
+              </p>
+            </div>
+          </div>
+
+          <ChevronRight className="h-4 w-4 shrink-0 text-rose-500/60 transition-transform group-hover:translate-x-0.5" />
+        </button>
+
+        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+
         <button
           type="button"
           onClick={onSignOut}
@@ -374,7 +575,7 @@ export function SettingsScreen({
                 <p className="text-sm font-black mt-0.5">{playerName}</p>
               </div>
 
-              {/* Mobile Number */}
+              {/* Mobile Number / Email ID */}
               <div
                 className={cx(
                   'rounded-xl border p-3.5',
@@ -382,9 +583,9 @@ export function SettingsScreen({
                 )}
               >
                 <span className={cx('text-[10px] font-black uppercase tracking-wider', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                  Mobile Number
+                  {contactLabel}
                 </span>
-                <p className="text-sm font-black mt-0.5">{playerPhone}</p>
+                <p className="text-sm font-black mt-0.5">{playerContact}</p>
               </div>
 
               {/* Security notice */}
@@ -396,7 +597,7 @@ export function SettingsScreen({
               >
                 <Shield className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
                 <p className="text-[11px] leading-relaxed">
-                  For tournament anti-cheat and prize security, game accounts are permanently locked to this registered mobile number.
+                  For tournament anti-cheat and prize security, game accounts are permanently locked to {lockedTo}.
                 </p>
               </div>
             </div>
@@ -496,6 +697,279 @@ export function SettingsScreen({
           </div>
         </div>
       )}
+
+      {/* ============================================================== */}
+      {/* ABOUT & DISCLAIMER MODAL                                        */}
+      {/* ============================================================== */}
+      {aboutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div
+            className={cx(
+              'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',
+              isDark ? 'border-white/15 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-950'
+            )}
+          >
+            <div className={cx('flex items-center justify-between border-b pb-3.5', isDark ? 'border-white/10' : 'border-slate-200')}>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#6366F1] text-white shadow">
+                  <Info className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">About &amp; Disclaimer</h3>
+                  <p className={cx('text-[10px] font-semibold', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                    Spartan Arena • Community edition
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAboutModalOpen(false)}
+                aria-label="Close modal"
+                className={cx(
+                  'rounded-lg p-1.5 transition-colors',
+                  isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950'
+                )}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2.5 text-xs">
+              <LegalCard
+                title="Community esports platform"
+                titleClass="text-amber-400"
+                body={GARENA_DISCLAIMER}
+                isDark={isDark}
+              />
+              <LegalCard
+                title="18+ • Skill contests"
+                titleClass="text-emerald-400"
+                body="This app is for players aged 18 and over. Paid-entry tournaments are skill contests, not games of chance — the entry fee and prize pool are shown before you join. Please check your state's local rules."
+                isDark={isDark}
+              />
+              {HAS_PRIVACY_URL && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(PRIVACY_URL, '_blank', 'noopener');
+                  }}
+                  className={cx(
+                    'flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors',
+                    isDark ? 'border-white/10 bg-slate-950/60 hover:bg-slate-800' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                  )}
+                >
+                  <span className="flex items-center gap-2 font-bold">
+                    <Shield className="h-4 w-4 text-cyan-400" /> Read the full Privacy Policy
+                  </span>
+                  <ExternalLink className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setAboutModalOpen(false)}
+              className="mt-4 w-full rounded-xl bg-amber-400 py-2.5 text-xs font-black text-slate-950 shadow-md transition-all hover:bg-amber-300 active:scale-[0.98]"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* PRIVACY POLICY MODAL                                           */}
+      {/* ============================================================== */}
+      {privacyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div
+            className={cx(
+              'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',
+              isDark ? 'border-white/15 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-950'
+            )}
+          >
+            <div className={cx('flex items-center justify-between border-b pb-3.5', isDark ? 'border-white/10' : 'border-slate-200')}>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#06B6D4] text-white shadow">
+                  <Shield className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Privacy Policy</h3>
+                  <p className={cx('text-[10px] font-semibold', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                    Your data &amp; your rights
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrivacyModalOpen(false)}
+                aria-label="Close modal"
+                className={cx(
+                  'rounded-lg p-1.5 transition-colors',
+                  isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950'
+                )}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2.5 text-xs">
+              <LegalCard
+                title="What we collect"
+                titleClass="text-sky-400"
+                body="Mobile number or Google email, display name, Free Fire IGN and UID, wallet and match history, a device identifier for anti-cheat, and an optional push token."
+                isDark={isDark}
+              />
+              <LegalCard
+                title="Why we collect it"
+                titleClass="text-amber-400"
+                body="To register you, book slots, verify payments and payouts, prevent fraud and multi-accounting, and send Room ID / result alerts."
+                isDark={isDark}
+              />
+              <LegalCard
+                title="Where it is stored"
+                titleClass="text-emerald-400"
+                body="In the organiser's own secure database (Supabase). Card details and UPI PINs never reach us — online payments are handled by the payment gateway."
+                isDark={isDark}
+              />
+              <LegalCard
+                title="Your rights"
+                titleClass="text-violet-400"
+                body="You can correct your Free Fire details, request a copy of your data, or delete your account from Settings. Payout records may be kept where the law requires it."
+                isDark={isDark}
+              />
+              {HAS_PRIVACY_URL && (
+                <button
+                  type="button"
+                  onClick={() => window.open(PRIVACY_URL, '_blank', 'noopener')}
+                  className={cx(
+                    'flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors',
+                    isDark ? 'border-white/10 bg-slate-950/60 hover:bg-slate-800' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                  )}
+                >
+                  <span className="flex items-center gap-2 font-bold">
+                    <Shield className="h-4 w-4 text-cyan-400" /> Open the full policy page
+                  </span>
+                  <ExternalLink className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPrivacyModalOpen(false)}
+              className="mt-4 w-full rounded-xl bg-amber-400 py-2.5 text-xs font-black text-slate-950 shadow-md transition-all hover:bg-amber-300 active:scale-[0.98]"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* DELETE ACCOUNT MODAL                                           */}
+      {/* ============================================================== */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div
+            className={cx(
+              'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',
+              isDark ? 'border-white/15 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-950'
+            )}
+          >
+            <div className={cx('flex items-center justify-between border-b pb-3.5', isDark ? 'border-white/10' : 'border-slate-200')}>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EF4444] text-white shadow">
+                  <Trash2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Delete Account</h3>
+                  <p className={cx('text-[10px] font-semibold', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                    Permanent &amp; irreversible
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                aria-label="Close modal"
+                className={cx(
+                  'rounded-lg p-1.5 transition-colors',
+                  isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950'
+                )}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2.5 text-xs">
+              <LegalCard
+                title="Before you delete"
+                titleClass="text-amber-400"
+                body="Withdraw any winnings first. Pending matches, deposits and withdrawals must be settled — deleting early can forfeit an unpaid balance."
+                isDark={isDark}
+              />
+              <LegalCard
+                title="What gets removed"
+                titleClass="text-rose-400"
+                body="Your profile, name, Free Fire IGN/UID, wallet and match history, and the device link used for anti-cheat. This cannot be undone. Payout records may be kept where the law requires it."
+                isDark={isDark}
+              />
+              <p className={cx('text-[11px] leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                A Spartan Arena support agent confirms the request on WhatsApp after your balance is cleared.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteModalOpen(false);
+                (onRequestDeletion ?? onWhatsApp)();
+              }}
+              className="mt-4 w-full rounded-xl bg-rose-500 py-2.5 text-xs font-black text-white shadow-md transition-all hover:bg-rose-400 active:scale-[0.98]"
+            >
+              Request deletion on WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(false)}
+              className={cx(
+                'mt-1 w-full py-2.5 text-[11px] font-semibold transition-colors',
+                isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+              )}
+            >
+              Keep my account
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One inset info card used by the legal modals. */
+function LegalCard({
+  title,
+  titleClass,
+  body,
+  isDark,
+}: {
+  title: string;
+  titleClass: string;
+  body: string;
+  isDark: boolean;
+}) {
+  return (
+    <div
+      className={cx(
+        'rounded-xl border p-3',
+        isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+      )}
+    >
+      <p className={cx('font-bold', titleClass)}>{title}</p>
+      <p className={cx('text-[11px] mt-0.5 leading-relaxed', isDark ? 'text-slate-300' : 'text-slate-600')}>
+        {body}
+      </p>
     </div>
   );
 }

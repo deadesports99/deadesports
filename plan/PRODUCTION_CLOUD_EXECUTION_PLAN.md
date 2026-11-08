@@ -590,3 +590,177 @@ npx prisma validate
 
 Check boxes only after the command or real-world step has actually been
 completed.
+
+---
+
+## Section V3 — Demo / test relaxations that are ON right now (REVERT BEFORE LAUNCH)
+
+Everything below was switched on to let us test fast (100 fake accounts, instant
+logins, last-seat races). Each row says what it weakens and exactly how to put the
+security back. Work top to bottom — the first four are the real ones.
+
+| # | Relaxation | Where | What it weakens | How to revert |
+|---|------------|-------|-----------------|---------------|
+| 1 | `PHONE_OTP_BYPASS=true` | `backend/.env` | Any 10-digit phone + **any** 6-digit OTP logs in as that player (no SMS, account auto-created). | Set `PHONE_OTP_BYPASS=false`, restart API. `grep PHONE_OTP_BYPASS backend/.env` must show `false`. |
+| 2 | `PHONE_OTP_ENABLED=false` | `backend/.env` | Firebase phone auth is killed, so real SMS OTP cannot be used at all. | Set `PHONE_OTP_ENABLED=true` (requires working Firebase phone provider + Blaze plan). |
+| 3 | `allowPhoneAuth=false` (tenant row) | Admin app → Settings, or `Tenant` table in Supabase | Player phone signup/login is disabled tenant-wide. | Admin → Settings → turn **Phone Auth** on (`update "Tenant" set "allowPhoneAuth"=true`). |
+| 4 | `DEV_FAKE_FIREBASE=true` | `backend/.env` | Accepts `dev_otp_<phone>` as a valid Firebase token — a full auth bypass if it ever reaches production. Server refuses to boot in production with it set (`assertDevAuthConfig`), keep it that way. | Remove the line entirely (do not just set `false`) and restart. |
+| 5 | `RATE_LIMIT_ALLOW_IPS=127.0.0.1,::1` | `backend/.env` | Every rate limiter (auth 5/min, deposit 3/min, join) is skipped for those IPs — brute-force protection off for the dev machine. Ignored when `NODE_ENV=production`; boot logs a warning while it is set. | Set `RATE_LIMIT_ALLOW_IPS=` (empty) and restart. Boot log must no longer print the `RATE_LIMIT_ALLOW_IPS` warning. |
+| 6 | `x-stress-test: apex-ff-internal` header | `backend/src/middlewares/rateLimiter.ts` | Requests carrying this header skip **all** rate limits. Now gated to non-production only. | Delete the whole `x-stress-test` branch in `rateLimiter.ts` (see Phase 1.2). |
+| 7 | 100 seeded test players (`TEST BOT 001…100`, phones `9000000001…9000000100`, ₹200 each) | Supabase `User` / `WalletLedger` | Fake players pollute the roster, the settlement report and the leaderboard; seeded ₹20,000 shows up in wallet totals. | `cd backend && npx tsx scripts/seedTestAccounts.ts delete` (only touches `TEST BOT%` rows). Verify: `npx tsx scripts/seedTestAccounts.ts list` → `total: 0`. |
+| 8 | `PAYMENT_PROVIDER=mock` | `backend/.env` | Add-money succeeds without a real gateway payment. `assertPaymentConfig` blocks production unless real keys exist — keep it that way. | Set `PAYMENT_PROVIDER=razorpay` + `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`. |
+| 9 | "Auto-fill demo" button (code `482916`) | `android/core/.../ui/auth/AuthOtpScreen.kt` | Ships a one-tap OTP into the store build — anyone can log in as any number. | Delete the `TextButton` block that fills `482916` and rebuild + re-sign both apps. |
+| 10 | API base URL `http://localhost:5000/api/v1` | `android/**/assets/client_config.json` | Release APK cannot reach production and exposes the dev host. | Point it at the HTTPS domain (Phase 8) and rebuild. |
+| 11 | Admin email+password login removed | `app-admin` (only phone OTP login now) | Not a security hole — but if the owner loses the admin phone, nobody can get in. | Keep Firebase phone auth working for the admin number, and record a recovery procedure. |
+
+### Revert order (do it in this sequence)
+
+1. Delete the seeded test players (#7) — do it first so no test row survives a
+   config change.
+2. Fire real OTP (#1 → #2 → #3) and check one real phone logs in.
+3. Remove `DEV_FAKE_FIREBASE` (#4) and the rate-limit escape hatches (#5, #6),
+   restart the API, and confirm the boot warnings are gone.
+4. Swap the payment provider to live keys (#8) and run one ₹1 top-up.
+5. Remove the app-side demo bits (#9) and repoint the API URL (#10), then
+   rebuild, re-sign and reinstall both APKs.
+6. Re-run `npm test` (296 tests) + Section G sign-off list.
+
+### One-command check that nothing was missed
+
+```bash
+cd backend
+grep -n "PHONE_OTP_BYPASS\|PHONE_OTP_ENABLED\|DEV_FAKE_FIREBASE\|RATE_LIMIT_ALLOW_IPS\|PAYMENT_PROVIDER" .env
+grep -rn "x-stress-test" src/                      # must be empty after Phase 1.2
+grep -rn "482916\|Auto-fill demo" ../android/*/src # must be empty
+npx tsx scripts/seedTestAccounts.ts list | tail -1 # must print total: 0
+```
+
+### V3.1 Join latency — what it is now and the one real fix
+
+Measured on this dev machine (Supabase in `eu-west-2` London, player in India):
+
+| Step | Time |
+|---|---|
+| One round-trip to the database (`SELECT 1`) | **180 ms** |
+| Single join, 6 queries (context → debit → ledger → seat → commit) | **1.4 s** directly, **1.9 s** through the API |
+| 55 players hammering the last 3 seats | 11 s wall, p50 9 s, **0 errors, exactly 3 winners** |
+
+An optimised join now needs **5 queries** (it was 10): one fused query returns the
+match row + booked count + lowest free seat, the wallet debit does
+`UPDATE ... RETURNING` (no second read), and the seat count is reused instead of
+re-counted. That already halved the 55-way race (22 s → 11 s).
+
+The remaining cost is **network distance, not code** — 6 × 180 ms is the floor.
+Before launch, host the database in **`ap-south-1` (Mumbai)** to cut the
+round-trip to ~10-30 ms; the same join then lands around **150-250 ms** with no
+code change.
+
+- [ ] Production Supabase project created in `ap-south-1` (or the closest region to the players).
+- [ ] Re-ran `npx tsx scripts/measureJoin.ts --count 6` against it and recorded the new average.
+
+## V3.2 Burst behaviour on the last seats (100-200 players at once)
+
+The scenario that matters most: a match is **1-2 seats short of full** and everybody
+taps *join* in the same second. Measured with the real backend + real Postgres
+(Supabase `eu-west-2`, sessions through the API, 100 `TEST BOT` accounts):
+
+| Burst | Free seats | Winners | Rejections | 5xx | Wall time |
+|---|---|---|---|---|---|
+| 53 requests (53 players) | 3 | **3** | 50 × 409 SLOTS_FULL | 0 | 11 s |
+| 53 requests | 1 | **1** (seat 48) | 52 × 409 SLOTS_FULL | 0 | 9 s |
+| 108 requests (54 players × 2 taps) | 2 | **2** (47, 48) | 106 × 409 | 0 | 11 s |
+| **216 requests (54 players × 4 taps)** | 2 | **2** (47, 48) | 214 × 409 | **0** | 17 s |
+
+DB invariants verified after every run: no oversell, no duplicate seat numbers, exactly
+one `JOIN_FEE` ledger row per seat, fee total = seats × fee, no negative wallet, server
+still healthy afterwards (0 uncaught exceptions, no restart).
+
+### What actually broke under load (and the fixes)
+
+1. **Supabase session pooler caps the connection count.** With
+   `connection_limit=25` the pooler answered
+   `EMAXCONNSESSION: max clients reached in session mode - max clients are limited to pool_size: 15`.
+   Keep `connection_limit ≤ 15` while on the **session** pooler (port 5432).
+2. **Prisma pool timeouts leaked as `500 Database operation failed`.** 216 taps on a
+   15-connection pool overflow the pool; Prisma throws
+   `timeout exceeded when trying to connect` (`P2024`), which used to hit the generic
+   handler. Now: `mapJoinError()` + `errorHandler.ts` turn every pool/connection
+   failure into **`503 Server is busy — please try again in a moment`** with a
+   `Retry-After` header. No bare 500s are reachable from the join path.
+3. **Retrying pool errors multiplied the load.** `isRetryable()` now retries only real
+   seat races (`P2002` unique-seat, `P2034` write conflict); `P2024`/`P2028` are
+   answered immediately instead of being retried ×4.
+4. **A queue inside the process is cheaper than a queue inside the pool.** `joinTournament`
+   now goes through an in-memory gate: `JOIN_MAX_INFLIGHT` (default 12) joins may touch
+   the DB at once, `JOIN_MAX_QUEUE` (400) wait in memory, anything beyond that gets the
+   503 "tap again" answer. This is what turned 216 concurrent taps into **0 errors**.
+
+### App side (no crash, honest message)
+
+The player app's join sheet already renders the server message
+(`PlayerViewModel.joinMatchError` ← `ApiException.message`), so a burst produces
+*"Tournament is not accepting entries (status: SLOTS_FULL)"* or *"The server is busy
+right now — please tap join again"* as inline text — no spinner lock, no crash.
+`startMatchSweep` flipping a match to `LIVE` mid-burst is also handled: joins answer
+`409 Entry closed — joining stops 1 minute before the match starts`.
+
+### Tuning before launch
+
+- [ ] Keep `JOIN_MAX_INFLIGHT` ≤ `connection_limit` (defaults 12 / 15).
+- [ ] On a bigger plan, switch to the **transaction pooler** (port 6543,
+      `?pgbouncer=true`) and raise `connection_limit` to 40-60 for head-room.
+- [ ] Re-run the proof after any DB/pool change:
+      `cd backend && npx tsx scripts/raceJoinTest.ts --fill 46 --race 100 --slots 48 --dup 4`
+      (expect 2 winners, 214 clean 409s, 0 five-hundreds).
+- [ ] Run a **single backend instance** for these tests — a stale second copy on
+      port 5000 (`EADDRINUSE`) silently serves half the requests and fakes failures.
+
+### V3.2.1 What a losing player actually reads
+
+A burst used to end with database vocabulary in the join sheet
+(`Tournament is not accepting entries (status: SLOTS_FULL)`). Now:
+
+| Situation | Server answer | App |
+|---|---|---|
+| Seats gone (status `SLOTS_FULL`, or the last seat was taken mid-burst) | `409 Slot Full — all seats are taken` | Card badge turns **Slot Full** (red), gold button becomes **Slot Full** and is disabled, hint *"Slot Full — all seats are taken. Better luck next match."* |
+| Match started / entries closed | `409 Entry closed — …` | Button: *Entry closed — joining stops 1 min before start* |
+| Server momentarily saturated | `503 Server is busy — please try again in a moment` + `Retry-After` | Same sentence inline, button stays tappable |
+
+No `SLOTS_FULL`, no status codes, no "network error" wording reaches the player.
+Covered by tests `joinTournament.test.ts` → *"tells a player Slot Full…"* and
+*"answers a full match that switched to SLOTS_FULL…"*.
+Verified on device: 47/48 sheet open → last seat taken → tap join → sheet flips to
+**Slot Full** with the hint, card badge also flips to **Slot Full** after the feed refresh.
+
+## V3.3 End-to-end match flow (create → 48 joins → room → payout)
+
+One script walks the whole match life-cycle against the running API and the real DB:
+
+```bash
+cd backend && npx tsx scripts/e2eMatchFlow.ts            # run it, keep the match
+cd backend && npx tsx scripts/e2eMatchFlow.ts --cleanup  # run it and delete what it made
+```
+
+Last run: **14/14 checks passed**.
+
+| Stage | What was proven |
+|---|---|
+| Create (admin) | 48-slot match, ₹10 fee, ₹200 pool, ₹5/kill |
+| 48 joins | all 48 seats booked, `0` failures, status **SLOTS_FULL**, 48 `JOIN_FEE` rows = **₹480**, one player `₹200 → ₹190` |
+| Room publish | admin sets Room ID/Password → reveal-now → a seated player reads `77112233 / fire123` |
+| Payout | rank 1/2/3 = 50/30/20 % + kills × ₹5 → **₹345** credited exactly, rank-1 wallet `₹190 → ₹425` |
+| Idempotency | second payout: `409`, prize ledger unchanged (₹345), no double credit |
+| Scoreboard | a player reads the official 48-row result via `/tournaments/:id/results` |
+| Finish | match lands in **COMPLETED** |
+
+### Two real bugs this flow caught (both fixed)
+
+1. **Seat-herd on retry.** Every join asked for the *lowest* free seat, so 6 simultaneous
+   joins all aimed at the same number and the retries collided again — 15 of 48 joins
+   died with "Every seat is being taken". Retries (`attempt > 1`) now pick a **random**
+   free seat (`loadJoinContext(..., randomSeat)`), `MAX_JOIN_ATTEMPTS` is 8, and 48 joins
+   complete with 0 errors.
+2. **Match stuck in OPEN with 48/48.** The in-transaction flip counts only the seats that
+   transaction can see, so two last-seat joins could both read 47 and neither flipped the
+   status. A post-commit `reconcileFullStatus()` (`UPDATE … WHERE count(*) >= totalSlots`)
+   now settles it with the true count — verified `SLOTS_FULL` on the live DB.

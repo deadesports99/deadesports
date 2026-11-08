@@ -37,7 +37,7 @@ export function TournamentsScreen({
 
   const filtered = useMemo(
     () =>
-      selectedFilter === 'All Matches'
+      selectedFilter === 'Upcoming'
         ? matches
         : matches.filter((match) => match.category === selectedFilter),
     [matches, selectedFilter]
@@ -171,7 +171,7 @@ export function TournamentsScreen({
               isDark ? 'text-slate-200' : 'text-slate-900'
             )}
           >
-            Upcoming Matches ({filtered.length})
+            Matches ({filtered.length})
           </h3>
           <button
             type="button"

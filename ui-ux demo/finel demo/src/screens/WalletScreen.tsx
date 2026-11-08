@@ -204,30 +204,16 @@ export function WalletScreen({
             >
               Account Passbook
             </h3>
-            <span
-              className={cx(
-                'rounded-full px-2 py-0.5 text-[10px] font-bold border',
-                isDark
-                  ? 'border-white/10 bg-slate-900 text-slate-400'
-                  : 'border-slate-200 bg-slate-100 text-slate-600'
-              )}
-            >
-              {filtered.length}
-            </span>
           </div>
           <span className={cx('text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
             Tap for receipt
           </span>
         </div>
 
-        {/* Filter Chips with counts */}
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+        {/* Clean Filter Tabs (No Numbers) */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
           {TX_FILTERS.map((filter) => {
             const isSelected = txFilter === filter;
-            const count =
-              filter === 'All'
-                ? transactions.length
-                : transactions.filter((t) => t.category === filter).length;
 
             return (
               <button
@@ -235,31 +221,17 @@ export function WalletScreen({
                 type="button"
                 onClick={() => setTxFilter(filter)}
                 className={cx(
-                  'shrink-0 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all active:scale-95',
+                  'shrink-0 flex items-center justify-center rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95',
                   isSelected
                     ? isDark
-                      ? 'border-white bg-white text-slate-950 font-black shadow-xs'
-                      : 'border-slate-950 bg-slate-950 text-white font-black shadow-xs'
+                      ? 'border-white bg-white text-slate-950 font-black shadow-sm'
+                      : 'border-slate-950 bg-slate-950 text-white font-black shadow-sm'
                     : isDark
-                    ? 'border-white/10 bg-[#0B1526] text-slate-300 hover:text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100 shadow-xs'
+                    ? 'border-white/10 bg-[#0B1526]/80 text-slate-400 hover:text-white hover:border-white/20'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                 )}
               >
-                <span>{filter}</span>
-                <span
-                  className={cx(
-                    'text-[9px] font-extrabold px-1.5 py-0.2 rounded-full',
-                    isSelected
-                      ? isDark
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white text-slate-900'
-                      : isDark
-                      ? 'bg-white/10 text-slate-300'
-                      : 'bg-slate-100 text-slate-600'
-                  )}
-                >
-                  {count}
-                </span>
+                {filter}
               </button>
             );
           })}
@@ -349,7 +321,11 @@ export function WalletScreen({
                                 isDark ? 'text-white' : 'text-slate-900'
                               )}
                             >
-                              {tx.title}
+                              {tx.category === 'Winnings' && tx.map
+                                ? `Match Winnings | ${tx.map}`
+                                : tx.category === 'Entries' && tx.map
+                                ? `Entry Fee | ${tx.map}`
+                                : tx.title.replace(/[—–-]/g, '|').replace(/\s+Cup(\s*#\d+)?/gi, '')}
                             </p>
 
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">

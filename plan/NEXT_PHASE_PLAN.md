@@ -155,7 +155,17 @@ Done (each item verified, not just edited):
 - [x] **V2-E** release gate in both apps: `assembleRelease`/`bundleRelease` fail unless the API URL is `https://`
       (verified both ways). Realtime URL derived from the API base and unit-tested; **found and fixed a real bug**
       where a host starting with `api.` was truncated to an empty origin by a naive `/api` split.
-- [x] Backend **274 tests**, Kotlin **66 tests**, all green; release APK built with the live-domain URL.
+- [x] **V2-F / Phase 1.7 — CSV spreadsheet formula injection closed.** All three exporters
+      (match roster, device groups, daily settlement) had their own `csvEscape` that only did
+      RFC-4180 quoting. A player types their own In-Game Name, so `=cmd|'/c calc'!A0` would be
+      evaluated by Excel / LibreOffice when the organiser opened the export (DDE execution).
+      Quoting does **not** help — those programs evaluate formulas inside quoted cells.
+      Fixed with one shared `src/utils/csv.ts` (`csvEscape` + `csvRow`) that prefixes a single
+      apostrophe for any cell starting with `=`, `+`, `-`, `@`, TAB or CR, then applies normal
+      quoting. 10 new tests in `tests/csvExport.test.ts`.
+      **Proven end-to-end:** set a real slot's IGN to `=cmd|'/c calc'!A0` → export → cell came back
+      as `'=cmd|'/c calc'!A0` (Excel now treats it as text). Slot restored afterwards.
+- [x] Backend **306 tests**, Kotlin **66 tests**, all green; release APK built with the live-domain URL.
 
 Still needs a human / an account (not code):
 - [ ] Razorpay **live** keys in `.env.production` (D1).

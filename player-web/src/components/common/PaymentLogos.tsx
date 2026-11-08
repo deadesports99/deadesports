@@ -145,10 +145,10 @@ export function UpiStack({ isDark }: UpiStackProps) {
       </div>
 
       {/* Label next to stack */}
-      <div className="flex flex-col">
+      <div className="flex flex-col shrink-0 select-none">
         <span
           className={cx(
-            'text-[9px] font-black uppercase tracking-wider',
+            'text-[9px] font-black uppercase tracking-wider leading-tight',
             isDark ? 'text-slate-200' : 'text-slate-900'
           )}
         >
@@ -156,7 +156,7 @@ export function UpiStack({ isDark }: UpiStackProps) {
         </span>
         <span
           className={cx(
-            'text-[8px] font-semibold leading-none',
+            'text-[8px] font-semibold leading-tight mt-0.5',
             isDark ? 'text-slate-400' : 'text-slate-600'
           )}
         >

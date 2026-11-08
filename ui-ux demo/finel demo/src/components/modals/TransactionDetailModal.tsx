@@ -142,16 +142,26 @@ export function TransactionDetailModal({
         {/* Big Amount & Status Center Hero */}
         <div className="my-5 flex flex-col items-center text-center">
           {transaction.category === 'Winnings' || transaction.channel === 'freefire_win' ? (
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden border border-amber-400/50 shadow-lg shadow-amber-500/20 mb-2.5 bg-[#081326]">
-              <img src="/assets/games/freefire/icon.png" alt="Free Fire" className="h-full w-full object-cover" />
-              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-slate-950 ring-2 ring-slate-950 shadow-xs">
+            <div className="relative flex h-14 w-14 items-center justify-center mb-2.5 select-none rounded-2xl bg-[#081326] border border-amber-400/50 shadow-lg shadow-amber-500/20">
+              <img src="/assets/games/freefire/icon.png" alt="Free Fire" className="h-full w-full rounded-2xl object-cover" />
+              <div
+                className={cx(
+                  'absolute bottom-1 right-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-slate-950 shadow-sm',
+                  isDark ? 'ring-1.5 ring-[#081326]' : 'ring-1.5 ring-white'
+                )}
+              >
                 <Trophy className="h-3 w-3 fill-current" />
               </div>
             </div>
           ) : transaction.category === 'Entries' || transaction.channel === 'freefire_entry' ? (
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden border border-cyan-400/50 shadow-lg shadow-cyan-500/20 mb-2.5 bg-[#081326]">
-              <img src="/assets/games/freefire/icon.png" alt="Free Fire" className="h-full w-full object-cover" />
-              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400 text-slate-950 ring-2 ring-slate-950 shadow-xs">
+            <div className="relative flex h-14 w-14 items-center justify-center mb-2.5 select-none rounded-2xl bg-[#081326] border border-cyan-400/50 shadow-lg shadow-cyan-500/20">
+              <img src="/assets/games/freefire/icon.png" alt="Free Fire" className="h-full w-full rounded-2xl object-cover" />
+              <div
+                className={cx(
+                  'absolute bottom-1 right-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400 text-slate-950 shadow-sm',
+                  isDark ? 'ring-1.5 ring-[#081326]' : 'ring-1.5 ring-white'
+                )}
+              >
                 <Swords className="h-3 w-3" />
               </div>
             </div>
@@ -199,7 +209,11 @@ export function TransactionDetailModal({
           <div className="flex items-start justify-between gap-3 text-xs">
             <span className="text-slate-400 font-medium shrink-0">Item / Purpose</span>
             <span className={cx('font-bold text-right', isDark ? 'text-white' : 'text-slate-900')}>
-              {transaction.title}
+              {transaction.category === 'Winnings' && transaction.map
+                ? `Match Winnings | ${transaction.map}`
+                : transaction.category === 'Entries' && transaction.map
+                ? `Entry Fee | ${transaction.map}`
+                : transaction.title.replace(/[—–-]/g, '|').replace(/\s+Cup(\s*#\d+)?/gi, '')}
             </span>
           </div>
 

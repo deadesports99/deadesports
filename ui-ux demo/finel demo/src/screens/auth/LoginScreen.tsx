@@ -2,7 +2,6 @@ import React from 'react';
 import { Phone, Shield, ArrowRight } from 'lucide-react';
 import { Theme, AuthProvider } from '../../types';
 import { cx } from '../../utils/formatters';
-import { Crest } from '../../components/common/Crest';
 import { Ambient } from '../../components/common/Ambient';
 
 interface LoginScreenProps {
@@ -40,35 +39,12 @@ export function LoginScreen({
               : 'border-slate-200/90 bg-white shadow-xl shadow-slate-900/[0.05]'
           )}
         >
-          <div className="p-6 sm:p-7">
-            {/* Top Brand Lockup */}
-            <div className="flex items-center gap-3">
-              <Crest />
-              <div className="min-w-0">
-                <p
-                  className={cx(
-                    'text-[10px] font-black uppercase tracking-widest',
-                    isDark ? 'text-slate-400' : 'text-slate-500'
-                  )}
-                >
-                  Free Fire Esports
-                </p>
-                <p
-                  className={cx(
-                    'text-base font-black tracking-tight leading-tight',
-                    isDark ? 'text-white' : 'text-slate-950'
-                  )}
-                >
-                  Spartan Arena
-                </p>
-              </div>
-            </div>
-
+          <div className="p-6 sm:p-8">
             {/* Title & Description */}
-            <div className="mt-6">
+            <div>
               <h1
                 className={cx(
-                  'text-2xl font-black tracking-tight',
+                  'text-2xl font-black tracking-tight sm:text-[26px]',
                   isDark ? 'text-white' : 'text-slate-950'
                 )}
               >
@@ -76,7 +52,7 @@ export function LoginScreen({
               </h1>
               <p
                 className={cx(
-                  'mt-1 text-xs font-medium leading-relaxed',
+                  'mt-1.5 text-xs font-medium leading-relaxed sm:text-[13px]',
                   isDark ? 'text-slate-400' : 'text-slate-500'
                 )}
               >
@@ -175,11 +151,11 @@ export function LoginScreen({
               <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-200')} />
               <span
                 className={cx(
-                  'text-[10px] font-bold uppercase tracking-widest',
-                  'text-slate-400'
+                  'text-xs font-medium select-none',
+                  isDark ? 'text-slate-400' : 'text-slate-500'
                 )}
               >
-                Backup
+                or
               </span>
               <div className={cx('h-px flex-1', isDark ? 'bg-white/10' : 'bg-slate-200')} />
             </div>

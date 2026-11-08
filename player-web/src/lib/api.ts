@@ -124,6 +124,28 @@ export function devIdToken(phone: string): string {
   return `dev_otp_${phone.replace(/\D/g, '').slice(-10)}`;
 }
 
+/**
+ * Realtime gateway URL — `http(s)://host/api/v1` → `ws(s)://host/ws?tenantId=…`.
+ *
+ * The gateway lives at the origin root (not under /api/v1) and authenticates
+ * with the same JWT used for REST, so the socket can be opened right after
+ * login and pushes tenant-scoped events (new match, slot booked, wallet).
+ */
+export function realtimeUrl(token: string | null = getToken()): string | null {
+  const base = API_BASE.trim().replace(/\/+$/, '');
+  if (!base) return null;
+  const wsBase = base.startsWith('https://')
+    ? `wss://${base.slice('https://'.length)}`
+    : base.startsWith('http://')
+      ? `ws://${base.slice('http://'.length)}`
+      : base;
+  const origin = wsBase.split('/')[0] + '//' + wsBase.split('/')[2];
+  if (!origin.includes('//') || origin.endsWith('//')) return null;
+  const params = new URLSearchParams({ tenantId: TENANT_ID });
+  if (token) params.set('token', token);
+  return `${origin}/ws?${params.toString()}`;
+}
+
 export const auth = {
   /** Phone + Firebase ID token (web). Returns the JWT the rest of the app uses. */
   loginWithToken: (phone: string, idToken: string) =>
@@ -198,6 +220,8 @@ export interface ApiJoinResult {
   entryFee: string;
   depositBalance: string;
   winningBalance: string;
+  /** Set when the organiser published the room before this join. */
+  roomId?: string | null;
 }
 
 export interface ApiWallet {
@@ -234,6 +258,10 @@ export const tournaments = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  /** Room ID & Password — only a confirmed slot holder (or staff) gets them. */
+  room: (id: string) =>
+    request<{ roomId: string; roomPassword: string; roomUnlocked: boolean }>(`/tournaments/${id}/room`),
 };
 
 export interface ApiPaymentOrder {

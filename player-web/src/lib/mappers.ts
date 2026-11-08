@@ -2,6 +2,27 @@ import type { ApiTournament } from './api';
 import type { TournamentMatch } from '../types';
 
 /**
+ * How the account is shown on the Settings page.
+ *
+ * Google sign-ups have no phone number: the backend stores a `G…` placeholder so
+ * the unique constraint holds. Printing that as `+91 G…` is not a phone number,
+ * so those players see their email instead.
+ */
+export function identityLabel(user: {
+  phoneNumber?: string | null;
+  email?: string | null;
+}): string {
+  const digits = (user.phoneNumber ?? '').replace(/\D/g, '');
+  if (digits.length === 10) return `+91 ${digits}`;
+  return user.email?.trim() || 'Google account';
+}
+
+/** Field name that matches [identityLabel] — "Mobile Number" or "Email ID". */
+export function identityFieldLabel(identifier: string): 'Mobile Number' | 'Email ID' {
+  return identifier.includes('@') ? 'Email ID' : 'Mobile Number';
+}
+
+/**
  * Backend tournament → the shape the demo cards already render.
  * Nothing here invents data: amounts come from the API strings, seats from the
  * live count, and the map/mode labels from the real enums.

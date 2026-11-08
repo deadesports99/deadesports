@@ -29,6 +29,7 @@ npm run dev          # http://127.0.0.1:5173
 | `VITE_API_BASE_URL` | backend root, e.g. `http://localhost:5000/api/v1` |
 | `VITE_TENANT_ID` | white-label tenant the app is scoped to |
 | `VITE_DEV_AUTH` | `true` = skip Firebase SMS and use the server's `dev_otp_<phone>` shortcut |
+| `VITE_PRIVACY_POLICY_URL` | optional public privacy-policy page; blank shows the in-app summary only |
 
 The backend needs `DEV_FAKE_FIREBASE=true` (already set in `backend/.env`) while
 `VITE_DEV_AUTH=true`, and `CORS_ORIGIN` must list the dev origin (`http://localhost:5173`).

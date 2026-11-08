@@ -83,15 +83,12 @@ export function TournamentsScreen({
                 )}
               >
                 {/* Game Icon / Official Logo */}
-                <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/20">
+                <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/20 shadow-xs">
                   {game.icon ? (
                     <img
                       src={game.icon}
                       alt={game.name}
-                      className={cx(
-                        'h-full w-full object-cover',
-                        !game.active && 'grayscale opacity-70'
-                      )}
+                      className="h-full w-full object-cover transition-all"
                     />
                   ) : game.name.includes('COD') ? (
                     <Crosshair className="h-4 w-4 text-slate-400" />

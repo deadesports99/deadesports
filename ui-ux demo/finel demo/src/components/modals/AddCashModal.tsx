@@ -8,11 +8,26 @@ import {
   CheckCircle2,
   ShieldCheck,
   ArrowRight,
+  Lock,
 } from 'lucide-react';
 import { Theme } from '../../types';
 import { cx, formatINR } from '../../utils/formatters';
 import { QUICK_ADD_AMOUNTS } from '../../data/mockData';
-import { PhonePeLogo, GPayLogo, PaytmLogo, BhimUpiLogo } from '../common/PaymentLogos';
+import {
+  PhonePeLogo,
+  GPayLogo,
+  PaytmIcon,
+  BhimUpiLogo,
+  HdfcLogo,
+  SbiLogo,
+  IciciLogo,
+  AxisLogo,
+  KotakLogo,
+  PnbLogo,
+  VisaLogo,
+  MastercardLogo,
+  RupayLogo,
+} from '../common/PaymentLogos';
 
 interface AddCashModalProps {
   theme: Theme;
@@ -33,10 +48,12 @@ const POPULAR_UPI = [
 ];
 
 const POPULAR_BANKS = [
-  { id: 'hdfc', name: 'HDFC Bank' },
-  { id: 'sbi', name: 'State Bank of India' },
-  { id: 'icici', name: 'ICICI Bank' },
-  { id: 'axis', name: 'Axis Bank' },
+  { id: 'hdfc', name: 'HDFC Bank', Logo: HdfcLogo },
+  { id: 'sbi', name: 'State Bank of India', Logo: SbiLogo },
+  { id: 'icici', name: 'ICICI Bank', Logo: IciciLogo },
+  { id: 'axis', name: 'Axis Bank', Logo: AxisLogo },
+  { id: 'kotak', name: 'Kotak Bank', Logo: KotakLogo },
+  { id: 'pnb', name: 'Punjab National Bank', Logo: PnbLogo },
 ];
 
 export function AddCashModal({
@@ -53,6 +70,13 @@ export function AddCashModal({
   const [selectedBank, setSelectedBank] = useState('hdfc');
   const [customUpiId, setCustomUpiId] = useState('');
 
+  // Card input states
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState('SPARTAN PLAYER');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [saveCard, setSaveCard] = useState(true);
+
   if (!isOpen) return null;
 
   const handlePay = () => {
@@ -61,6 +85,32 @@ export function AddCashModal({
   };
 
   const amountNum = Number(addAmount) || 0;
+
+  // Format Card Number (adds space every 4 digits)
+  const formatCardNumber = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 16);
+    return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  // Format Expiry (MM/YY)
+  const formatExpiry = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 4);
+    if (digits.length >= 3) {
+      return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    }
+    return digits;
+  };
+
+  // Detect card network brand
+  const getCardNetwork = (num: string) => {
+    const clean = num.replace(/\s/g, '');
+    if (clean.startsWith('4')) return 'visa';
+    if (/^5[1-5]/.test(clean) || /^2[2-7]/.test(clean)) return 'mastercard';
+    if (/^(60|65|508)/.test(clean)) return 'rupay';
+    return 'generic';
+  };
+
+  const cardNetwork = getCardNetwork(cardNumber);
 
   return createPortal(
     <div
@@ -280,8 +330,12 @@ export function AddCashModal({
                     }
                     if (app.type === 'paytm') {
                       return (
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white p-0.5 shadow-sm ring-1 ring-slate-200">
-                          <PaytmLogo />
+                        <div className="flex h-6 w-9 shrink-0 items-center justify-center rounded-lg bg-white px-1 py-0.5 shadow-sm ring-1 ring-slate-200 overflow-hidden">
+                          <img
+                            src="/assets/logos/paytm.svg"
+                            alt="Paytm"
+                            className="w-full h-auto object-contain"
+                          />
                         </div>
                       );
                     }
@@ -348,6 +402,7 @@ export function AddCashModal({
               <div className="grid grid-cols-2 gap-2">
                 {POPULAR_BANKS.map((bank) => {
                   const isSelected = selectedBank === bank.id;
+                  const BankIcon = bank.Logo;
                   return (
                     <button
                       key={bank.id}
@@ -357,14 +412,17 @@ export function AddCashModal({
                         'flex items-center justify-between rounded-xl border p-2.5 text-left transition-all active:scale-98',
                         isSelected
                           ? isDark
-                            ? 'border-white bg-slate-800/90 text-white'
+                            ? 'border-white bg-slate-800/90 text-white ring-1 ring-white/30 font-black'
                             : 'border-slate-950 bg-slate-950/[0.04] text-slate-950 ring-1 ring-slate-950 shadow-xs font-black'
                           : isDark
                           ? 'border-white/10 bg-slate-950/50 text-slate-300 hover:border-white/20'
                           : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50'
                       )}
                     >
-                      <span className="text-xs font-bold">{bank.name}</span>
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <BankIcon className="h-6 w-6 shrink-0 rounded-lg shadow-xs" />
+                        <span className="truncate text-xs font-bold">{bank.name}</span>
+                      </div>
                       {isSelected && (
                         <CheckCircle2
                           className={cx(
@@ -378,23 +436,136 @@ export function AddCashModal({
                 })}
               </div>
               <p className={cx('text-[10px] text-center pt-1 font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                All Indian banks supported via secure gateway
+                All Indian banks supported via secure RBI payment gateway
               </p>
             </div>
           )}
 
           {method === 'cards' && (
-            <div
-              className={cx(
-                'rounded-xl border p-4 text-center space-y-1.5',
-                isDark ? 'border-white/10 bg-slate-950/60 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-800'
-              )}
-            >
-              <CreditCard className={cx('h-6 w-6 mx-auto', isDark ? 'text-slate-400' : 'text-slate-600')} />
-              <p className="text-xs font-bold">Debit & Credit Cards</p>
-              <p className={cx('text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                Visa, MasterCard, RuPay supported with OTP 3D-Secure
-              </p>
+            <div className="space-y-3">
+              {/* Card Number Input with real-time brand detection */}
+              <div>
+                <label className={cx('block text-[10px] font-bold uppercase tracking-wider mb-1', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                  Card Number
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    maxLength={19}
+                    placeholder="4000 1234 5678 9010"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                    className={cx(
+                      'w-full rounded-xl border py-2.5 pl-3.5 pr-14 text-xs font-mono font-bold outline-none transition-all',
+                      isDark
+                        ? 'border-white/15 bg-slate-950 text-white focus:border-white'
+                        : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950 focus:ring-1 focus:ring-slate-950'
+                    )}
+                  />
+                  {/* Brand Logo inside input right edge */}
+                  <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                    {cardNetwork === 'visa' && <VisaLogo className="h-3.5 w-auto" />}
+                    {cardNetwork === 'mastercard' && <MastercardLogo className="h-4 w-auto" />}
+                    {cardNetwork === 'rupay' && <RupayLogo className="h-3.5 w-auto" />}
+                    {cardNetwork === 'generic' && (
+                      <CreditCard className={cx('h-4 w-4', isDark ? 'text-slate-500' : 'text-slate-400')} />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Cardholder Name */}
+              <div>
+                <label className={cx('block text-[10px] font-bold uppercase tracking-wider mb-1', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                  Name on Card
+                </label>
+                <input
+                  type="text"
+                  placeholder="SPARTAN PLAYER"
+                  value={cardHolder}
+                  onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                  className={cx(
+                    'w-full rounded-xl border px-3.5 py-2.5 text-xs font-bold outline-none transition-all',
+                    isDark
+                      ? 'border-white/15 bg-slate-950 text-white focus:border-white'
+                      : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950 focus:ring-1 focus:ring-slate-950'
+                  )}
+                />
+              </div>
+
+              {/* Expiry & CVV Grid */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className={cx('block text-[10px] font-bold uppercase tracking-wider mb-1', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                    Expiry Date
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={5}
+                    placeholder="MM / YY"
+                    value={cardExpiry}
+                    onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                    className={cx(
+                      'w-full rounded-xl border px-3.5 py-2.5 text-xs font-mono font-bold outline-none transition-all text-center',
+                      isDark
+                        ? 'border-white/15 bg-slate-950 text-white focus:border-white'
+                        : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950 focus:ring-1 focus:ring-slate-950'
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label className={cx('block text-[10px] font-bold uppercase tracking-wider mb-1', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                    CVV / CVC
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      maxLength={4}
+                      placeholder="•••"
+                      value={cardCvv}
+                      onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      className={cx(
+                        'w-full rounded-xl border py-2.5 pl-3.5 pr-8 text-xs font-mono font-bold outline-none transition-all text-center',
+                        isDark
+                          ? 'border-white/15 bg-slate-950 text-white focus:border-white'
+                          : 'border-slate-300 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950 focus:ring-1 focus:ring-slate-950'
+                      )}
+                    />
+                    <Lock className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Card Checkbox */}
+              <label className="flex items-center gap-2 cursor-pointer pt-0.5 select-none">
+                <input
+                  type="checkbox"
+                  checked={saveCard}
+                  onChange={(e) => setSaveCard(e.target.checked)}
+                  className="rounded border-slate-300 text-slate-950 focus:ring-0 h-3.5 w-3.5"
+                />
+                <span className={cx('text-[11px] font-medium', isDark ? 'text-slate-300' : 'text-slate-600')}>
+                  Save card securely for faster checkout (RBI tokenized)
+                </span>
+              </label>
+
+              {/* Supported Cards Badge Bar */}
+              <div
+                className={cx(
+                  'flex items-center justify-between rounded-xl border p-2 px-3',
+                  isDark ? 'border-white/5 bg-slate-950/40' : 'border-slate-100 bg-slate-50'
+                )}
+              >
+                <span className={cx('text-[10px] font-bold', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  Supported Cards:
+                </span>
+                <div className="flex items-center gap-3">
+                  <VisaLogo className="h-3 w-auto opacity-80" />
+                  <MastercardLogo className="h-3.5 w-auto opacity-80" />
+                  <RupayLogo className="h-3 w-auto opacity-80" />
+                </div>
+              </div>
             </div>
           )}
         </div>

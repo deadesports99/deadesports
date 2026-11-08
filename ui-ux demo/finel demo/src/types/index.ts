@@ -1,6 +1,6 @@
 export type Theme = 'dark' | 'light';
 export type AuthStep = 'LOGIN' | 'OTP' | 'APP';
-export type NavTab = 'tournaments' | 'wallet' | 'profile';
+export type NavTab = 'tournaments' | 'wallet' | 'settings' | 'profile';
 export type FilterCategory = 'All Matches' | 'Solo' | 'Duo' | 'Squad' | 'Clash Squad (CS)';
 export type WalletMode = 'add' | 'withdraw';
 export type TxFilter = 'All' | 'Deposits' | 'Winnings' | 'Withdrawals' | 'Entries';

@@ -2,7 +2,7 @@ import { FilterCategory, TournamentMatch, TransactionItem, TxFilter, EsportsGame
 
 export const HERO_MATCH: TournamentMatch = {
   id: 'ff-hero-104',
-  title: 'BERMUDA GRAND CUP #104',
+  title: 'BERMUDA GRAND SERIES #104',
   map: 'Bermuda',
   category: 'Squad',
   modeBadge: 'SQUAD GRAND FINALE',
@@ -30,7 +30,7 @@ export const INITIAL_MATCHES: TournamentMatch[] = [
   },
   {
     id: 'ff-m2',
-    title: 'Purgatory Lone Wolf Cup',
+    title: 'Purgatory Lone Wolf',
     map: 'Purgatory',
     category: 'Solo',
     modeBadge: 'SOLO',
@@ -72,7 +72,7 @@ export const INITIAL_MATCHES: TournamentMatch[] = [
 export const INITIAL_TRANSACTIONS: TransactionItem[] = [
   {
     id: 'tx-101',
-    title: 'Match Winnings — Purgatory Cup',
+    title: 'Match Winnings | Purgatory',
     amount: 350,
     isCredit: true,
     category: 'Winnings',
@@ -83,7 +83,7 @@ export const INITIAL_TRANSACTIONS: TransactionItem[] = [
     dateGroup: 'TODAY',
     closingBalance: 420,
     reference: 'WIN-9920418',
-    matchName: 'Purgatory Cup #38',
+    matchName: 'Purgatory',
     matchMode: 'Solo',
     map: 'Purgatory',
     playerUid: '84920194',
@@ -92,7 +92,7 @@ export const INITIAL_TRANSACTIONS: TransactionItem[] = [
   },
   {
     id: 'tx-102',
-    title: 'Entry Fee — Bermuda Squad Scrims',
+    title: 'Entry Fee | Bermuda',
     amount: 50,
     isCredit: false,
     category: 'Entries',
@@ -103,7 +103,7 @@ export const INITIAL_TRANSACTIONS: TransactionItem[] = [
     dateGroup: 'TODAY',
     closingBalance: 70,
     reference: 'REG-8829104',
-    matchName: 'Bermuda Squad #12',
+    matchName: 'Bermuda',
     matchMode: 'Squad',
     map: 'Bermuda',
     playerUid: '84920194',
@@ -143,7 +143,7 @@ export const INITIAL_TRANSACTIONS: TransactionItem[] = [
   },
   {
     id: 'tx-105',
-    title: 'Match Winnings — Kalahari Duo',
+    title: 'Match Winnings | Kalahari',
     amount: 220,
     isCredit: true,
     category: 'Winnings',
@@ -154,7 +154,7 @@ export const INITIAL_TRANSACTIONS: TransactionItem[] = [
     dateGroup: '30 OCT 2026',
     closingBalance: 420,
     reference: 'WIN-4410294',
-    matchName: 'Kalahari Duo #09',
+    matchName: 'Kalahari',
     matchMode: 'Duo',
     map: 'Kalahari',
     playerUid: '84920194',
@@ -198,10 +198,12 @@ export const ESPORTS_GAMES: EsportsGameTitle[] = [
     name: 'COD MOBILE',
     tag: 'SOON',
     active: false,
+    icon: '/assets/games/codm/icon.svg',
   },
   {
     name: 'VALORANT M',
     tag: 'LOCKED',
     active: false,
+    icon: '/assets/games/valorant/icon.svg',
   },
 ];

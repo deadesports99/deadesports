@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Official HDFC Bank Square Emblem: Red outer blocks, white cross channel, and blue center block -->
+  <!-- 4 Corner Red Blocks (#ED232A) with rounded container corners -->
+  <rect x="0" y="0" width="14" height="14" rx="4" fill="#ED232A" />
+  <rect x="18" y="0" width="14" height="14" rx="4" fill="#ED232A" />
+  <rect x="0" y="18" width="14" height="14" rx="4" fill="#ED232A" />
+  <rect x="18" y="18" width="14" height="14" rx="4" fill="#ED232A" />
+
+  <!-- Inner sharp corners of the 4 red blocks so the cross gap is clean and uniform -->
+  <rect x="5" y="5" width="9" height="9" fill="#ED232A" />
+  <rect x="18" y="5" width="9" height="9" fill="#ED232A" />
+  <rect x="5" y="18" width="9" height="9" fill="#ED232A" />
+  <rect x="18" y="18" width="9" height="9" fill="#ED232A" />
+
+  <!-- Center Official HDFC Blue Box (#004C8F) -->
+  <rect x="11" y="11" width="10" height="10" fill="#004C8F" />
+</svg>

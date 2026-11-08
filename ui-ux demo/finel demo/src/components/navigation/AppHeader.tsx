@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Settings } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { Theme } from '../../types';
 import { cx, formatINR } from '../../utils/formatters';
 import { Crest } from '../common/Crest';
@@ -19,7 +19,6 @@ export function AppHeader({
   theme,
   balance,
   onAddFunds,
-  onSettings,
   hideBalance,
 }: AppHeaderProps) {
   const isDark = theme === 'dark';
@@ -44,24 +43,8 @@ export function AppHeader({
         </span>
       </div>
 
-      {/* Top Right: Settings (if present) + Clean Wallet Badge without + or notifications */}
+      {/* Top Right: Clean Wallet Badge without + or notifications */}
       <div className="flex items-center gap-2">
-        {onSettings && (
-          <button
-            type="button"
-            aria-label="Open Settings"
-            onClick={onSettings}
-            className={cx(
-              'flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-95',
-              isDark
-                ? 'border-white/10 bg-[#0B1526]/80 text-slate-300 hover:text-white'
-                : 'border-slate-200 bg-slate-100 text-slate-700 hover:text-slate-950'
-            )}
-          >
-            <Settings className="h-3.5 w-3.5" />
-          </button>
-        )}
-
         {/* Clean Wallet Balance Pill (Hidden on Wallet Page) */}
         {!hideBalance && (
           <button

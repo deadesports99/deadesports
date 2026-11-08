@@ -29,7 +29,6 @@ import { BottomNav } from './components/navigation/BottomNav';
 // Modals & Sheets
 import { MatchSheet } from './components/tournaments/MatchSheet';
 import { SettingsSheet } from './components/modals/SettingsSheet';
-import { SecurityModal } from './components/modals/SecurityModal';
 import { SignOutModal } from './components/modals/SignOutModal';
 
 // Screens
@@ -37,7 +36,7 @@ import { LoginScreen } from './screens/auth/LoginScreen';
 import { OtpScreen } from './screens/auth/OtpScreen';
 import { TournamentsScreen } from './screens/TournamentsScreen';
 import { WalletScreen } from './screens/WalletScreen';
-import { ProfileScreen } from './screens/ProfileScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 
 export function App() {
   const [step, setStep] = useState<AuthStep>('LOGIN');
@@ -73,6 +72,21 @@ export function App() {
   const [depositCash, setDepositCash] = useState(120);
   const [winningsCash, setWinningsCash] = useState(300);
   const [transactions, setTransactions] = useState<TransactionItem[]>(INITIAL_TRANSACTIONS);
+
+  // Ensure titles are strictly "Match Winnings | <Map>" and "Entry Fee | <Map>"
+  useEffect(() => {
+    setTransactions((prev) =>
+      prev.map((t) => ({
+        ...t,
+        title:
+          t.category === 'Winnings' && t.map
+            ? `Match Winnings | ${t.map}`
+            : t.category === 'Entries' && t.map
+            ? `Entry Fee | ${t.map}`
+            : t.title.replace(/[—–-]/g, '|').replace(/\s+Cup(\s*#\d+)?/gi, ''),
+      }))
+    );
+  }, []);
   const [walletMode, setWalletMode] = useState<WalletMode>('add');
   const [addAmount, setAddAmount] = useState('100');
   const [upiId, setUpiId] = useState('9876543210@paytm');
@@ -83,7 +97,6 @@ export function App() {
   // Modals & BottomSheets state
   const [selectedMatch, setSelectedMatch] = useState<TournamentMatch | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [securityOpen, setSecurityOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -139,7 +152,7 @@ export function App() {
     setTransactions((prev) => [
       {
         id: `tx-${Date.now()}`,
-        title: `Entry Fee — ${match.title}`,
+        title: `Entry Fee | ${match.map}`,
         amount: match.entryFee,
         isCredit: false,
         category: 'Entries',
@@ -150,7 +163,7 @@ export function App() {
         dateGroup: 'TODAY',
         closingBalance: (depositCash + winningsCash) - match.entryFee,
         reference: `REG-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        matchName: match.title,
+        matchName: match.map,
         matchMode: match.category as any,
         map: match.map,
         playerUid: '84920194',
@@ -271,7 +284,7 @@ export function App() {
             identifier,
             provider,
           });
-          setStep('DASHBOARD');
+          setStep('APP');
           showToast('Welcome to Spartan Esports Arena!');
         }}
       />
@@ -297,14 +310,14 @@ export function App() {
             ? 'Esports Lobby'
             : activeTab === 'wallet'
             ? 'Arena Wallet'
-            : 'Player Profile'
+            : 'Arena Settings'
         }
         subtitle={
           activeTab === 'tournaments'
             ? 'Free Fire Max • Custom Scrims'
             : activeTab === 'wallet'
             ? 'Dual Ledger • Instant UPI'
-            : 'Grandmaster Verified'
+            : 'Profile • Preferences • Rules'
         }
         balance={balance}
         onAddFunds={() => {
@@ -312,7 +325,6 @@ export function App() {
           setWalletMode('add');
         }}
         onNotify={() => showToast('Next tournament starts in 1h 24m!')}
-        onSettings={activeTab === 'profile' ? () => setSettingsOpen(true) : undefined}
         hideBalance={activeTab === 'wallet'}
       />
 
@@ -357,16 +369,20 @@ export function App() {
           />
         )}
 
-        {activeTab === 'profile' && (
-          <ProfileScreen
+        {(activeTab === 'settings' || activeTab === 'profile') && (
+          <SettingsScreen
             theme={theme}
+            onThemeToggle={(nextTheme) => setTheme(nextTheme)}
             user={user}
             provider={provider}
             setProvider={setProvider}
             joinedCount={joinedIds.length}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onSecurity={() => setSecurityOpen(true)}
             onSignOut={() => setSignOutOpen(true)}
+            onWhatsApp={() => {
+              window.open('https://wa.me/919999900001?text=Help%20with%20Tournament', '_blank');
+              showToast('Opening WhatsApp support channel...');
+            }}
+            showToast={showToast}
           />
         )}
       </main>
@@ -400,18 +416,6 @@ export function App() {
           onWhatsApp={() => {
             window.open('https://wa.me/919999900001?text=Help%20with%20Tournament', '_blank');
             showToast('Opening WhatsApp support channel...');
-          }}
-        />
-      )}
-
-      {/* 4-Digit Security PIN Modal */}
-      {securityOpen && (
-        <SecurityModal
-          theme={theme}
-          onClose={() => setSecurityOpen(false)}
-          onSave={() => {
-            setSecurityOpen(false);
-            showToast('Security PIN updated successfully!');
           }}
         />
       )}

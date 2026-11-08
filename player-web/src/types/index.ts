@@ -1,7 +1,7 @@
 export type Theme = 'dark' | 'light';
 export type AuthStep = 'LOGIN' | 'OTP' | 'APP';
 export type NavTab = 'tournaments' | 'wallet' | 'settings' | 'profile';
-export type FilterCategory = 'All Matches' | 'Solo' | 'Duo' | 'Squad' | 'Clash Squad (CS)';
+export type FilterCategory = 'Upcoming' | 'Solo' | 'Duo' | 'Squad' | 'Clash Squad (CS)';
 export type WalletMode = 'add' | 'withdraw';
 export type TxFilter = 'All' | 'Deposits' | 'Winnings' | 'Withdrawals' | 'Entries';
 export type AuthProvider = 'google' | 'phone';
@@ -16,7 +16,7 @@ export interface TournamentMatch {
   id: string;
   title: string;
   map: 'Bermuda' | 'Purgatory' | 'Kalahari' | 'Alpine';
-  category: Exclude<FilterCategory, 'All Matches'>;
+  category: Exclude<FilterCategory, 'Upcoming'>;
   modeBadge: string;
   time: string;
   prizePool: number;
