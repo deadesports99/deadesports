@@ -75,11 +75,15 @@ data class Tournament(
 
     /**
      * What the player/admin sees instead of a custom title:
-     * "#12 Bermuda • Solo" (map + mode + auto match number).
+     * "50 | Bermuda • Solo" (auto match number, then map + mode).
+     * The number comes first so the admin and staff can say "match 50" directly.
      */
     val displayName: String
         get() = buildString {
-            if (matchNumber != null) append("#${matchNumber} ")
+            if (matchNumber != null) {
+                append(matchNumber)
+                append(" | ")
+            }
             append(mapLabel)
             append(" • ")
             append(matchTypeLabel)
@@ -292,6 +296,10 @@ data class RoomCredentials(
     @Json(name = "roomRevealsAt") val roomRevealsAt: String? = null,
     @Json(name = "roomUnlocked") val roomUnlocked: Boolean? = null,
     val status: String? = null,
+    /** How many players actually hold a seat — publish response only. */
+    @Json(name = "seatedPlayers") val seatedPlayers: Int? = null,
+    /** Server guard-rail text shown after a publish (e.g. nobody has joined). */
+    @Json(name = "warning") val warning: String? = null,
 )
 
 /** PATCH /tournaments/:id/room — publish custom room ID + password. */

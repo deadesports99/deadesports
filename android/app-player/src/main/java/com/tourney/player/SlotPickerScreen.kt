@@ -293,7 +293,7 @@ fun SlotPickerScreen(
                         ) {
                             Column {
                                 Text(
-                                    "Selected: Seat #${slot.slotNumber}",
+                                    "Selected: Seat ${slot.slotNumber}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                 )
@@ -483,7 +483,7 @@ fun SlotPickerScreen(
             title = { Text("Squad Created Successfully! 🎉", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Your Seat: #${result.slotNumber}")
+                    Text("Your Seat: ${result.slotNumber}")
                     Text("Share this 6-digit code with your teammates:", fontSize = 13.sp)
                     Box(
                         modifier = Modifier
@@ -531,7 +531,7 @@ fun SlotPickerScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Seat #${result.slotNumber} has been locked for you!",
+                        "Seat ${result.slotNumber} has been locked for you!",
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text("Entry Fee: ₹${result.entryFee}")
@@ -608,7 +608,7 @@ private fun SeatCell(slot: SlotEntry, selected: Boolean, onClick: () -> Unit) {
                 .padding(4.dp),
         ) {
             Text(
-                "#${slot.slotNumber}",
+                "${slot.slotNumber}",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (selected) MaterialTheme.colorScheme.primary else Color.White,

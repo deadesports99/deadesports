@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -106,7 +111,9 @@ fun GoldButton(
     val bg = when {
         loading -> DemoColors.Gold.copy(alpha = 0.7f)
         enabled -> DemoColors.Gold
-        else -> DemoColors.CardElevated
+        // Disabled must still read as a button: CardElevated is white in the light
+        // theme, which made the CTA vanish into the sheet.
+        else -> DemoColors.Track
     }
     Row(
         modifier = modifier
@@ -175,6 +182,7 @@ fun DemoTextField(
     maxLength: Int = Int.MAX_VALUE,
     keyboardType: KeyboardType = KeyboardType.Text,
     isError: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         if (label != null) {
@@ -202,6 +210,7 @@ fun DemoTextField(
                 color = DemoColors.TextPrimary,
             ),
             keyboardOptions = KeyboardOptions(keyboardType = if (digitsOnly) KeyboardType.Number else keyboardType),
+            trailingIcon = trailing,
             shape = RoundedCornerShape(DemoRadius.Field),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = DemoColors.Field,
@@ -270,5 +279,92 @@ fun DemoMessage(text: String, tone: Color = DemoColors.Danger) {
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(text, fontSize = DemoText.Tiny, fontWeight = FontWeight.Bold, color = tone)
+    }
+}
+
+/** Small uppercase section label used inside sheets. */
+@Composable
+fun DemoSheetLabel(text: String) {
+    Text(
+        text,
+        fontSize = DemoText.Tiny,
+        fontWeight = FontWeight.Bold,
+        color = DemoColors.TextSecondary,
+        letterSpacing = 1.sp,
+    )
+}
+
+/**
+ * Compact single-line input (42dp) matching the demo's sheet inputs.
+ * Optionally shows a [prefix] (e.g. "₹") and a [trailing] widget (e.g. MAX).
+ */
+@Composable
+fun DemoCompactField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isError: Boolean = false,
+    prefix: String = "",
+    trailing: (@Composable () -> Unit)? = null,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    // Sheet variants need a tighter field than the 42dp default.
+    height: androidx.compose.ui.unit.Dp = 42.dp,
+    textSize: androidx.compose.ui.unit.TextUnit = DemoText.BodyStrong,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(DemoRadius.Field))
+            .background(DemoColors.Field)
+            .border(
+                1.dp,
+                if (isError) DemoColors.Danger else DemoColors.BorderStrong,
+                RoundedCornerShape(DemoRadius.Field),
+            )
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (prefix != "") {
+            Text(
+                prefix,
+                fontSize = DemoText.BodyStrong,
+                fontWeight = FontWeight.Black,
+                color = DemoColors.TextMuted,
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = textSize,
+                fontWeight = FontWeight.Bold,
+                color = DemoColors.TextPrimary,
+            ),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            cursorBrush = SolidColor(DemoColors.Gold),
+            decorationBox = { inner ->
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        fontSize = textSize,
+                        fontWeight = FontWeight.Bold,
+                        color = DemoColors.TextFaint,
+                        maxLines = 1,
+                    )
+                }
+                inner()
+            },
+            modifier = Modifier.weight(1f),
+        )
+        if (trailing != null) {
+            Spacer(Modifier.width(6.dp))
+            trailing()
+        }
     }
 }

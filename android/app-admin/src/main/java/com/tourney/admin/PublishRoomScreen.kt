@@ -1,12 +1,17 @@
 package com.tourney.admin
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -22,9 +27,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.model.Tournament
@@ -35,6 +43,7 @@ import com.tourney.core.ui.GlassCard
 import com.tourney.core.ui.LoadingState
 import com.tourney.core.ui.StatusBadge
 import com.tourney.core.ui.formatIstFullDateTime
+import com.tourney.core.ui.formatMatchTime
 import com.tourney.core.util.TimeAuthority
 import java.time.Instant
 
@@ -72,7 +81,7 @@ fun PublishRoomScreen(
     val selected = (listState as? AdminUi.Success)?.data?.items?.firstOrNull { it.id == selectedId }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Publish Room ID", onBack = onBack)
+        AppTopBar(showBrandBadge = true, title = "Publish Room ID", onBack = onBack)
 
         Column(
             modifier = Modifier
@@ -238,11 +247,42 @@ fun PublishRoomScreen(
                 when (publishState) {
                     is AdminUi.Error -> Text(publishState.message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                     is AdminUi.Success<*> -> if (done) {
+                        val result = publishState.data as? com.tourney.core.model.RoomCredentials
+                        val warning = result?.warning
                         Text(
                             "✅ Room published — every joined player can see the Room ID & Password now.",
                             color = MaterialTheme.colorScheme.tertiary,
                             fontSize = 13.sp,
                         )
+                        // Guard rail: publishing to an empty match means nobody can
+                        // ever enter — the code is only shown to seated players.
+                        if (warning != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0x33FFAB00))
+                                    .border(1.dp, Color(0xFFFFAB00), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            ) {
+                                Text(
+                                    "⚠️ $warning",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFFFAB00),
+                                    lineHeight = 16.sp,
+                                )
+                            }
+                        } else {
+                            val seated = result?.seatedPlayers
+                            if (seated != null) {
+                                Text(
+                                    "👥 $seated joined player${if (seated == 1) "" else "s"} can see this code.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                     else -> {}
                 }
@@ -311,45 +351,50 @@ fun PublishRoomScreen(
 
 @Composable
 private fun TournamentRow(t: Tournament, selected: Boolean, onClick: () -> Unit) {
+    val published = t.roomUnlocked == true ||
+        t.status == com.tourney.core.model.TournamentStatus.ROOM_REVEALED
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = if (selected) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         },
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    t.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth(0.75f),
-                )
-                StatusBadge(status = t.status)
-            }
+            // Same identity as the rest of the app: "50 | Bermuda • Solo".
             Text(
-                "${t.matchType.name} • ${t.mapType.name} • ${t.slotsBooked}/48 booked • " +
-                    if (t.roomUnlocked == true ||
-                        t.status == com.tourney.core.model.TournamentStatus.ROOM_REVEALED
-                    ) {
-                        "room published"
-                    } else {
-                        "room not published"
-                    },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
+                t.matchNumber?.toString() ?: "—",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.primary,
             )
+            Spacer(Modifier.width(4.dp))
+            Text("|", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(6.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "${t.mapLabel} • ${t.matchTypeLabel}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${formatMatchTime(t.matchTime)} • ${t.slotsBooked}/${t.totalSlots} booked • " +
+                        if (published) "🔑 published" else "🔒 not published",
+                    fontSize = 10.sp,
+                    color = if (published) Color(0xFF00C853) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            StatusBadge(status = t.status)
         }
     }
 }

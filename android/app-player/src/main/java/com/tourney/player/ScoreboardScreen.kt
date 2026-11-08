@@ -334,7 +334,7 @@ private fun ScoreboardRow(entry: ScoreboardEntry) {
         1 -> "🥇"
         2 -> "🥈"
         3 -> "🥉"
-        else -> if (entry.rank != null) "#${entry.rank}" else "—"
+        else -> if (entry.rank != null) "${entry.rank}" else "—"
     }
     val isHacker = entry.isDisqualified
 

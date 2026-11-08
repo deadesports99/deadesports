@@ -1,5 +1,7 @@
 package com.tourney.player.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +26,8 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
@@ -42,13 +46,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.tourney.core.theme.ClientConfig
 import com.tourney.core.theme.ThemeMode
+import com.tourney.player.R
 import com.tourney.player.ui.theme.DemoColors
 import com.tourney.player.UiState
 import com.tourney.player.ui.common.DemoBackground
@@ -84,6 +91,8 @@ private object S {
     val Amber = Color(0xFFF59E0B)
     val Green = Color(0xFF22C55E)
     val Emerald = Color(0xFF10B981)
+    val Indigo = Color(0xFF6366F1)
+    val CyanBadge = Color(0xFF06B6D4)
     val Rose500 get() = if (dark) Color(0xFFF43F5E) else Color(0xFFE11D48)
     val Amber400 get() = if (dark) Color(0xFFFBBF24) else Color(0xFFF59E0B)
 }
@@ -95,14 +104,59 @@ fun SettingsScreen(
     onSetThemeMode: (ThemeMode) -> Unit,
     onSignOut: () -> Unit,
     onToast: (String) -> Unit,
-) {
-    var accountOpen by remember { mutableStateOf(false) }
+) {    var accountOpen by remember { mutableStateOf(false) }
     var fairPlayOpen by remember { mutableStateOf(false) }
+    var aboutOpen by remember { mutableStateOf(false) }
+    var privacyOpen by remember { mutableStateOf(false) }
+    var deleteOpen by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(true) }
+
+    val context = LocalContext.current
+    val config = remember { ClientConfig.load(context) }
+    val appLabel = remember(context) {
+        runCatching { context.getString(R.string.app_name) }.getOrDefault("Spartan Arena")
+    }
+    val appVersion = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull()
+            .orEmpty()
+    }
+    // A real public policy page is used only when the client configured one — the
+    // bundled `example.com` placeholder must never open a dead link.
+    val privacyUrl = remember(context) {
+        runCatching { context.getString(R.string.privacy_policy_url) }
+            .getOrDefault("")
+            .trim()
+            .takeIf { it.startsWith("http") && !it.contains("example.com", ignoreCase = true) }
+            .orEmpty()
+    }
+
+    fun openWhatsApp(message: String) {
+        val digits = config.supportWhatsapp.filter { it.isDigit() }
+        if (digits.isBlank()) {
+            onToast("Support number is not configured yet.")
+            return
+        }
+        val intent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://wa.me/$digits?text=${Uri.encode(message)}"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+            .onFailure { onToast("No app found to open WhatsApp.") }
+    }
+
+    fun openUrl(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+            .onFailure { onToast("No browser found to open the link.") }
+    }
 
     val me = (viewModel.meUi as? UiState.Success)?.data
     val playerName = me?.name ?: "Spartan Player"
-    val playerPhone = me?.phoneNumber?.let { "+91 $it" } ?: "+91 98765 43210"
+    // Google sign-ins have no phone number (backend keeps a `G…` placeholder for
+    // uniqueness), so show the email instead of a fake "+91 G…".
+    val contact = contactOf(me?.phoneNumber, me?.email)
     val isDark = themeMode != ThemeMode.LIGHT
 
     // Same dark canvas as the Matches/Wallet tabs so the light app theme cannot
@@ -137,7 +191,7 @@ fun SettingsScreen(
                 badgeColor = S.Blue,
                 icon = Icons.Filled.Person,
                 title = "Account",
-                subtitle = "$playerName • $playerPhone",
+                subtitle = "$playerName • ${contact.value}",
                 onClick = { accountOpen = true },
                 showChevron = true,
             )
@@ -262,7 +316,25 @@ fun SettingsScreen(
                 icon = Icons.Filled.Chat,
                 title = "Support",
                 subtitle = "24/7 WhatsApp helpdesk",
-                onClick = { onToast("Opening WhatsApp support channel...") },
+                onClick = { openWhatsApp("Hi! I need help with a tournament.") },
+                showChevron = true,
+            )
+            SettingsDivider()
+            SettingsRow(
+                badgeColor = S.Indigo,
+                icon = Icons.Filled.Info,
+                title = "About & Disclaimer",
+                subtitle = "Community esports • Not affiliated with Garena",
+                onClick = { aboutOpen = true },
+                showChevron = true,
+            )
+            SettingsDivider()
+            SettingsRow(
+                badgeColor = S.CyanBadge,
+                icon = Icons.Filled.Shield,
+                title = "Privacy Policy",
+                subtitle = "What data we store & why",
+                onClick = { privacyOpen = true },
                 showChevron = true,
             )
         }
@@ -275,6 +347,16 @@ fun SettingsScreen(
                 .background(S.Card)
                 .border(1.dp, S.BorderSoft, RoundedCornerShape(16.dp)),
         ) {
+            SettingsRow(
+                badgeColor = S.Red,
+                icon = Icons.Filled.Delete,
+                title = "Delete Account",
+                subtitle = "Permanently remove my data",
+                onClick = { deleteOpen = true },
+                showChevron = true,
+                danger = true,
+            )
+            SettingsDivider()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -325,13 +407,49 @@ fun SettingsScreen(
     if (accountOpen) {
         AccountModal(
             playerName = playerName,
-            playerPhone = playerPhone,
+            playerContact = contact.value,
+            contactLabel = contact.label,
             onClose = { accountOpen = false },
         )
     }
 
     if (fairPlayOpen) {
         FairPlayModal(onClose = { fairPlayOpen = false })
+    }
+
+    if (aboutOpen) {
+        AboutModal(
+            appLabel = appLabel,
+            appVersion = appVersion,
+            hasPrivacyUrl = privacyUrl.isNotBlank(),
+            onOpenPrivacy = {
+                aboutOpen = false
+                privacyOpen = true
+            },
+            onClose = { aboutOpen = false },
+        )
+    }
+
+    if (privacyOpen) {
+        PrivacyModal(
+            hasPrivacyUrl = privacyUrl.isNotBlank(),
+            onOpenFullPolicy = { openUrl(privacyUrl) },
+            onClose = { privacyOpen = false },
+        )
+    }
+
+    if (deleteOpen) {
+        DeleteAccountModal(
+            appLabel = appLabel,
+            onRequestDeletion = {
+                deleteOpen = false
+                openWhatsApp(
+                    "Hi! Please delete my $appLabel account and all my data " +
+                        "(name, Free Fire IGN/UID, wallet history). I understand this cannot be undone.",
+                )
+            },
+            onClose = { deleteOpen = false },
+        )
     }
 }
 
@@ -343,6 +461,7 @@ private fun SettingsRow(
     subtitle: String,
     onClick: () -> Unit,
     showChevron: Boolean,
+    danger: Boolean = false,
 ) {
     Row(
         modifier = Modifier
@@ -359,7 +478,7 @@ private fun SettingsRow(
                 .weight(1f)
                 .padding(start = 14.dp),
         ) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = S.Text)
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (danger) S.Rose500 else S.Text)
             Text(
                 subtitle,
                 fontSize = 12.sp,
@@ -374,7 +493,7 @@ private fun SettingsRow(
             Icon(
                 Icons.Filled.ChevronRight,
                 contentDescription = null,
-                tint = S.TextFaint,
+                tint = if (danger) S.Rose500.copy(alpha = 0.6f) else S.TextFaint,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -453,8 +572,25 @@ private fun DemoToggle(checked: Boolean, onToggle: () -> Unit) {
 }
 
 // ── Account modal ────────────────────────────────────────────────────────
+/** How the account contact is shown: a real +91 number, or the Google email. */
+private data class ContactDisplay(val value: String, val label: String)
+
+private fun contactOf(phoneNumber: String?, email: String?): ContactDisplay {
+    val digits = phoneNumber.orEmpty().filter { it.isDigit() }
+    return when {
+        digits.length == 10 -> ContactDisplay("+91 $digits", "Mobile Number")
+        !email.isNullOrBlank() -> ContactDisplay(email.trim(), "Email ID")
+        else -> ContactDisplay("Google account", "Account")
+    }
+}
+
 @Composable
-private fun AccountModal(playerName: String, playerPhone: String, onClose: () -> Unit) {
+private fun AccountModal(
+    playerName: String,
+    playerContact: String,
+    contactLabel: String,
+    onClose: () -> Unit,
+) {
     DemoModal(onDismiss = onClose) {
         ModalHeader(
             badgeColor = S.Blue,
@@ -469,7 +605,7 @@ private fun AccountModal(playerName: String, playerPhone: String, onClose: () ->
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             ModalField(label = "Username", value = playerName)
-            ModalField(label = "Mobile Number", value = playerPhone)
+            ModalField(label = contactLabel, value = playerContact)
 
             Row(
                 modifier = Modifier
@@ -488,7 +624,11 @@ private fun AccountModal(playerName: String, playerPhone: String, onClose: () ->
                         .size(16.dp),
                 )
                 Text(
-                    "For tournament anti-cheat and prize security, game accounts are permanently locked to this registered mobile number.",
+                    if (contactLabel == "Email ID") {
+                        "For tournament anti-cheat and prize security, game accounts are permanently locked to this registered account."
+                    } else {
+                        "For tournament anti-cheat and prize security, game accounts are permanently locked to this registered mobile number."
+                    },
                     fontSize = 11.sp,
                     color = S.TextSecondary,
                     lineHeight = 16.sp,
@@ -671,5 +811,224 @@ private fun DemoModal(onDismiss: () -> Unit, content: @Composable () -> Unit) {
                     .padding(20.dp),
             ) { content() }
         }
+    }
+}
+
+// ── About & disclaimer modal ─────────────────────────────────────────────
+@Composable
+private fun AboutModal(
+    appLabel: String,
+    appVersion: String,
+    hasPrivacyUrl: Boolean,
+    onOpenPrivacy: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val context = LocalContext.current
+    val disclaimer = remember(context) {
+        runCatching { context.getString(R.string.play_store_disclaimer) }
+            .getOrDefault(
+                "This is a community esports tournament app. It is not affiliated with, " +
+                    "endorsed by, or sponsored by Garena.",
+            )
+    }
+
+    DemoModal(onDismiss = onClose) {
+        ModalHeader(
+            badgeColor = S.Indigo,
+            icon = Icons.Filled.Info,
+            title = "About & Disclaimer",
+            subtitle = "$appLabel • v${appVersion.ifBlank { "1.0.0" }}",
+            onClose = onClose,
+        )
+
+        Column(
+            modifier = Modifier.padding(top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            RuleCard(
+                title = "Community esports platform",
+                titleColor = S.Amber400,
+                body = disclaimer,
+            )
+            RuleCard(
+                title = "18+ • Skill contests",
+                titleColor = Color(0xFF34D399),
+                body = "This app is for players aged 18 and over. Paid-entry tournaments are skill " +
+                    "contests, not games of chance — the entry fee and prize pool are shown before " +
+                    "you join. Please check your state's local rules.",
+            )
+            if (hasPrivacyUrl) {
+                ModalLinkCard(text = "Read the full Privacy Policy", onClick = onOpenPrivacy)
+            }
+        }
+
+        AmberButton("Done", onClose, modifier = Modifier.padding(top = 16.dp))
+    }
+}
+
+// ── Privacy policy modal ─────────────────────────────────────────────────
+@Composable
+private fun PrivacyModal(
+    hasPrivacyUrl: Boolean,
+    onOpenFullPolicy: () -> Unit,
+    onClose: () -> Unit,
+) {
+    DemoModal(onDismiss = onClose) {
+        ModalHeader(
+            badgeColor = S.CyanBadge,
+            icon = Icons.Filled.Shield,
+            title = "Privacy Policy",
+            subtitle = "Your data & your rights",
+            onClose = onClose,
+        )
+
+        Column(
+            modifier = Modifier.padding(top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            RuleCard(
+                title = "What we collect",
+                titleColor = Color(0xFF38BDF8),
+                body = "Mobile number or Google email, display name, Free Fire IGN and UID, " +
+                    "wallet and match history, a device identifier for anti-cheat, and an " +
+                    "optional push token.",
+            )
+            RuleCard(
+                title = "Why we collect it",
+                titleColor = S.Amber400,
+                body = "To register you, book slots, verify payments and payouts, prevent fraud " +
+                    "and multi-accounting, and send Room ID / result alerts.",
+            )
+            RuleCard(
+                title = "Where it is stored",
+                titleColor = Color(0xFF34D399),
+                body = "In the organiser's own secure database (Supabase). Card details and UPI " +
+                    "PINs never reach us — online payments are handled by the payment gateway.",
+            )
+            RuleCard(
+                title = "Your rights",
+                titleColor = Color(0xFFA78BFA),
+                body = "You can correct your Free Fire details, request a copy of your data, or " +
+                    "delete your account from Settings. Payout records may be kept where the law " +
+                    "requires it.",
+            )
+            if (hasPrivacyUrl) {
+                ModalLinkCard(text = "Open the full policy page", onClick = onOpenFullPolicy)
+            }
+        }
+
+        AmberButton("Close", onClose, modifier = Modifier.padding(top = 16.dp))
+    }
+}
+
+// ── Delete account modal (Play requirement: a clear deletion path) ───────
+@Composable
+private fun DeleteAccountModal(
+    appLabel: String,
+    onRequestDeletion: () -> Unit,
+    onClose: () -> Unit,
+) {
+    DemoModal(onDismiss = onClose) {
+        ModalHeader(
+            badgeColor = S.Red,
+            icon = Icons.Filled.Delete,
+            title = "Delete Account",
+            subtitle = "Permanent & irreversible",
+            onClose = onClose,
+        )
+
+        Column(
+            modifier = Modifier.padding(top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            RuleCard(
+                title = "Before you delete",
+                titleColor = S.Amber400,
+                body = "Withdraw any winnings first. Pending matches, deposits and withdrawals must " +
+                    "be settled — deleting early can forfeit an unpaid balance.",
+            )
+            RuleCard(
+                title = "What gets removed",
+                titleColor = Color(0xFFFB7185),
+                body = "Your profile, name, Free Fire IGN/UID, wallet and match history, and the " +
+                    "device link used for anti-cheat. This cannot be undone. Payout records may be " +
+                    "kept where the law requires it.",
+            )
+            Text(
+                "A $appLabel support agent confirms the request on WhatsApp after your balance is " +
+                    "cleared.",
+                fontSize = 11.sp,
+                color = S.TextSecondary,
+                lineHeight = 16.sp,
+            )
+        }
+
+        DangerButton("Request deletion on WhatsApp", onRequestDeletion, modifier = Modifier.padding(top = 16.dp))
+        TextLinkButton("Keep my account", onClose)
+    }
+}
+
+// ── Small shared modal pieces ────────────────────────────────────────────
+@Composable
+private fun ModalLinkCard(text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(S.Inner.copy(alpha = 0.6f))
+            .border(1.dp, S.BorderSoft, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.Shield,
+            contentDescription = null,
+            tint = S.CyanBadge,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = S.Text,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 10.dp),
+        )
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = S.TextFaint,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun DangerButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(S.Red)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
+    }
+}
+
+@Composable
+private fun TextLinkButton(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = S.TextSecondary)
     }
 }

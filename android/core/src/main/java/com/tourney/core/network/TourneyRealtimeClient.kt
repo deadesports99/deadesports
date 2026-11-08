@@ -62,6 +62,16 @@ sealed interface RealtimeEvent {
         val rank: Int?,
         val verifiedKills: Int?,
     ) : RealtimeEvent
+
+    /**
+     * The match feed itself changed (a match was created, cloned, made visible or
+     * cancelled). The payload is intentionally thin — the client re-fetches the
+     * list so visibility windows and ordering stay server-authoritative.
+     */
+    data class FeedChanged(
+        val tournamentId: String?,
+        val reason: String?,
+    ) : RealtimeEvent
 }
 
 /**
@@ -226,6 +236,13 @@ object TourneyRealtimeClient {
                                 depositBalance = data.optDouble("depositBalance", 0.0),
                                 winningBalance = data.optDouble("winningBalance", 0.0),
                                 totalBalance = data.optDouble("totalBalance", 0.0)
+                            )
+                            _events.tryEmit(event)
+                        }
+                        "MATCH_CREATED" -> {
+                            val event = RealtimeEvent.FeedChanged(
+                                tournamentId = data.optString("tournamentId").takeIf { it.isNotBlank() },
+                                reason = data.optString("reason").takeIf { it.isNotBlank() },
                             )
                             _events.tryEmit(event)
                         }

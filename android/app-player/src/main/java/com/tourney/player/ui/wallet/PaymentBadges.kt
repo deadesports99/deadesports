@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -40,61 +41,79 @@ import com.tourney.player.ui.theme.DemoColors
  */
 @Composable
 fun UpiStack() {
-    val ring = if (DemoColors.isDark) Color(0x4DFFFFFF) else Color(0x40000000)
+    val isDark = DemoColors.isDark
+    // Demo: ring-1.5 ring-white/30 + border-white/20 (dark) / black/25 + black/15 (light).
+    val ring = if (isDark) Color(0x4DFFFFFF) else Color(0x400F172A)
 
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row {
-            UpiCircle(R.drawable.brand_phonepe, Color(0xFF5F259F), ring, index = 0, logoSize = 24.dp, pad = 2.dp)
-            UpiCircle(R.drawable.brand_gpay, Color.White, ring, index = 1, logoSize = 14.dp)
-            UpiCircle(R.drawable.brand_paytm, Color.White, ring, index = 2, logoSize = 20.dp, pad = 2.dp)
-            UpiCircle(R.drawable.brand_upi, Color.White, ring, index = 3, logoSize = 14.dp)
-            UpiCircle(R.drawable.brand_whatsapp, Color(0xFF25D366), ring, index = 4, logoSize = 14.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // True overlapping 5-circle stack (24dp circles, 18dp advance => 96dp total width)
+        Box(modifier = Modifier.size(width = 96.dp, height = 24.dp)) {
+            UpiCircle(R.drawable.brand_phonepe, Color(0xFF5F259F), ring, xOffset = 0.dp, logoSize = 20.dp, pad = 2.dp)
+            UpiCircle(R.drawable.brand_gpay, Color.White, ring, xOffset = 18.dp, logoSize = 14.dp)
+            // Paytm is a wide wordmark (3.2:1): give it the full inner width so it
+            // reads like the demo instead of a tiny speck in the middle.
+            // Paytm is a wide wordmark (3.2:1): give it the inner width and start-align
+            // it, so the following circle's overlap never eats the last letter.
+            UpiCircle(R.drawable.brand_paytm, Color.White, ring, xOffset = 36.dp, logoSize = 20.dp, logoWidth = 16.dp, pad = 2.dp, logoAlignment = Alignment.CenterStart)
+            UpiCircle(R.drawable.brand_upi, Color.White, ring, xOffset = 54.dp, logoSize = 16.dp)
+            UpiCircle(R.drawable.brand_whatsapp, Color(0xFF25D366), ring, xOffset = 72.dp, logoSize = 14.dp)
         }
 
-        Column {
+        Column(verticalArrangement = Arrangement.Center) {
             Text(
-                "INSTANT UPI",
+                "Instant UPI",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Black,
-                color = DemoColors.TextSecondary,
-                letterSpacing = 0.4.sp,
+                color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF0F172A),
+                letterSpacing = 0.5.sp,
+                lineHeight = 11.sp,
             )
             Text(
                 "All Apps Supported",
                 fontSize = 8.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = DemoColors.TextMuted,
+                color = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                letterSpacing = 0.2.sp,
+                lineHeight = 10.sp,
                 modifier = Modifier.padding(top = 1.dp),
             )
         }
     }
 }
 
-/** `h-6 w-6` circle with a `-space-x-1.5` overlap and a 1.5dp ring. */
+/** `24dp` circle positioned with exact horizontal offset inside the stack Box */
 @Composable
 private fun UpiCircle(
     logo: Int,
     background: Color,
     ring: Color,
-    index: Int,
+    xOffset: androidx.compose.ui.unit.Dp,
     logoSize: androidx.compose.ui.unit.Dp,
+    logoWidth: androidx.compose.ui.unit.Dp = logoSize,
     pad: androidx.compose.ui.unit.Dp = 0.dp,
+    logoAlignment: Alignment = Alignment.Center,
 ) {
     Box(
         modifier = Modifier
-            .offset(x = (-5.dp) * index)
+            .offset(x = xOffset)
             .size(24.dp)
+            .shadow(2.dp, CircleShape)
             .clip(CircleShape)
             .background(background)
             .border(1.5.dp, ring, CircleShape)
             .padding(pad),
-        contentAlignment = Alignment.Center,
+        contentAlignment = logoAlignment,
     ) {
         Image(
             painter = painterResource(id = logo),
             contentDescription = null,
+            // Fit keeps each brand mark's own aspect ratio and centres it, so a
+            // wide wordmark (Paytm) and a square icon (PhonePe) both sit true.
             contentScale = ContentScale.Fit,
-            modifier = Modifier.size(logoSize),
+            modifier = Modifier.size(width = logoWidth, height = logoSize),
         )
     }
 }

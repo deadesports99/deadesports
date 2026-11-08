@@ -56,7 +56,7 @@ data class ScoreboardPlayer(
 data class PayoutResultInput(
     @Json(name = "userId") val userId: String,
     @Json(name = "verifiedKills") val verifiedKills: Int,
-    val rank: Int,                              // 1..48 (ignored when disqualified)
+    val rank: Int?,                             // 1..48, or null = unranked (kills only)
     @Json(name = "isDisqualified") val isDisqualified: Boolean = false,
     @Json(name = "disqualifyReason") val disqualifyReason: String? = null,
 )

@@ -1,5 +1,6 @@
 package com.tourney.admin
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -49,6 +50,10 @@ import com.tourney.core.ui.formatMoney
 fun AdminPlayersScreen(
     viewModel: AdminViewModel,
     onBack: () -> Unit,
+    onOpenPlayer: (String) -> Unit = {},
+    onOpenSuspicious: () -> Unit = {},
+    onOpenDevices: () -> Unit = {},
+    onOpenWatchlist: () -> Unit = {},
 ) {
     var search by remember { mutableStateOf("") }
     var banTarget by remember { mutableStateOf<AdminPlayer?>(null) }
@@ -60,7 +65,7 @@ fun AdminPlayersScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppTopBar(title = "Player Management", onBack = onBack)
+            AppTopBar(showBrandBadge = true, title = "Player Management", onBack = onBack)
 
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -80,6 +85,25 @@ fun AdminPlayersScreen(
                         text = "🔍",
                         onClick = { viewModel.loadPlayers(search) },
                         modifier = Modifier.height(52.dp),
+                    )
+                }
+                // Phase 12.4 / 12.5 — investigation tools.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppButton(
+                        text = "🚨 Suspicious",
+                        onClick = onOpenSuspicious,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppButton(
+                        text = "📱 Devices",
+                        onClick = onOpenDevices,
+                        modifier = Modifier.weight(1f),
+                    )
+                    val alerts = (viewModel.watchlistUi as? AdminUi.Success)?.data?.totalAlerts ?: 0
+                    AppButton(
+                        text = if (alerts > 0) "🔭 ${alerts}" else "🔭 Watch",
+                        onClick = onOpenWatchlist,
+                        modifier = Modifier.weight(1f),
                     )
                 }
                 viewModel.playerAdminMessage?.let {
@@ -123,6 +147,11 @@ fun AdminPlayersScreen(
                             PlayerAdminCard(
                                 player = player,
                                 busy = viewModel.playerBanBusyId == player.id,
+                                onClick = {
+                                    viewModel.clearPlayerDetailFeedback()
+                                    viewModel.openPlayerDetail(player.id)
+                                    onOpenPlayer(player.id)
+                                },
                                 onToggleBan = { banTarget = player },
                             )
                         }
@@ -177,9 +206,14 @@ fun AdminPlayersScreen(
 private fun PlayerAdminCard(
     player: AdminPlayer,
     busy: Boolean,
+    onClick: () -> Unit,
     onToggleBan: () -> Unit,
 ) {
-    GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp, contentPadding = 14.dp) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        cornerRadius = 14.dp,
+        contentPadding = 14.dp,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,

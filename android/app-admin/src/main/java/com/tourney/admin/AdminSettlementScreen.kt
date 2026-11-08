@@ -56,7 +56,7 @@ fun AdminSettlementScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppTopBar(title = "Daily Settlement", onBack = onBack)
+            AppTopBar(showBrandBadge = true, title = "Daily Settlement", onBack = onBack)
 
             when (val state = viewModel.settlementUi) {
                 AdminUi.Idle, AdminUi.Loading -> LoadingState("Loading settlement…")

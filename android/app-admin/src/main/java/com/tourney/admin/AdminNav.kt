@@ -62,12 +62,88 @@ fun AdminNavHost(
             AdminPlayersScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                onOpenPlayer = { navController.navigate("player_detail") },
+                onOpenSuspicious = { navController.navigate("suspicious_players") },
+                onOpenDevices = { navController.navigate("device_groups") },
+                onOpenWatchlist = { navController.navigate("watchlist") },
+            )
+        }
+        // Phase 12.6 — watchlist: early warning for returning cheaters.
+        composable("watchlist") {
+            AdminWatchlistScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenDevice = { deviceId ->
+                    viewModel.openDeviceGroup(deviceId)
+                    navController.navigate("device_group_detail")
+                },
+            )
+        }
+        // Phase 12.5 — one phone, many accounts.
+        composable("device_groups") {
+            AdminDeviceGroupsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenDevice = { navController.navigate("device_group_detail") },
+            )
+        }
+        composable("device_group_detail") {
+            AdminDeviceGroupDetailScreen(
+                viewModel = viewModel,
+                onBack = {
+                    viewModel.closeDeviceGroup()
+                    navController.popBackStack()
+                },
+                onOpenPlayer = { id ->
+                    viewModel.clearPlayerDetailFeedback()
+                    viewModel.openPlayerDetail(id)
+                    navController.navigate("player_detail")
+                },
+            )
+        }
+        // Phase 12.4 — cheat radar: accounts ranked by suspicion score.
+        composable("suspicious_players") {
+            AdminSuspiciousPlayersScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenPlayer = { id ->
+                    viewModel.clearPlayerDetailFeedback()
+                    viewModel.openPlayerDetail(id)
+                    navController.navigate("player_detail")
+                },
+            )
+        }
+        // Phase 12.3 — one player in full (history · rewards · cheat signals).
+        // The player id lives in the ViewModel, so the route needs no argument.
+        composable("player_detail") {
+            AdminPlayerDetailScreen(
+                viewModel = viewModel,
+                onBack = {
+                    viewModel.closePlayerDetail()
+                    navController.popBackStack()
+                },
+                onOpenMatch = {
+                    viewModel.openRoster(it)
+                    navController.navigate("match_roster")
+                },
             )
         }
         composable("matches") {
             AdminMatchManagerScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                onOpenRoster = { route -> navController.navigate(route) },
+            )
+        }
+        // Phase 12 — match roster (participants · reward · ban). The match id is
+        // held by the ViewModel, so this route needs no argument.
+        composable("match_roster") {
+            AdminMatchRosterScreen(
+                viewModel = viewModel,
+                onBack = {
+                    viewModel.closeRoster()
+                    navController.popBackStack()
+                },
             )
         }
         composable("settings") {

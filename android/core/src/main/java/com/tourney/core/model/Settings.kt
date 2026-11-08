@@ -15,7 +15,12 @@ data class TenantSettings(
     @Json(name = "upiName") val upiName: String = "",
     @Json(name = "supportWhatsapp") val supportWhatsapp: String = "",
     @Json(name = "minDeposit") val minDeposit: Int = 10,
-    @Json(name = "allowPhoneAuth") val allowPhoneAuth: Boolean = true,
+    /**
+     * Firebase SMS OTP is switched OFF until the provider is fixed — this default
+     * keeps the player login screen on Email OTP even if live settings fail to load.
+     * Re-enable from Admin → Settings once phone auth works again.
+     */
+    @Json(name = "allowPhoneAuth") val allowPhoneAuth: Boolean = false,
     @Json(name = "allowEmailAuth") val allowEmailAuth: Boolean = true,
     @Json(name = "allowGoogleAuth") val allowGoogleAuth: Boolean = true,
 ) {
@@ -52,6 +57,18 @@ data class SweptMatch(
     val id: String,
     val title: String = "",
     @Json(name = "matchTime") val matchTime: String = "",
+)
+
+/** PATCH /tournaments/:id/go-live — manual kickoff result. */
+@JsonClass(generateAdapter = true)
+data class GoLiveResult(
+    val id: String = "",
+    @Json(name = "matchNumber") val matchNumber: Int? = null,
+    val title: String = "",
+    val status: String = "",
+    @Json(name = "matchTime") val matchTime: String = "",
+    /** false when the match was already LIVE (idempotent re-announce). */
+    val changed: Boolean = false,
 )
 
 /** POST /tournaments/sweep/states — what the sweep changed right now. */

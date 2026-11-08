@@ -41,6 +41,7 @@ import com.tourney.core.network.DeviceIdProvider
 import com.tourney.core.network.apiCall
 import com.tourney.core.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** UPI handle@bank validation (backend-regex parity). */
@@ -131,6 +132,12 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                             feedUi = UiState.Success(updatedFeed)
                             saveFeedCache(updatedFeed)
                         }
+                    }
+
+                    is RealtimeEvent.FeedChanged -> {
+                        // A match was published, cloned, made visible or cancelled:
+                        // re-fetch so the lobby shows it without a manual refresh.
+                        refreshFeed(silent = true)
                     }
 
                     is RealtimeEvent.RoomCredentialsRevealed -> {
@@ -415,6 +422,21 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var isProfileRefreshing by mutableStateOf(false)
         private set
 
+    /**
+     * Reload only the profile row (IGN / Free Fire UID). Cheap — used right after a
+     * join saves the player's game identity, so the next join sheet is prefilled and
+     * an edited IGN/UID replaces the previous one everywhere in the session.
+     */
+    fun refreshMe() {
+        viewModelScope.launch {
+            try {
+                meUi = UiState.Success(apiCall { api.me() })
+            } catch (_: Exception) {
+                // Keep the previous profile on failure; the local session copy is still valid.
+            }
+        }
+    }
+
     fun loadProfile() {
         isProfileRefreshing = true
         viewModelScope.launch {
@@ -497,6 +519,23 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 if (!silent) isFeedRefreshing = false
             }
+        }
+    }
+
+    /**
+     * Called from the activity's onResume.
+     *
+     * The realtime socket can be suspended while the app is backgrounded (doze /
+     * app standby), so a match the admin published meanwhile never arrives as an
+     * event — the lobby would sit on its cached list until the player taps
+     * Refresh. Re-fetch quietly instead, so coming back to the app is always live.
+     */
+    fun onAppResumed() {
+        viewModelScope.launch {
+            val session = sessionFlow.first()
+            if (!session.isLoggedIn) return@launch
+            refreshFeed(silent = true)
+            refreshWallet(silent = true)
         }
     }
 
@@ -653,6 +692,16 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var joinMatchError by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * True once the server says the seats are gone ("Slot Full").
+     *
+     * A burst of 100+ taps on the last seats is normal on a hot match, so the
+     * answer for everyone who lost is a plain "Slot Full" — the sheet keeps the
+     * button on "Slot Full" (disabled) instead of inviting another doomed tap.
+     */
+    var joinSlotFull by mutableStateOf(false)
+        private set
+
     fun joinMatch(
         tournamentId: String,
         inGameName: String,
@@ -663,6 +712,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (isJoiningMatch) return
         isJoiningMatch = true
         joinMatchError = null
+        joinSlotFull = false
 
         viewModelScope.launch {
             try {
@@ -679,13 +729,20 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 session.saveGameProfile(inGameName.trim(), inGameUid.trim())
+                refreshMe()
                 val feeDouble = result.entryFee.toDoubleOrNull() ?: 0.0
                 deductEntryFee(feeDouble)
                 refreshFeed(forceLoading = false)
                 refreshWallet(forceLoading = false)
                 onSuccess(result)
             } catch (e: ApiException) {
-                joinMatchError = e.message
+                val raw = e.message.orEmpty()
+                joinSlotFull = raw.contains("slot full", ignoreCase = true) ||
+                    raw.contains("is full", ignoreCase = true) ||
+                    raw.contains("SLOTS_FULL", ignoreCase = true)
+                joinMatchError = if (joinSlotFull) "Slot Full — all seats are taken" else raw
+                // The seats just went, so the card must stop saying "3 left".
+                if (joinSlotFull) refreshFeed(forceLoading = false)
             } catch (e: Exception) {
                 joinMatchError = e.message ?: "Failed to join tournament"
             } finally {
@@ -696,6 +753,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearJoinError() {
         joinMatchError = null
+        joinSlotFull = false
     }
 
     /** Prefetch feed and wallet in background after login or app startup */

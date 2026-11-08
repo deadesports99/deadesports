@@ -1,5 +1,10 @@
 package com.tourney.admin
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,6 +55,10 @@ private data class AdminFeature(
     val icon: ImageVector,
     val enabled: Boolean,
     val route: String,
+    /** Small red counter shown on the right (0 = nothing shown). */
+    val badge: Int = 0,
+    /** Extra line under the subtitle, e.g. "🚨 1 new alert". */
+    val notice: String? = null,
 )
 
 /**
@@ -68,6 +77,14 @@ fun AdminDashboardScreen(
     val isAdmin = session.role == Role.ADMIN
     val perms = session.permissions
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+    LaunchedEffect(isAdmin) {
+        // Anti-cheat counters for the Player Management card.
+        if (isAdmin) {
+            viewModel.loadWatchlist()
+            if (viewModel.suspiciousUi !is AdminUi.Success) viewModel.loadSuspiciousPlayers()
+        }
+    }
 
     val features = buildList {
         add(
@@ -117,6 +134,14 @@ fun AdminDashboardScreen(
         )
         // Owner-only: hiring + granular permissions for sub-admins.
         if (isAdmin) {
+            // Anti-cheat counters, refreshed every time the dashboard loads.
+            val watchAlerts = (viewModel.watchlistUi as? AdminUi.Success)?.data?.totalAlerts ?: 0
+            val suspicious = (viewModel.suspiciousUi as? AdminUi.Success)?.data?.rows?.size ?: 0
+            val playerNotice = buildList {
+                if (watchAlerts > 0) add("🚨 $watchAlerts new device alert(s)")
+                if (suspicious > 0) add("⚠️ $suspicious suspicious account(s)")
+            }.joinToString("  ·  ").ifEmpty { null }
+
             add(
                 AdminFeature(
                     "Player Management",
@@ -124,6 +149,8 @@ fun AdminDashboardScreen(
                     Icons.Filled.PeopleAlt,
                     true,
                     "players",
+                    badge = watchAlerts,
+                    notice = playerNotice,
                 )
             )
             add(
@@ -158,7 +185,7 @@ fun AdminDashboardScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Dashboard")
+        AppTopBar(showBrandBadge = true, title = "Dashboard")
 
         PullToRefreshBox(
             isRefreshing = viewModel.isDashboardRefreshing,
@@ -231,6 +258,30 @@ fun AdminDashboardScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
                             )
+                            feature.notice?.let { notice ->
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    notice,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFE53935),
+                                )
+                            }
+                        }
+                        if (feature.badge > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFE53935), CircleShape)
+                                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    feature.badge.toString(),
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                )
+                            }
+                            Spacer(Modifier.width(6.dp))
                         }
                         if (feature.enabled) {
                             TextButton(onClick = { onOpenRoute(feature.route) }) { Text("Open") }

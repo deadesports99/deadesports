@@ -13,13 +13,14 @@ import com.tourney.core.model.SlotEntry
  * blank player id falls back to `slot-<n>` so the key stays unique.
  *
  * @param slots seat list as returned by `GET /tournaments/:id/slots`
- * @return booked participants in seat order, ranked 1..n (scoreable defaults)
+ * @return booked participants in seat order. Every field starts empty: `rank = 0`
+ *         (unranked), `verifiedKills = 0`, `isDone = false` — the spectator fills them in.
  */
 fun scorerRoster(slots: List<SlotEntry>): List<ScorerPlayer> =
     slots
         .filter { it.player != null }
         .sortedBy { it.slotNumber }
-        .mapIndexed { index, slot ->
+        .map { slot ->
             val player = slot.player
             val userId = player?.id?.takeIf { it.isNotBlank() } ?: "slot-${slot.slotNumber}"
             ScorerPlayer(
@@ -28,7 +29,10 @@ fun scorerRoster(slots: List<SlotEntry>): List<ScorerPlayer> =
                 inGameName = player?.inGameName?.takeIf { it.isNotBlank() } ?: "Player $userId",
                 inGameUid = player?.inGameUid?.takeIf { it.isNotBlank() } ?: "-",
                 verifiedKills = 0,
-                rank = index + 1,
+                // Nothing is pre-ranked: an untouched player submits with no rank, so a
+                // half-finished console can never invent a Booyah winner.
+                rank = 0,
                 disqualified = false,
+                isDone = false,
             )
         }

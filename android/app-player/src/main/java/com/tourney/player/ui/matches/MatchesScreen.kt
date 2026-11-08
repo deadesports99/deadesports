@@ -34,11 +34,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -65,6 +68,7 @@ import com.tourney.player.ui.common.SpartanCrest
 import com.tourney.player.ui.theme.DemoColors
 import com.tourney.player.ui.theme.DemoRadius
 import com.tourney.player.ui.theme.DemoText
+import kotlinx.coroutines.launch
 import java.time.Instant
 
 /**
@@ -72,7 +76,13 @@ import java.time.Instant
  * header, esports title row, filter chips, match cards and the join sheet.
  * All data comes from the real API through [PlayerViewModel].
  */
-private val FEED_FILTERS = listOf("All Matches", "Solo", "Duo", "Squad", "Clash Squad (CS)")
+/**
+ * Feed chips. `🔴 LIVE` is deliberately LAST: a match that has kicked off is no longer
+ * joinable, so it must not sit between the modes the player is still choosing from.
+ */
+private val FEED_FILTERS = listOf("Upcoming", "Solo", "Duo", "Squad", "Clash Squad (CS)", LIVE_FILTER)
+
+private const val LIVE_FILTER = "🔴 LIVE"
 
 // Same order, tags and artwork as the demo's ESPORTS_GAMES list.
 private data class GameTitle(
@@ -119,23 +129,56 @@ fun MatchesScreen(
     var selectedFilter by rememberSaveable { mutableStateOf(FEED_FILTERS.first()) }
     var selectedGame by rememberSaveable { mutableStateOf(GAME_TITLES.first().name) }
     var sheetMatch by remember { mutableStateOf<Tournament?>(null) }
+    val sheetScope = rememberCoroutineScope()
+    // Room ID & Password fetched for the open sheet (seated players only).
+    var sheetRoomId by remember { mutableStateOf<String?>(null) }
+    var sheetRoomPass by remember { mutableStateOf<String?>(null) }
+
+    // The organiser already published the room: a seated player gets the code
+    // the moment the sheet opens; a not-yet-joined player sees "join to unlock".
+    LaunchedEffect(sheetMatch?.id) {
+        val target = sheetMatch ?: return@LaunchedEffect
+        sheetRoomId = null
+        sheetRoomPass = null
+        if (target.status != TournamentStatus.ROOM_REVEALED || target.mySlot == null) return@LaunchedEffect
+        try {
+            val creds = com.tourney.core.network.apiCall {
+                com.tourney.core.network.ApiClient.tourneyApi.roomCredentials(target.id)
+            }
+            sheetRoomId = creds.roomId
+            sheetRoomPass = creds.roomPassword
+        } catch (e: Exception) {
+            // Not readable yet — the sheet keeps the "unlock after join" copy.
+        }
+    }
+
+    // Local session copy of IGN/UID: survives a failed /me refresh and keeps the
+    // join sheet prefilled for returning players.
+    val sessionState by viewModel.sessionFlow.collectAsState(
+        initial = com.tourney.core.datastore.SessionState(),
+    )
 
     val feedState = viewModel.feedUi
     val walletState = viewModel.walletUi
     val balance = (walletState as? UiState.Success)?.data?.totalBalance?.toDoubleOrNull() ?: 0.0
     val tournaments = (feedState as? UiState.Success)?.data?.items.orEmpty().filter(::isLobbyMatch)
 
-    val visible = remember(tournaments, selectedFilter) {
+    // A kicked-off match is no longer joinable, so it is pulled out of every
+    // mode chip and shown ONLY in the 🔴 LIVE tab.
+    val liveMatches = tournaments.filter { it.status == TournamentStatus.LIVE }
+    val lobbyMatches = tournaments.filter { it.status != TournamentStatus.LIVE }
+
+    val visible = remember(lobbyMatches, liveMatches, selectedFilter) {
         when (selectedFilter) {
-            "All Matches" -> tournaments
-            "Clash Squad (CS)" -> tournaments.filter { it.gameMode == com.tourney.core.model.GameMode.CLASH_SQUAD }
-            else -> tournaments.filter { it.matchTypeLabel == selectedFilter }
+            LIVE_FILTER -> liveMatches
+            "Upcoming" -> lobbyMatches
+            "Clash Squad (CS)" -> lobbyMatches.filter { it.gameMode == com.tourney.core.model.GameMode.CLASH_SQUAD }
+            else -> lobbyMatches.filter { it.matchTypeLabel == selectedFilter }
         }
     }
 
     val liveCount = tournaments.count { it.status == TournamentStatus.LIVE }
     val upcomingCount = tournaments.count { it.status != TournamentStatus.LIVE }
-
     Column(modifier = Modifier.fillMaxSize()) {
         // ── Header ───────────────────────────────────────────────────────
         Row(
@@ -212,7 +255,7 @@ fun MatchesScreen(
                 ) {
                     FEED_FILTERS.forEach { filter ->
                         DemoChip(
-                            text = filter,
+                            text = if (filter == LIVE_FILTER) "$LIVE_FILTER ($liveCount)" else filter,
                             selected = selectedFilter == filter,
                             onClick = { selectedFilter = filter },
                         )
@@ -230,7 +273,8 @@ fun MatchesScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "MATCHES (${visible.size})",
+                        if (selectedFilter == LIVE_FILTER) "LIVE MATCHES (${visible.size})"
+                        else "MATCHES (${visible.size})",
                         fontSize = DemoText.Body,
                         fontWeight = FontWeight.Black,
                         color = DemoColors.TextSecondary,
@@ -264,7 +308,17 @@ fun MatchesScreen(
             } else if (feedState is UiState.Error && visible.isEmpty()) {
                 item { LoadingCard((feedState as UiState.Error).message, showSpinner = false) }
             } else if (visible.isEmpty()) {
-                item { LoadingCard("No open matches right now. New scrims show up here the moment the organiser creates them.", showSpinner = false) }
+                item {
+                    LoadingCard(
+                        if (selectedFilter == LIVE_FILTER) {
+                            "No match is LIVE right now. A match moves here the moment it kicks off — " +
+                                "check Upcoming for the ones you can still join."
+                        } else {
+                            "No open matches right now. New scrims show up here the moment the organiser creates them."
+                        },
+                        showSpinner = false,
+                    )
+                }
             }
 
             items(visible, key = { it.id }) { tournament ->
@@ -298,22 +352,51 @@ fun MatchesScreen(
             joining = viewModel.isJoiningMatch,
             errorText = viewModel.joinMatchError,
             entryClosed = isEntryClosed(openMatch.matchTime),
-            defaultIgn = me?.inGameName.orEmpty(),
-            defaultUid = me?.inGameUid.orEmpty(),
+            slotFull = openMatch.remainingSlots <= 0 || viewModel.joinSlotFull,
+            defaultIgn = me?.inGameName?.takeIf { it.isNotBlank() }
+                ?: sessionState.inGameName.orEmpty(),
+            defaultUid = me?.inGameUid?.takeIf { it.isNotBlank() }
+                ?: sessionState.inGameUid.orEmpty(),
             onDismiss = {
                 viewModel.clearJoinError()
                 sheetMatch = null
             },
             onJoin = { ign, uid ->
                 viewModel.joinMatch(openMatch.id, ign, uid) { result ->
-                    sheetMatch = null
-                    onToast("Slot #${result.slotNumber} confirmed!")
+                    onToast("Slot ${result.slotNumber} confirmed!")
+                    // Publish-before-join: the room may already be live, so fetch
+                    // the code and keep the sheet open for a 1-tap copy.
+                    if (openMatch.status == TournamentStatus.ROOM_REVEALED) {
+                        // The viewModel refreshes the feed after a join, so flip the
+                        // local sheet copy to "joined" as soon as the seats are read.
+                        val joinedCopy = runCatching {
+                            ((viewModel.feedUi as? UiState.Success)?.data?.items)
+                                .orEmpty()
+                                .firstOrNull { it.id == openMatch.id }
+                        }.getOrNull() ?: openMatch
+                        sheetScope.launch {                            runCatching {
+                                com.tourney.core.network.apiCall {
+                                    com.tourney.core.network.ApiClient.tourneyApi.roomCredentials(openMatch.id)
+                                }
+                            }.onSuccess { creds ->
+                                sheetRoomId = creds.roomId
+                                sheetRoomPass = creds.roomPassword
+                                sheetMatch = joinedCopy
+                            }.onFailure { sheetMatch = null }
+                        }
+                    } else {
+                        sheetMatch = null
+                    }
                 }
             },
             onTopUp = {
                 sheetMatch = null
                 onOpenWallet()
             },
+            roomPublished = openMatch.status == TournamentStatus.ROOM_REVEALED,
+            roomId = sheetRoomId,
+            roomPassword = sheetRoomPass,
+            onCopied = onToast,
         )
     }
 }

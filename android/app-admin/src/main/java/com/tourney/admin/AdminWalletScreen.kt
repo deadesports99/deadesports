@@ -80,7 +80,7 @@ fun AdminWalletScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Wallet Console", onBack = onBack)
+        AppTopBar(showBrandBadge = true, title = "Wallet Console", onBack = onBack)
 
         TabRow(selectedTabIndex = tab) {
             Tab(

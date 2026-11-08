@@ -67,6 +67,7 @@ fun AdminStaffScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(
+            showBrandBadge = true,
             title = "Staff Management",
             onBack = onBack,
             actions = {

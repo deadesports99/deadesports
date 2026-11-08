@@ -137,7 +137,7 @@ fun CreateTournamentScreen(
     val windowAlreadyOpen = visibleFromEpochMs != null && visibleFromEpochMs <= nowMs
 
     Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Create Match", onBack = onBack)
+        AppTopBar(showBrandBadge = true, title = "Create Match", onBack = onBack)
 
         Column(
             modifier = Modifier

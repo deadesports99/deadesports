@@ -23,7 +23,7 @@ import com.tourney.core.datastore.SessionState
 import com.tourney.core.fcm.TourneyMessagingService
 import com.tourney.core.theme.ClientConfig
 import com.tourney.core.theme.ClientTheme
-import com.tourney.core.theme.ThemeMode
+import com.tourney.player.ui.auth.SpartanAuthScreen
 
 /**
  * Player app entry — routes Login/Register vs the main tabbed experience
@@ -48,10 +48,15 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 
         val config = ClientConfig.load(applicationContext)
 
+        // Appearance is a persisted preference: read it before the first frame so a
+        // Light-mode player never sees a dark flash while DataStore warms up.
+        val savedThemeMode =
+            com.tourney.core.network.ApiClient.sessionManager.currentThemeMode()
+
         setContent {
             // Boss demand: in-app Light / Dark switcher (persisted, instant).
             val themeMode by com.tourney.core.network.ApiClient.sessionManager.themeMode
-                .collectAsState(initial = ThemeMode.DARK)
+                .collectAsState(initial = savedThemeMode)
             val systemDark = isSystemInDarkTheme()
 
             // One source of truth: the demo palette follows the in-app switcher so
@@ -102,7 +107,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         onPushHandled = { pendingPush = null },
                     )
                 } else {
-                    LoginRegisterScreen(
+                    SpartanAuthScreen(
                         viewModel = playerViewModel,
                         onLoggedIn = { /* session flow flips UI automatically */ },
                     )
@@ -115,6 +120,15 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    /**
+     * Coming back to the app must never show a stale lobby: the realtime socket
+     * may have been suspended in the background, so refresh quietly on resume.
+     */
+    override fun onResume() {
+        super.onResume()
+        playerViewModelRef?.onAppResumed()
     }
 
     private fun handleIntent(intent: Intent?) {

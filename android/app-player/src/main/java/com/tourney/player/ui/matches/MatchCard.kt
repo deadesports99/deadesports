@@ -6,7 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -53,21 +55,43 @@ fun MatchCard(
     val fillFraction = if (tournament.totalSlots <= 0) 0f
     else (tournament.slotsBooked.toFloat() / tournament.totalSlots).coerceIn(0f, 1f)
 
+    val isFull = tournament.remainingSlots <= 0
+    val isLive = tournament.status == TournamentStatus.LIVE
+    // A full or kicked-off match cannot be joined, so neither the card nor the
+    // CTA reacts to taps — except for a seated player, who still opens the room.
+    val actionEnabled = joined || (!isFull && !isLive)
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(DemoRadius.Card))
             .background(DemoColors.Card.copy(alpha = 0.85f))
             .border(1.dp, DemoColors.BorderSoft, RoundedCornerShape(DemoRadius.Card))
-            .clickable(onClick = onOpen)
+            .clickable(enabled = actionEnabled, onClick = onOpen)
             .padding(14.dp),
     ) {
-        // ── Top: map chip, mode chip, kickoff time ──────────────────────
+        // ── Top: match number chip, map chip, mode chip, kickoff time ───
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            // The number is the match identity — admin/staff refer to "match 50".
+            tournament.matchNumber?.let { number ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(DemoColors.Cyan.copy(alpha = 0.14f))
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        number.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = DemoColors.Cyan,
+                    )
+                }
+            }
             Chip(text = tournament.mapLabel, leading = Icons.Filled.Place, iconTint = DemoColors.Cyan)
             Chip(
                 text = tournament.matchTypeLabel.uppercase(),
@@ -100,27 +124,28 @@ fun MatchCard(
         )
 
         // ── Prize pool / per kill / entry fee strip ─────────────────────
+        // Same as the demo's `grid grid-cols-3` with `border-x` on the middle
+        // cell: three equal columns, the rules run the full height of the strip
+        // and sit the same distance from the text on both of their sides.
         Row(
             modifier = Modifier
                 .padding(top = 10.dp)
                 .fillMaxWidth()
+                .height(IntrinsicSize.Min)
                 .clip(RoundedCornerShape(DemoRadius.Field))
                 .background(DemoColors.Strip)
                 .border(1.dp, DemoColors.BorderFaint, RoundedCornerShape(DemoRadius.Field))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            // SpaceBetween gives all four gaps around the two rules the same
+            // width, so each rule sits equally far from the text on both sides.
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             StatColumn(
                 label = "Prize Pool",
                 value = "₹${formatMoney(tournament.prizePoolValue)}",
-                modifier = Modifier.weight(1f),
             )
-            Box(
-                modifier = Modifier
-                    .height(32.dp)
-                    .width(1.dp)
-                    .background(DemoColors.BorderSoft),
-            )
+            StatRule()
             StatColumn(
                 label = "Per Kill",
                 value = if (tournament.perKillValue > 0) "₹${formatMoney(tournament.perKillValue)}" else "Win Only",
@@ -128,20 +153,11 @@ fun MatchCard(
                 valueWeight = FontWeight.Bold,
                 // lucide's Crosshair has no Material twin; GpsFixed is the same reticle
                 leading = if (tournament.perKillValue > 0) Icons.Filled.GpsFixed else null,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
             )
-            Box(
-                modifier = Modifier
-                    .height(32.dp)
-                    .width(1.dp)
-                    .background(DemoColors.BorderSoft),
-            )
+            StatRule()
             StatColumn(
                 label = "Entry Fee",
                 value = "₹${formatMoney(tournament.entryFeeValue)}",
-                modifier = Modifier.weight(1f),
                 alignEnd = true,
             )
         }
@@ -177,11 +193,14 @@ fun MatchCard(
                             color = DemoColors.TextSecondary,
                         )
                     }
+                    val remaining = tournament.remainingSlots
                     Text(
-                        "${tournament.remainingSlots} left",
+                        // Plain English instead of "0 left" — the player should
+                        // read why the join button is dead.
+                        if (remaining <= 0) "Slot Full" else "$remaining left",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DemoColors.TextMuted,
+                        color = if (remaining <= 0) DemoColors.Danger else DemoColors.TextMuted,
                     )
                 }
 
@@ -204,22 +223,35 @@ fun MatchCard(
                 }
             }
 
+            // CTA colours are the truth: gold = joinable, green = seated,
+            // grey = dead (full / live / already watching).
+            val ctaBackground = when {
+                joined -> DemoColors.Success
+                isLive || isFull -> DemoColors.Track
+                else -> DemoColors.Gold
+            }
+            val ctaTextColor = when {
+                joined -> Color.White
+                isLive || isFull -> DemoColors.TextMuted
+                else -> DemoColors.OnGold
+            }
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (joined) DemoColors.Success else DemoColors.Gold)
-                    .clickable(onClick = onOpen)
+                    .background(ctaBackground)
+                    .clickable(enabled = actionEnabled, onClick = onOpen)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
                     when {
                         joined -> "Joined ✓"
-                        tournament.status == TournamentStatus.LIVE -> "Watch live"
+                        isLive -> "Watch live"
+                        isFull -> "Slot Full"
                         else -> "Join • ₹${formatMoney(tournament.entryFeeValue)}"
                     },
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
-                    color = if (joined) Color.White else DemoColors.OnGold,
+                    color = ctaTextColor,
                 )
             }
         }
@@ -273,6 +305,8 @@ private fun StatColumn(
             fontWeight = FontWeight.Bold,
             color = DemoColors.TextMuted,
             maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
         Row(
             modifier = Modifier.padding(top = 2.dp),
@@ -293,7 +327,24 @@ private fun StatColumn(
                 fontWeight = valueWeight,
                 color = valueTint,
                 maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
+}
+
+/**
+ * The rule between two stat columns: 1dp wide, centred, and inset from the
+ * strip's top and bottom edges by the panel's own vertical padding — the same
+ * "gap above and below" the demo has.
+ */
+@Composable
+private fun StatRule() {
+    Box(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(1.dp)
+            .background(DemoColors.BorderSoft),
+    )
 }

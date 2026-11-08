@@ -1,6 +1,8 @@
 package com.tourney.admin
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,8 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -32,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -65,6 +71,7 @@ import com.tourney.core.util.TimeAuthority
 fun AdminMatchManagerScreen(
     viewModel: AdminViewModel,
     onBack: () -> Unit,
+    onOpenRoster: (String) -> Unit = {},
 ) {
     LaunchedEffect(Unit) { viewModel.loadMatchOps() }
 
@@ -88,9 +95,19 @@ fun AdminMatchManagerScreen(
 
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
+    // Match-number / map / mode search across every tab.
+    var search by remember { mutableStateOf("") }
+
+    // Phase 12 — open the roster (participants / reward / ban) for a match.
+    val openRoster: (Tournament) -> Unit = { match ->
+        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+        viewModel.openRoster(match.id)
+        onOpenRoster("match_roster")
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppTopBar(title = "Manage Matches", onBack = onBack)
+            AppTopBar(showBrandBadge = true, title = "Manage Matches", onBack = onBack)
 
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -141,6 +158,22 @@ fun AdminMatchManagerScreen(
                 viewModel.finishError?.let {
                     Text("⚠️ $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
                 }
+
+                OutlinedTextField(
+                    value = search,
+                    onValueChange = { search = it.take(32) },
+                    label = { Text("Search match number / map") },
+                    placeholder = { Text("50 or Bermuda") },
+                    singleLine = true,
+                    leadingIcon = { Text("🔍", fontSize = 14.sp) },
+                    trailingIcon = {
+                        if (search.isNotBlank()) {
+                            TextButton(onClick = { search = "" }) { Text("✕", fontSize = 14.sp) }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             // One console for everything: Live matches, Upcoming matches and the
@@ -198,19 +231,30 @@ fun AdminMatchManagerScreen(
                             TournamentStatus.OPEN,
                             TournamentStatus.SLOTS_FULL,
                         )
+                        // Match-number / map / mode search (case-insensitive).
+                        val query = search.trim().lowercase()
+                        val matchesSearch: (Tournament) -> Boolean = { t ->
+                            query.isEmpty() || listOfNotNull(
+                                t.matchNumber?.toString(),
+                                t.mapLabel,
+                                t.matchTypeLabel,
+                                t.title,
+                            ).any { it.lowercase().contains(query) }
+                        }
                         val liveMatches = state.data.items
                             .filter { t ->
-                                t.status in liveStatuses &&
+                                matchesSearch(t) &&
+                                    t.status in liveStatuses &&
                                     (matchMs(t)?.let { it >= nowMs - graceMs } ?: true)
                             }
                             .sortedBy { matchMs(it) ?: 0L }
                         val upcomingMatches = state.data.items
-                            .filter { it.status in upcomingStatuses && !isFinished(it) }
+                            .filter { matchesSearch(it) && it.status in upcomingStatuses && !isFinished(it) }
                             .sortedBy { matchMs(it) ?: 0L }
                         val historyMatches = state.data.items
                             .filter { t ->
                                 val startedLongAgo = matchMs(t)?.let { it < nowMs - graceMs } ?: false
-                                isFinished(t) || startedLongAgo
+                                matchesSearch(t) && (isFinished(t) || startedLongAgo)
                             }
                             .sortedByDescending { matchMs(it) ?: 0L }
                         val shown = when (listTab) {
@@ -239,22 +283,30 @@ fun AdminMatchManagerScreen(
                                 item {
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                                         Text(
-                                            when (listTab) {
-                                                MatchListTab.LIVE -> "🔴 No live matches right now"
-                                                MatchListTab.UPCOMING -> "🎮 No upcoming matches"
-                                                MatchListTab.HISTORY -> "🧾 No past matches yet"
+                                            if (search.isNotBlank()) {
+                                                "No match for “${search.trim()}”"
+                                            } else {
+                                                when (listTab) {
+                                                    MatchListTab.LIVE -> "🔴 No live matches right now"
+                                                    MatchListTab.UPCOMING -> "🎮 No upcoming matches"
+                                                    MatchListTab.HISTORY -> "🧾 No past matches yet"
+                                                }
                                             },
                                             fontWeight = FontWeight.Bold,
                                         )
                                         Text(
-                                            when (listTab) {
-                                                MatchListTab.LIVE ->
-                                                    "Matches appear here once the room reveal window opens, and stay until you end them."
-                                                MatchListTab.UPCOMING ->
-                                                    "Create a match first — it will appear here with live slot fill."
-                                                MatchListTab.HISTORY ->
-                                                    "Every match you create and finish stays recorded here with its date, " +
-                                                        "time, status and winner payouts."
+                                            if (search.isNotBlank()) {
+                                                "Try another match number, map or mode — or clear the search."
+                                            } else {
+                                                when (listTab) {
+                                                    MatchListTab.LIVE ->
+                                                        "Matches appear here once the room reveal window opens, and stay until you end them."
+                                                    MatchListTab.UPCOMING ->
+                                                        "Create a match first — it will appear here with live slot fill."
+                                                    MatchListTab.HISTORY ->
+                                                        "Every match you create and finish stays recorded here with its date, " +
+                                                            "time, status and winner payouts."
+                                                }
                                             },
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -270,6 +322,8 @@ fun AdminMatchManagerScreen(
                                     visibilityBusy = viewModel.visibilityBusyMatchId == match.id,
                                     roomBusy = viewModel.roomRevealBusyId == match.id,
                                     finishing = viewModel.finishBusyMatchId == match.id,
+                                    onOpenRoster = { openRoster(match) },
+                                    onGoLive = { viewModel.goLiveNow(match.id) },
                                     onCancel = { cancelTarget = match },
                                     onClone = {
                                         viewModel.clearCloneFeedback()
@@ -584,6 +638,8 @@ private fun MatchOpsCard(
     visibilityBusy: Boolean,
     roomBusy: Boolean,
     finishing: Boolean,
+    onOpenRoster: () -> Unit,
+    onGoLive: () -> Unit,
     onCancel: () -> Unit,
     onClone: () -> Unit,
     onFinish: () -> Unit,
@@ -610,67 +666,160 @@ private fun MatchOpsCard(
         TournamentStatus.UNDER_REVIEW,
     )
     val canFinish = match.status in finishableStatuses
+    // Manual kickoff: any not-yet-finished match can be started on the spot.
+    val canGoLive = match.status in preMatchStatuses
+    val busy = cancelling || cloning || visibilityBusy || roomBusy || finishing
 
     // Player-list visibility state (server-computed window, IST labels).
     val nowMs = TimeAuthority.currentTimeMillis()
     val listedFromMs = match.listedFromEpochMs()
     val listedNow = match.isListedBySchedule(nowMs)
-    val visibilityText = when {
-        listedFromMs == null -> "👁️ Listed to players: immediately"
-        listedNow -> "👁️ Listed to players (window opened ${formatIstDateTime(listedFromMs)})"
-        else -> "🕒 Hidden — lists to players at ${formatIstDateTime(listedFromMs)} " +
-            "(${formatDurationShort((listedFromMs - nowMs) / 1000L)} from now)"
+    val listedText = when {
+        listedFromMs == null -> "👁️ Listed"
+        listedNow -> "👁️ Listed"
+        else -> "🕒 Lists ${formatIstDateTime(listedFromMs)}"
     }
-    val visibilityColor = if (listedNow || listedFromMs == null) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        Color(0xFFFF9800)
-    }
+    val listedWarn = !(listedNow || listedFromMs == null)
 
     // Admin-controlled Room ID & Password reveal state.
     // NOTE: staff always receive the `room` payload, so "unlocked" must come
     // from the server flag (roomUnlocked), never from `room != null`.
     val hasRoomCreds = match.hasRoomCredentials == true
     val roomUnlocked = match.roomUnlocked == true
-    val roomRevealAtMs = match.roomRevealAtEpochMs()
-    val roomStatusText = when {
-        !hasRoomCreds -> "🔑 ID/Pass: ❌ not published"
-        roomUnlocked -> "🔑 ID/Pass: ✅ published — visible to players now"
-        roomRevealAtMs != null ->
-            "🔑 ID/Pass: ✅ published, hidden until ${formatIstDateTime(roomRevealAtMs)}"
-        else -> "🔑 ID/Pass: ✅ published, hidden until the reveal window"
+    val roomText = when {
+        !hasRoomCreds -> "🔑 —"
+        roomUnlocked -> "🔑 ✅"
+        else -> "🔑 ⏳"
     }
-    val roomStatusColor = if (roomUnlocked || !hasRoomCreds) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        Color(0xFFFF9800)
-    }
+    val roomWarn = hasRoomCreds && !roomUnlocked
 
-    GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp, contentPadding = 14.dp) {
+    var menuOpen by remember { mutableStateOf(false) }
+
+    GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp, contentPadding = 12.dp) {
+        // ── Line 1: match number (tap = roster) · map/mode · status · ⋮ actions
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onOpenRoster)
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // The number is the match identity — "50 | Bermuda • Solo".
                 Text(
-                    match.displayName,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleSmall,
+                    match.matchNumber?.toString() ?: "—",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "|",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "${match.mapLabel} • ${match.matchTypeLabel}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    "${match.gameMode.name.replace('_', ' ')} • ₹${formatMoney(match.prizePoolValue)} pool" +
-                        (match.matchNumber?.let { " • Match #$it" } ?: ""),
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
             StatusBadge(status = match.status)
+            Box {
+                TextButton(onClick = { menuOpen = true }) {
+                    Text("⋮", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("👥 Players & Rewards", fontSize = 12.sp) },
+                        onClick = { menuOpen = false; onOpenRoster() },
+                    )
+                    if (canGoLive) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (cancelling) "⏳ Starting…" else "▶️ Go LIVE Now",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            enabled = !busy,
+                            onClick = { menuOpen = false; onGoLive() },
+                        )
+                    }
+                    if (canFinish) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (finishing) "⏳ Paying winner…" else "🏁 End Match & Pay Winner",
+                                    fontSize = 12.sp,
+                                )
+                            },
+                            enabled = !busy,
+                            onClick = { menuOpen = false; onFinish() },
+                        )
+                    }
+                    if (canEditVisibility) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (visibilityBusy) "⏳ Saving…" else "👁️ Player Visibility Window",
+                                    fontSize = 12.sp,
+                                )
+                            },
+                            enabled = !busy,
+                            onClick = { menuOpen = false; onVisibility() },
+                        )
+                        if (hasRoomCreds && !roomUnlocked) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (roomBusy) "⏳ Revealing…" else "🔑 Reveal Room Now",
+                                        fontSize = 12.sp,
+                                    )
+                                },
+                                enabled = !busy,
+                                onClick = { menuOpen = false; onRevealRoom() },
+                            )
+                        }
+                    }
+                    if (canClone) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (cloning) "⏳ Cloning…" else "📑 Clone Match",
+                                    fontSize = 12.sp,
+                                )
+                            },
+                            enabled = !busy,
+                            onClick = { menuOpen = false; onClone() },
+                        )
+                    }
+                    if (canCancel) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (cancelling) "⏳ Refunding…" else "🛑 Cancel & Refund",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            enabled = !busy,
+                            onClick = { menuOpen = false; onCancel() },
+                        )
+                    }
+                }
+            }
         }
 
-        Spacer(Modifier.height(10.dp))
-
+        // ── Line 2: time · seats · entry
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -684,113 +833,70 @@ private fun MatchOpsCard(
             Text("₹${formatMoney(match.entryFeeValue)} entry", fontSize = 10.sp)
         }
 
-        Spacer(Modifier.height(3.dp))
-        Text(
-            visibilityText,
-            fontSize = 10.sp,
-            color = visibilityColor,
-            fontWeight = if (listedNow || listedFromMs == null) FontWeight.Normal else FontWeight.SemiBold,
-        )
-        Text(
-            roomStatusText,
-            fontSize = 10.sp,
-            color = roomStatusColor,
-            fontWeight = if (roomUnlocked || !hasRoomCreds) FontWeight.Normal else FontWeight.SemiBold,
-        )
-
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
             progress = { match.fillFraction },
-            modifier = Modifier.fillMaxWidth().height(5.dp),
+            modifier = Modifier.fillMaxWidth().height(4.dp),
         )
 
-        Spacer(Modifier.height(12.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(10.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (canCancel) {
-                AppButton(
-                    text = if (cancelling) "⏳ Refunding…" else "🛑 Cancel & Refund",
-                    enabled = !cancelling && !cloning,
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            AppButton(
-                text = if (cloning) "⏳ Cloning…" else "📑 Clone Match",
-                enabled = canClone && !cancelling && !cloning,
-                onClick = onClone,
-                modifier = Modifier.weight(1f),
+        // ── Line 3: the main action — open the roster
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onOpenRoster)
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "👥 Players (${match.slotsBooked})",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
             )
-            if (match.status == TournamentStatus.CANCELLED) {
-                Text(
-                    "Refunded",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 14.dp),
-                )
-            }
-            Spacer(Modifier.width(2.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "reward · cheat check · ban",
+                fontSize = 9.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.weight(1f))
+            Text("›", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
+        // ── Line 4: only the state the admin must know right now
+        Text(
+            "$listedText  ·  $roomText",
+            fontSize = 9.5.sp,
+            color = if (listedWarn || roomWarn) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
         when (match.status) {
             TournamentStatus.UNDER_REVIEW -> Text(
-                "🧾 Match ended — enter winner UID below to pay & complete",
-                fontSize = 10.sp,
+                "🧾 Ended — pay the winners from Players",
+                fontSize = 9.5.sp,
                 color = Color(0xFF4A148C),
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 6.dp),
             )
             TournamentStatus.COMPLETED -> Text(
-                "✅ Completed — official results published & payouts done",
-                fontSize = 10.sp,
+                "✅ Completed — results published & payouts done",
+                fontSize = 9.5.sp,
                 color = Color(0xFF00C853),
-                modifier = Modifier.padding(top = 6.dp),
+            )
+            TournamentStatus.CANCELLED -> Text(
+                "🛑 Cancelled — entry fees refunded",
+                fontSize = 9.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             else -> {}
         }
-
-        if (canFinish) {
-            Spacer(Modifier.height(6.dp))
-            AppButton(
-                text = if (finishing) "⏳ Paying winner…" else "🏁 End Match & Pay Winner (UID)",
-                enabled = !finishing && !cancelling && !cloning,
-                onClick = onFinish,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        if (canEditVisibility) {
-            Spacer(Modifier.height(4.dp))
-            TextButton(
-                onClick = onVisibility,
-                enabled = !visibilityBusy && !cancelling && !cloning,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    if (visibilityBusy) "⏳ Saving visibility…" else "👁️ Player Visibility Window",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            if (hasRoomCreds && !roomUnlocked) {
-                TextButton(
-                    onClick = onRevealRoom,
-                    enabled = !roomBusy && !cancelling && !cloning,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        if (roomBusy) "⏳ Revealing room…" else "🔑 Reveal Room ID to Players Now",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFFF9800),
-                    )
-                }
-            }
-        }
     }
 }
+
 
 private fun plusHours(iso: String, hours: Long): String = runCatching {
     Instant.parse(iso).plus(Duration.ofHours(hours)).toString()

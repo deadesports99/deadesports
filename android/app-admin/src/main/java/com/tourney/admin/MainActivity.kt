@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
                         onSetThemeMode = { adminViewModel.setThemeMode(it) },
                     )
                 } else {
-                    AdminLoginScreen(viewModel = adminViewModel)
+                    AdminAuthScreen(viewModel = adminViewModel)
                 }
             }
         }

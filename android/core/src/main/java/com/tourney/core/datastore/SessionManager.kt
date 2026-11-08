@@ -100,9 +100,10 @@ class SessionManager(private val context: Context) {
     /** Read the saved mode synchronously (first frame, before the flow emits). */
     fun currentThemeMode(): ThemeMode = runCatching {
         kotlinx.coroutines.runBlocking {
-            themeMode.first()
+            // Never let a slow disk stall the first frame for long.
+            kotlinx.coroutines.withTimeoutOrNull(1_500) { themeMode.first() }
         }
-    }.getOrDefault(ThemeMode.DARK)
+    }.getOrNull() ?: ThemeMode.DARK
 
     suspend fun saveThemeMode(mode: ThemeMode) {
         context.sessionDataStore.edit { prefs -> prefs[Keys.THEME_MODE] = mode.name }

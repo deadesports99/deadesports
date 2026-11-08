@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tourney.core.model.LedgerEntry
 import com.tourney.core.ui.formatMoney
-import com.tourney.player.AddMoneySheet
 import com.tourney.player.PlayerViewModel
 import com.tourney.player.UiState
 import com.tourney.player.ui.common.SpartanCrest
@@ -263,7 +262,7 @@ fun WalletScreen(
     }
 
     if (addCashOpen) {
-        AddMoneySheet(
+        AddCashSheet(
             viewModel = viewModel,
             onDismiss = { addCashOpen = false },
             onManualDeposit = { addCashOpen = false },
@@ -326,16 +325,16 @@ private fun VaultCard(
                     "TOTAL BALANCE",
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DemoColors.TextMuted,
-                    letterSpacing = 1.sp,
+                    color = if (dark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                    letterSpacing = 0.8.sp,
                 )
                 Text(
                     "₹${formatMoney(total)}",
-                    fontSize = 28.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
                     color = DemoColors.TextPrimary,
                     letterSpacing = (-0.5).sp,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 1.dp),
                 )
             }
         }

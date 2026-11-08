@@ -7,6 +7,21 @@ import com.tourney.core.model.AdminPaymentsResponse
 import com.tourney.core.model.AdminPlayersResponse
 import com.tourney.core.model.BanPlayerRequest
 import com.tourney.core.model.BanPlayerResponse
+import com.tourney.core.model.PlayerDetailResponse
+import com.tourney.core.model.DeviceBanRequest
+import com.tourney.core.model.DeviceBanResponse
+import com.tourney.core.model.DeviceGroupDetail
+import com.tourney.core.model.DeviceGroupsResponse
+import com.tourney.core.model.WatchDeviceActionResponse
+import com.tourney.core.model.WatchDeviceRequest
+import com.tourney.core.model.WatchedDevice
+import com.tourney.core.model.WatchlistResponse
+import com.tourney.core.model.SuspiciousPlayersResponse
+import com.tourney.core.model.MatchRosterResponse
+import com.tourney.core.model.ParticipantBanRequest
+import com.tourney.core.model.ParticipantBanResponse
+import com.tourney.core.model.PayoutAwardsRequest
+import com.tourney.core.model.PayoutAwardsResponse
 import com.tourney.core.model.ReconcilePaymentResponse
 import com.tourney.core.model.ApproveWithdrawalRequest
 import com.tourney.core.model.DailySettlement
@@ -49,6 +64,7 @@ import com.tourney.core.model.ScoreboardResponse
 import com.tourney.core.model.SlotsResponse
 import com.tourney.core.model.StaffActionResponse
 import com.tourney.core.model.StaffListResponse
+import com.tourney.core.model.GoLiveResult
 import com.tourney.core.model.SweepResult
 import com.tourney.core.model.TenantSettings
 import com.tourney.core.model.Tournament
@@ -196,6 +212,13 @@ interface TourneyApi {
     @POST("tournaments/sweep/states")
     suspend fun sweepMatchStates(): ApiEnvelope<SweepResult>
 
+    /**
+     * Manual kickoff for one match — the organiser says "this is live now".
+     * Re-pins kickoff to now so the 2h auto-review window restarts too.
+     */
+    @PATCH("tournaments/{id}/go-live")
+    suspend fun forceMatchLive(@Path("id") id: String): ApiEnvelope<GoLiveResult>
+
     /** Cancel a match and atomically refund every booked seat. */
     @POST("tournaments/{id}/cancel")
     suspend fun cancelTournament(
@@ -236,6 +259,90 @@ interface TourneyApi {
         @Path("id") id: String,
         @Body request: BanPlayerRequest,
     ): ApiEnvelope<BanPlayerResponse>
+
+    /** Phase 12.3: one player in full — match history, rewards, cheat signals. */
+    @GET("admin/players/{id}")
+    suspend fun playerDetail(@Path("id") id: String): ApiEnvelope<PlayerDetailResponse>
+
+    /** Phase 12.4: accounts worth investigating, ranked by suspicion score. */
+    @GET("admin/players/suspicious")
+    suspend fun suspiciousPlayers(
+        @Query("minScore") minScore: Int = 30,
+        @Query("limit") limit: Int = 20,
+    ): ApiEnvelope<SuspiciousPlayersResponse>
+
+    /** Phase 12.5: devices with 2+ accounts, ranked by how they look. */
+    @GET("admin/players/devices")
+    suspend fun deviceGroups(
+        @Query("minAccounts") minAccounts: Int = 2,
+        @Query("limit") limit: Int = 60,
+    ): ApiEnvelope<DeviceGroupsResponse>
+
+    /** Phase 12.5: every account on one device + the matches they met in. */
+    @GET("admin/players/devices/{deviceId}")
+    suspend fun deviceGroupDetail(
+        @Path("deviceId") deviceId: String,
+    ): ApiEnvelope<DeviceGroupDetail>
+
+    /** Phase 12.6: device watchlist — early warning for returning cheaters. */
+    @GET("admin/players/watchlist")
+    suspend fun watchlist(): ApiEnvelope<WatchlistResponse>
+
+    @POST("admin/players/watchlist")
+    suspend fun watchDevice(
+        @Body request: WatchDeviceRequest,
+    ): ApiEnvelope<WatchedDevice>
+
+    @DELETE("admin/players/watchlist/{deviceId}")
+    suspend fun unwatchDevice(
+        @Path("deviceId") deviceId: String,
+    ): ApiEnvelope<WatchDeviceActionResponse>
+
+    @PATCH("admin/players/watchlist/{deviceId}/ack")
+    suspend fun acknowledgeWatchAlerts(
+        @Path("deviceId") deviceId: String,
+    ): ApiEnvelope<WatchDeviceActionResponse>
+
+    /** Phase 12.6: export the whole device as CSV. */
+    @Streaming
+    @GET("admin/players/devices/{deviceId}/export.csv")
+    suspend fun exportDeviceCsv(@Path("deviceId") deviceId: String): ResponseBody
+
+    /** Phase 12.5: ban/unban every account on a device in one action. */
+    @PATCH("admin/players/devices/{deviceId}/ban")
+    suspend fun banDeviceAccounts(
+        @Path("deviceId") deviceId: String,
+        @Body request: DeviceBanRequest,
+    ): ApiEnvelope<DeviceBanResponse>
+
+    // ─── Phase 12: match roster (participants · rewards · cheat flags · ban) ──
+    /** Everyone booked in this match + server-computed cheat flags. */
+    @GET("admin/matches/{id}/participants")
+    suspend fun matchRoster(
+        @Path("id") id: String,
+        @Query("search") search: String? = null,
+        @Query("flagsOnly") flagsOnly: String? = null,
+    ): ApiEnvelope<MatchRosterResponse>
+
+    /** Pay one or more players of this match (rank + kills, optional completion). */
+    @POST("admin/matches/{id}/payout")
+    suspend fun payoutMatchAwards(
+        @Path("id") id: String,
+        @Body request: PayoutAwardsRequest,
+    ): ApiEnvelope<PayoutAwardsResponse>
+
+    /** Ban from this match only, or across the whole account. */
+    /** Ban from this match only, or across the whole account. */
+    @GET("admin/matches/{id}/participants/export.csv")
+    @Streaming
+    suspend fun exportMatchRosterCsv(@Path("id") id: String): ResponseBody
+
+    @PATCH("admin/matches/{id}/participants/{userId}/ban")
+    suspend fun banMatchParticipant(
+        @Path("id") id: String,
+        @Path("userId") userId: String,
+        @Body request: ParticipantBanRequest,
+    ): ApiEnvelope<ParticipantBanResponse>
 
     /** Profile tab: update player's Free Fire IGN and UID. */
     @PATCH("players/me/game-profile")

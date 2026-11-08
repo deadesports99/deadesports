@@ -7,10 +7,36 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** ₹ money with no trailing decimals when whole (e.g. ₹500 vs ₹0.50). */
-fun formatMoney(value: Double): String =
-    if (value == value.toLong().toDouble()) value.toLong().toString()
-    else String.format("%.2f", value)
+/**
+ * ₹ money with no trailing decimals when whole (e.g. ₹500 vs ₹0.50) and
+ * Indian digit grouping (₹2,000 / ₹1,20,000), matching the web app's en-IN format.
+ */
+fun formatMoney(value: Double): String {
+    // Always two decimals while formatting, then drop them again when they are 00.
+    val text = String.format(Locale.US, "%.2f", kotlin.math.abs(value))
+    val whole = text.substringBefore('.')
+    val fraction = text.substringAfter('.')
+    val grouped = groupIndianDigits(whole)
+    val body = if (fraction == "00") grouped else "$grouped.$fraction"
+    return if (value < 0) "-$body" else body
+}
+
+/**
+ * 2000 → "2,000" and 120000 → "1,20,000": the last three digits stay together,
+ * every group before them is two digits wide (Indian numbering system).
+ */
+private fun groupIndianDigits(digits: String): String {
+    if (digits.length <= 3) return digits
+    val lastThree = digits.takeLast(3)
+    var rest = digits.dropLast(3)
+    val groups = mutableListOf<String>()
+    while (rest.length > 2) {
+        groups.add(0, rest.takeLast(2))
+        rest = rest.dropLast(2)
+    }
+    if (rest.isNotEmpty()) groups.add(0, rest)
+    return groups.joinToString(",") + "," + lastThree
+}
 
 val IST_ZONE: ZoneId = ZoneId.of("Asia/Kolkata")
 

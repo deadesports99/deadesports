@@ -93,7 +93,7 @@ fun AdminSettingsScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppTopBar(title = "App Settings", onBack = onBack)
+            AppTopBar(showBrandBadge = true, title = "App Settings", onBack = onBack)
 
             when (state) {
                 AdminUi.Idle, AdminUi.Loading -> LoadingState("Loading settings…")
