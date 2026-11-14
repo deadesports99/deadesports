@@ -15,9 +15,16 @@ export interface UserProfile {
 export interface TournamentMatch {
   id: string;
   title: string;
+  matchNumber?: number | null;
+  /** Raw ISO kickoff, used by the live "MATCH STARTS IN" countdown. */
+  kickoffIso?: string;
+  /** True when the match status is LIVE — the card then shows "LIVE NOW". */
+  isLive?: boolean;
   map: 'Bermuda' | 'Purgatory' | 'Kalahari' | 'Alpine';
   category: Exclude<FilterCategory, 'Upcoming'>;
   modeBadge: string;
+  /** Short mode label for the card chip — "SOLO" / "DUO" / "SQUAD". */
+  modeChip?: string;
   time: string;
   prizePool: number;
   perKill: number;

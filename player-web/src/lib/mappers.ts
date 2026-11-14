@@ -53,9 +53,13 @@ export function toMatch(t: ApiTournament): TournamentMatch {
   return {
     id: t.id,
     title: t.title,
+    matchNumber: t.matchNumber ?? null,
+    kickoffIso: t.matchTime,
+    isLive: t.status === 'LIVE',
     map: MAP_LABEL[t.mapType] ?? 'Bermuda',
     category: CATEGORY[t.matchType] ?? 'Solo',
     modeBadge: `${MODE_LABEL[t.matchType]} • ${MAP_LABEL[t.mapType]}`,
+    modeChip: (MODE_LABEL[t.matchType] ?? 'Solo').toUpperCase(),
     time: formatMatchTime(t.matchTime),
     prizePool: Number(t.prizePool),
     perKill: t.perKillPrize ? Number(t.perKillPrize) : 0,
@@ -63,6 +67,26 @@ export function toMatch(t: ApiTournament): TournamentMatch {
     filledSlots: t.slotsBooked,
     totalSlots: t.totalSlots,
   };
+}
+
+/** "12 Nov, 08:00 PM" — the kickoff stamp shown under the card's chips (IST). */
+export function formatKickoffStamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const day = date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    timeZone: 'Asia/Kolkata',
+  });
+  const clock = date
+    .toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata',
+    })
+    .toUpperCase(); // "08:00 PM", matching the app's stamp
+  return `${day}, ${clock}`;
 }
 
 /** IST wall-clock, the way the rest of the app shows times. */

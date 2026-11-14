@@ -77,10 +77,10 @@ export function SettingsScreen({
   };
 
   return (
-    <div className="space-y-4 pb-4">
+    <div className="space-y-2.5 pb-4">
       {/* Top Left Title: Settings */}
-      <div className="px-1 pt-0.5">
-        <h1 className={cx('text-2xl font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>
+      <div className="px-1 pt-4 pb-0.5">
+        <h1 className={cx('text-lg font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>
           Settings
         </h1>
       </div>
@@ -101,21 +101,21 @@ export function SettingsScreen({
           type="button"
           onClick={() => setAccountModalOpen(true)}
           className={cx(
-            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            'group flex w-full items-center justify-between p-3 text-left transition-colors',
             isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Telegram Blue Icon Badge */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2AABEE] text-white shadow-md shadow-[#2AABEE]/25">
-              <User className="h-5 w-5" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2AABEE] text-white shadow-md shadow-[#2AABEE]/25">
+              <User className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 Account
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 {playerName} • {playerContact}
               </p>
             </div>
@@ -124,26 +124,26 @@ export function SettingsScreen({
           <ChevronRight className={cx('h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', isDark ? 'text-slate-500' : 'text-slate-400')} />
         </button>
 
-        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+        <div className={cx('h-px w-full ml-[56px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
 
         {/* 2. Appearance & Theme (Dark / Light Mode Toggle) */}
         <div
           className={cx(
-            'flex items-center justify-between p-3.5 transition-colors',
+            'flex items-center justify-between p-3 transition-colors',
             isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1 pr-3">
             {/* Violet Icon Badge */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#8B5CF6] text-white shadow-md shadow-[#8B5CF6]/25">
-              {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#8B5CF6] text-white shadow-md shadow-[#8B5CF6]/25">
+              {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 Appearance
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 {isDark ? 'Dark Mode' : 'Light Mode'}
               </p>
             </div>
@@ -185,21 +185,19 @@ export function SettingsScreen({
           </div>
         </div>
 
-        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
-
-        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+        <div className={cx('h-px w-full ml-[56px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
 
         {/* 2b. Background image picker (demo) */}
-        <div className="p-3.5">
-          <div className="flex min-w-0 items-center gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0EA5E9] text-white shadow-md shadow-[#0EA5E9]/25">
-              <ImageIcon className="h-5 w-5" />
+        <div className="p-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0EA5E9] text-white shadow-md shadow-[#0EA5E9]/25">
+              <ImageIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1 pr-3">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 Background
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 {bgOption.label} &bull; {bg.opacity}% opacity
               </p>
             </div>
@@ -229,13 +227,13 @@ export function SettingsScreen({
                     <img
                       src={option.src}
                       alt=""
-                      className="h-12 w-8 rounded object-cover"
+                      className="h-12 w-10 rounded object-cover"
                       draggable={false}
                     />
                   ) : (
                     <div
                       className={cx(
-                        'flex h-12 w-8 items-center justify-center rounded text-[9px] font-black',
+                        'flex h-12 w-10 items-center justify-center rounded text-[9px] font-black',
                         isDark ? 'bg-slate-900 text-slate-500' : 'bg-slate-100 text-slate-400'
                       )}
                     >
@@ -244,7 +242,7 @@ export function SettingsScreen({
                   )}
                   <span
                     className={cx(
-                      'mt-1 block w-8 truncate text-center text-[9px] font-bold',
+                      'mt-1 block w-10 whitespace-nowrap text-center text-[9px] font-bold',
                       active ? 'text-amber-400' : isDark ? 'text-slate-400' : 'text-slate-500'
                     )}
                   >
@@ -284,21 +282,21 @@ export function SettingsScreen({
         {/* 3. Match Notifications */}
         <div
           className={cx(
-            'flex items-center justify-between p-3.5 transition-colors',
+            'flex items-center justify-between p-3 transition-colors',
             isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1 pr-3">
             {/* Coral Red Icon Badge */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md shadow-[#EF4444]/25">
-              <Bell className="h-5 w-5" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md shadow-[#EF4444]/25">
+              <Bell className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 Notifications
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 Match Alerts & Room ID
               </p>
             </div>
@@ -320,7 +318,7 @@ export function SettingsScreen({
           >
             <span
               className={cx(
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out',
+                'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out',
                 notificationsEnabled ? 'translate-x-5' : 'translate-x-0'
               )}
             />
@@ -344,21 +342,21 @@ export function SettingsScreen({
           type="button"
           onClick={() => setFairPlayModalOpen(true)}
           className={cx(
-            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            'group flex w-full items-center justify-between p-3 text-left transition-colors',
             isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Amber Icon Badge */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F59E0B] text-white shadow-md shadow-[#F59E0B]/25">
-              <ShieldCheck className="h-5 w-5" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F59E0B] text-white shadow-md shadow-[#F59E0B]/25">
+              <ShieldCheck className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 Fair Play Rules
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 Anti-cheat & scrim guidelines
               </p>
             </div>
@@ -367,28 +365,28 @@ export function SettingsScreen({
           <ChevronRight className={cx('h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', isDark ? 'text-slate-500' : 'text-slate-400')} />
         </button>
 
-        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+        <div className={cx('h-px w-full ml-[56px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
 
         {/* WhatsApp & Helpdesk */}
         <button
           type="button"
           onClick={onWhatsApp}
           className={cx(
-            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            'group flex w-full items-center justify-between p-3 text-left transition-colors',
             isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* WhatsApp Green Icon Badge */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#22C55E] text-white shadow-md shadow-[#22C55E]/25">
-              <MessageSquare className="h-5 w-5" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#22C55E] text-white shadow-md shadow-[#22C55E]/25">
+              <MessageSquare className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 Support
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 24/7 WhatsApp helpdesk
               </p>
             </div>
@@ -397,27 +395,27 @@ export function SettingsScreen({
           <ChevronRight className={cx('h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', isDark ? 'text-slate-500' : 'text-slate-400')} />
         </button>
 
-        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+        <div className={cx('h-px w-full ml-[56px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
 
         {/* About & Garena disclaimer */}
         <button
           type="button"
           onClick={() => setAboutModalOpen(true)}
           className={cx(
-            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            'group flex w-full items-center justify-between p-3 text-left transition-colors',
             isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#6366F1] text-white shadow-md shadow-[#6366F1]/25">
-              <Info className="h-5 w-5" />
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#6366F1] text-white shadow-md shadow-[#6366F1]/25">
+              <Info className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 About &amp; Disclaimer
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 Community esports • Not affiliated with Garena
               </p>
             </div>
@@ -426,27 +424,27 @@ export function SettingsScreen({
           <ChevronRight className={cx('h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', isDark ? 'text-slate-500' : 'text-slate-400')} />
         </button>
 
-        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+        <div className={cx('h-px w-full ml-[56px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
 
         {/* Privacy policy */}
         <button
           type="button"
           onClick={() => setPrivacyModalOpen(true)}
           className={cx(
-            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            'group flex w-full items-center justify-between p-3 text-left transition-colors',
             isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#06B6D4] text-white shadow-md shadow-[#06B6D4]/25">
-              <Shield className="h-5 w-5" />
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#06B6D4] text-white shadow-md shadow-[#06B6D4]/25">
+              <Shield className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className={cx('text-sm font-bold', isDark ? 'text-white' : 'text-slate-950')}>
+              <span className={cx('text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-950')}>
                 Privacy Policy
               </span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 What data we store &amp; why
               </p>
             </div>
@@ -471,18 +469,18 @@ export function SettingsScreen({
           type="button"
           onClick={() => setDeleteModalOpen(true)}
           className={cx(
-            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            'group flex w-full items-center justify-between p-3 text-left transition-colors',
             isDark ? 'hover:bg-rose-500/10' : 'hover:bg-rose-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md shadow-[#EF4444]/25">
-              <Trash2 className="h-5 w-5" />
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md shadow-[#EF4444]/25">
+              <Trash2 className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className="text-sm font-bold text-rose-500">Delete Account</span>
-              <p className={cx('truncate text-xs font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <span className="text-[13px] font-bold text-rose-500">Delete Account</span>
+              <p className={cx('truncate text-[11px] font-medium mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 Permanently remove my data
               </p>
             </div>
@@ -491,24 +489,24 @@ export function SettingsScreen({
           <ChevronRight className="h-4 w-4 shrink-0 text-rose-500/60 transition-transform group-hover:translate-x-0.5" />
         </button>
 
-        <div className={cx('h-px w-full ml-[62px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
+        <div className={cx('h-px w-full ml-[56px]', isDark ? 'bg-white/5' : 'bg-slate-100')} />
 
         <button
           type="button"
           onClick={onSignOut}
           className={cx(
-            'group flex w-full items-center justify-between p-3.5 text-left transition-colors',
+            'group flex w-full items-center justify-between p-3 text-left transition-colors',
             isDark ? 'hover:bg-rose-500/10' : 'hover:bg-rose-50'
           )}
         >
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Danger Red Icon Badge */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md shadow-[#EF4444]/25">
-              <LogOut className="h-5 w-5" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md shadow-[#EF4444]/25">
+              <LogOut className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className="text-sm font-bold text-rose-500">
+              <span className="text-[13px] font-bold text-rose-500">
                 Log Out
               </span>
             </div>
@@ -519,7 +517,7 @@ export function SettingsScreen({
       </div>
 
       {/* App Version Info Footnote */}
-      <div className="pt-2 text-center">
+      <div className="pt-1 text-center">
         <p className={cx('text-[11px] font-semibold tracking-wide', isDark ? 'text-slate-500' : 'text-slate-400')}>
           Spartan Esports Arena • v2.4.0 (Build 104)
         </p>

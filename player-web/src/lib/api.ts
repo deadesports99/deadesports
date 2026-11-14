@@ -10,7 +10,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'h
 
 /** Tenant that every request is scoped to (the org the app is white-labelled for). */
 const TENANT_ID =
-  (import.meta.env.VITE_TENANT_ID as string | undefined) ?? 'a3c11cd0-324e-4886-b27c-9667fd7f59dc';
+  (import.meta.env.VITE_TENANT_ID as string | undefined) ?? '53a09545-e6e2-4cf5-a5c2-7ef18b276a52';
 
 /** Allows the local `dev_otp_<phone>` shortcut (server must run DEV_FAKE_FIREBASE=true). */
 export const DEV_AUTH = (import.meta.env.VITE_DEV_AUTH as string | undefined) !== 'false';
