@@ -35,7 +35,7 @@ services:
         value: /app/admin-web/dist
 
       # ── database & cache (paste in dashboard) ────────────────────────
-      - key: DATABASE_URL # Supabase pooler, port 6543, ?pgbouncer=true
+      - key: DATABASE_URL # Neon Postgres (ledger) — full URL with ?sslmode=require
         sync: false
       - key: REDIS_URL # Upstash, rediss:// URL
         sync: false
@@ -87,7 +87,7 @@ services:
       - key: FCM_CREDENTIALS_JSON # service-account JSON (one line), paste in dashboard
         sync: false
       - key: FIREBASE_LIVE_MIRROR
-        value: "false" # flip true only after verify:firebase is clean
+        value: "true" # delivery layer only; a Firebase outage never breaks the API
       - key: FIREBASE_LIVE_MIRROR_PURGE_MINUTES
         value: "30" # free plan has no console TTL policy
       - key: FIREBASE_STORAGE_BUCKET

@@ -19,9 +19,17 @@
   └───────────┬───────────────────┬───────────┘
               │                   │
               ▼                   ▼
-   Supabase Postgres        Upstash Redis
-   (free 500 MB)            (free 10k cmd/din)
+   Neon Postgres            Upstash Redis
+   (free 0.5 GB)            (free 10k cmd/din)
+              │
+              │   Firebase (delivery layer, Spark/free)
+              └─────────────▶ Firestore live_events · FCM push · Auth token verify
 ```
+
+> **Supabase hata diya.** Ledger (paisa) Neon PostgreSQL me rahega — Firebase
+> Firestore me **nahi** (10 `$transaction`, Redis Lua slot-locks, withdrawal ledger:
+> ye SQL ke bina safe nahi ho sakta). Firebase wo karta hai jisme wo best hai:
+> live feed mirror, push, auth verify, stats export. Detail: `plan/firebase-migration/`.
 
 Ek hi origin hone ki wajah se: **cookie (login session) first-party rehta hai**,
 WebSocket ko `VITE_WS_URL` ki zaroorat nahi, CORS ka jhanjhat nahi. Isi liye
@@ -45,24 +53,34 @@ WebSocket ko `VITE_WS_URL` ki zaroorat nahi, CORS ka jhanjhat nahi. Isi liye
 |---|---|---|
 | GitHub | Code already hai ✅ | — |
 | Render | App chalana | https://render.com |
-| Supabase | PostgreSQL | https://supabase.com |
+| **Neon** | PostgreSQL (ledger) | https://neon.com |
 | Upstash | Redis | https://upstash.com |
 | cron-job.org | Sleep se bachana | https://cron-job.org |
 | Brevo | OTP mail (already done ✅) | https://app.brevo.com |
+| Firebase | Live mirror + push (already setup ✅) | https://console.firebase.google.com |
 
-## 4. Step A — Supabase Postgres
+## 4. Step A — Neon Postgres (ledger)
 
-1. https://supabase.com → **New project**
-   - Name: `spartan-arena` · Region: **Mumbai / Singapore** · DB password: strong yaad rakho
-2. Project ready hone ke baad → **Project Settings → Database → Connection string → URI**
-3. **Do URL chahiye** (dono milenge isi page pe):
+> Supabase account ki **zaroorat nahi**. Neon free hai, card nahi, expire nahi hota.
 
-| Kaam | Port | Kaisa URL |
-|---|---|---|
-| App runtime (Render) | **6543** (pooler / transaction) | `postgresql://postgres.xxxx:PASS@aws-0-....pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1` |
-| Table banane ke liye (local se) | **5432** (direct) | `postgresql://postgres.xxxx:PASS@aws-0-....pooler.supabase.com:5432/postgres` |
+1. https://neon.com → **Sign up** (GitHub ya email) → **New Project**
+   - Name: `spartan-arena` · Region: **AWS ap-southeast-1 (Singapore)** · Postgres 17
+2. Dashboard → **Connection string** → copy karo. Aisa dikhega:
 
-> ⚠️ `PASS` me special characters (`@ # %`) hon to **URL-encode** karo, warna connection fail.
+```
+postgresql://neondb_owner:PASS@ep-cool-name-123456.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+```
+
+3. **Ek hi URL kaafi hai** (runtime + `prisma:push` dono ke liye).
+   Neon ka `-pooler` wala host **optional** hai — hamare paas traffic kam hai, direct
+   connection sabse kam dikkat deta hai.
+
+> ⚠️ URL me **`?sslmode=require` chhodna** — Neon TLS ke bina connect nahi hota.
+> Code khud `sslmode` strip karke TLS on karta hai (remote host detect karke), par URL me
+> rakhne se Neon dashboard/psql me bhi wahi chalega.
+> ⚠️ `PASS` me special characters (`@ # %`) hon to **URL-encode** karo.
+> ⚠️ Neon free compute **5 min idle** ke baad suspend hota hai — pehla query ~500 ms slow.
+> Ye Render ke 15-min sleep se chhota hai, to keep-warm cron dono ko jagaye rakhta hai.
 
 ## 5. Step B — Upstash Redis
 
@@ -89,7 +107,7 @@ WebSocket ko `VITE_WS_URL` ki zaroorat nahi, CORS ka jhanjhat nahi. Isi liye
 
 | Key | Value kahan se |
 |---|---|
-| `DATABASE_URL` | §4 ka **6543 pooler** URL |
+| `DATABASE_URL` | §4 ka Neon URL (`?sslmode=require` ke saath) |
 | `REDIS_URL` | §5 ka `rediss://...` URL |
 | `ACCESS_KEY_PEPPER` | 32+ random chars — `openssl rand -hex 32` |
 | `ADMIN_WEB_ORIGIN` | `https://<service>.onrender.com` (apna URL, **bina** trailing slash) |
@@ -115,15 +133,16 @@ Save karo → service **auto redeploy** hogi.
 ```bash
 cd backend
 
-# 1) Direct (5432) URL se schema push karo
-DATABASE_URL="postgresql://postgres.xxxx:PASS@...:5432/postgres" npm run prisma:push
+# Neon URL (wahi jo runtime me) — dono jagah chalega
+DATABASE_URL="postgresql://neondb_owner:PASS@ep-xxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require" npm run prisma:push
 
-# 2) Owner + demo data seed
-DATABASE_URL="postgresql://postgres.xxxx:PASS@...:5432/postgres" npm run seed
-DATABASE_URL="postgresql://postgres.xxxx:PASS@...:5432/postgres" npm run seed:owner
+# Owner + demo data seed
+DATABASE_URL="postgresql://neondb_owner:PASS@ep-xxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require" npm run seed
+DATABASE_URL="postgresql://neondb_owner:PASS@ep-xxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require" npm run seed:owner
 ```
 
-> `prisma:push` **5432** pe chalta hai. Runtime **6543** pe. Dono alag — ye normal hai.
+> Neon ka **ek hi** URL runtime aur schema-push dono ke liye chalta hai — koi
+> 6543/5432 ka jhanjhat nahi (wo Supabase ka tha).
 
 ## 9. Step F — Keep-warm (sleep se bachao)
 
@@ -168,6 +187,58 @@ Browser me:
 
 `localhost:5000` hatana **zaroori** hai warna phone se app dead rahega.
 
+## 11b. Step H2 — Firebase go-live (delivery layer)
+
+> Firebase = **live feed + push + token verify**, ledger nahi. Aapka project:
+> `deadesports-865d2` (Spark/free, Firestore `asia-south1`, rules + 5 indexes deployed).
+
+**1) Service account Render pe paste karo**
+
+Firebase Console → ⚙️ **Project settings → Service accounts → Generate new private key**
+→ JSON download → **ek line** banao:
+
+```bash
+node -e "console.log(JSON.stringify(require('./serviceAccount.json')))" > fcm-one-line.txt
+```
+
+`fcm-one-line.txt` ka poora content Render → **Environment → `FCM_CREDENTIALS_JSON`** me paste
+karo (secret). **Ye file delete kar dena** kaam ke baad.
+
+**2) Mirror on** — blueprint me `FIREBASE_LIVE_MIRROR=true` already hai. Deploy ke baad log me:
+
+```
+🔥 Firestore live mirror ON → collection "live_events" (batch 100, queue 500)
+```
+
+na dikhe to creds galat/trailing comma hai. Mirror fail ho to **API nahi rukta** (rule #4).
+
+**3) Rules + indexes (ek hi baar, laptop se)**
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes --project deadesports-865d2
+```
+
+**4) Verify**
+
+```bash
+cd backend && npm run verify:firebase
+```
+
+| Phase | Expected |
+|---|---|
+| 1 live mirror write | ✅ PASS |
+| 2 live feed read + budget | ✅ PASS |
+| 4 Storage | ❌ FAIL — **expected**, Blaze (paid) chahiye. Ignore. |
+| 5 stats snapshot | ✅ PASS |
+| All (rules) | SKIP — Admin SDK rules bypass karta hai, console se manually check |
+
+**5) TTL khud manage hota hai** — Spark plan me Firestore TTL policy nahi hoti, isliye
+`liveMirrorService.purgeExpired()` har 30 min me purana feed saaf karta hai
+(`FIREBASE_LIVE_MIRROR_PURGE_MINUTES=30`).
+
+> 💸 **Cost guardrail:** Spark = 50k document reads/din free. Mirror sirf `live_events`
+> likhta hai (bounded queue 500, batch 100) — normal din me ye limit ke 1% se bhi kam.
+
 ## 12. Update kaise hote hain (roz ka kaam)
 
 ```bash
@@ -182,7 +253,7 @@ Purana version tab tak chalta rahega jab tak naya healthy na ho jaaye.
 | Symptom | Wajah | Fix |
 |---|---|---|
 | Service baar baar restart | Env missing / DB connect fail | **Logs** me `Invalid environment` ya `P1001` dekho |
-| `P1001 can't reach database` | 6543 vs 5432 galat URL | Runtime = **6543**, `?pgbouncer=true` |
+| `P1001 can't reach database` | URL galat / `sslmode` missing | Neon URL poora copy karo (`?sslmode=require`) |
 | Login ke baad 403 CSRF | `ADMIN_WEB_ORIGIN` mismatch | Wahi URL daalo jo browser me hai |
 | UI blank / 404 on refresh | `SERVE_ADMIN_WEB` off | Env `true` + `ADMIN_WEB_DIST=/app/admin-web/dist` |
 | OTP mail nahi aaya | Brevo key/sender | `LOG` me `[EMAIL:brevo]` line dhoondo; 401 = key galat |
@@ -196,7 +267,8 @@ Purana version tab tak chalta rahega jab tak naya healthy na ho jaaye.
 | Item | Cost |
 |---|---|
 | Render web service (free) | ₹0 |
-| Supabase Postgres (free 500 MB) | ₹0 |
+| **Neon** Postgres (free 0.5 GB) | ₹0 |
+| Firebase Firestore + FCM (Spark free) | ₹0 |
 | Upstash Redis (free 10k cmd/day) | ₹0 |
 | Brevo mail (300/day) | ₹0 |
 | cron-job.org keep-warm | ₹0 |

@@ -18,7 +18,7 @@ itna hai: **wo ek backend kis machine pe chalega**. Vercel wo machine nahi deta 
 |---|---|---|
 | UI (`admin-web/dist` — 3 files) | **Render (same service)** ya baad me Vercel | ✅ |
 | Backend (Express + Prisma + `/ws`) | **Render free web service** — Vercel pe nahi | ✅ |
-| Database | Supabase Postgres (existing) | ✅ |
+| Database | **Neon Postgres** (free, no card) — Supabase hata diya | ✅ |
 | Email OTP | Brevo | ✅ 300/din |
 | Access gate | optional — Cloudflare (domain chahiye) ya Tailscale | ✅ |
 
@@ -39,7 +39,8 @@ browser WS seedha backend host se jodta hai (cross-origin WS pe koi rok nahi).
   ┌─ Render (ek service) ─┐          ┌─ Vercel ─┐   ┌─ Render ─┐
   │ dist/ + /api + /ws    │          │  dist/   │──▶│ /api+/ws │
   └───────────────────────┘          └──────────┘   └──────────┘
-           └────────→ Supabase Postgres ←──────────────┘
+           └────────→ Neon Postgres ←────────────────┘
+                      + Firebase Firestore (live mirror, delivery only)
 ```
 
 ### Firebase ka role (backend ko hata kar nahi aata)
@@ -164,7 +165,7 @@ first year ~₹100–200 (renewal mehnga).
       CSRF gate: protected POST + `Origin: https://evil.com` → **403**, session cookie login
       → 200. Suite **441/441**.
 - [ ] **3.6 Render pe actual deploy** (aapka: Blueprint → env vars → `prisma:push` +
-      `seed:owner` Supabase pe → `ADMIN_WEB_ORIGIN`/`CORS_ORIGIN` = onrender URL).
+      `seed:owner` **Neon** pe → `ADMIN_WEB_ORIGIN`/`CORS_ORIGIN` = onrender URL).
 - [ ] **3.7 Keep-warm cron** (cron-job.org, 10 min, `/health`) — free tier 15-min sleep.
 - [ ] **3.8 Android `client_config.json`** → `https://<service>.onrender.com/api/v1` +
       production `tenant_id`.
