@@ -64,10 +64,16 @@
    - OTP verify → sub-admin **us key wali identity** me login, permissions DB se live.
 5. **Permission key:** 24-char (A–Z, a–z, 0–9), `crypto` se random, DB me **hash**,
    hint (last 4) only, revoke/regenerate, **har sub-admin login pe zaroori** (API key jaisa).
-6. **Access gate:** pehle **Tailscale** (sirf apne devices), client handover pe
-   **Cloudflare Access** (email OTP gate). Sirf secret URL par nahi depend karna.
+6. **Access gate:** **Cloudflare Access** (free, 50 users) chhote custom domain par;
+   fallback Tailscale (free, 6 users) agar domain na ho. Sirf secret URL par depend
+   nahi karna — **URL lambe/chhipe hone se security nahi aati** (cert transparency logs +
+   `*.vercel.app` scanning).
 7. **Design:** player app ka demo dark esports look — crest, map art, glass cards,
    IST time, Hinglish labels. Mobile = bottom nav, desktop = left sidebar.
+8. **Hosting (Nov 2026):** admin web **Vercel Hobby (free)**; backend **long-running host**
+   (Render free / VPS) kyunki realtime WS + Prisma pool stateful hai; DB = Supabase free;
+   email = **Brevo** free (300/din). Koi paid VPS zaroori nahi. Detail:
+   `6_Email_Access_and_Deploy/PLAN.md` → HOSTING DECISION.
 
 ---
 
@@ -202,6 +208,12 @@ backend/
   join device groups and watchlist summaries (+3 tests, **426/426**). Theme root
   cause fixed (`body` no longer forces `text-white`). Build clean
   (417 kB / 116 kB gzip). Next: Phase 6 (email provider + deploy).
+- **Phase 6 — decisions locked (Nov 2026):** email = **Brevo** free tier; admin web =
+  **Vercel Hobby free** (static build + `/api/*` rewrite, same-origin cookie); backend =
+  long-running host (Render free / VPS) kyunki WS + Prisma stateful; gate = **Cloudflare
+  Access** (free 50 users) on a cheap domain — Vercel free me production domain protection
+  nahi hai, isliye gate Cloudflare pe. Code delta: `VITE_WS_URL` (rewrite WS proxy nahi
+  karta), `vercel.json`, prod `ADMIN_WEB_ORIGIN`/`CORS_ORIGIN`. Kaam baaki: implement.
 
 ---
 
@@ -245,7 +257,8 @@ VITE_API_URL=/api/v1        # same-origin via the Vite proxy
 VITE_TENANT_ID=53a09545-e6e2-4cf5-a5c2-7ef18b276a52   # local DB tenant
 ```
 
-Production URL **plan me fix nahi** — Phase 6 me Tailscale/Cloudflare ke saath decide.
+Production URL **plan me fix nahi** — Phase 6 me decide hui: **Vercel (admin web) + Cloudflare
+Access gate + long-running backend host** (detail Phase 6 PLAN.md me).
 
 ---
 

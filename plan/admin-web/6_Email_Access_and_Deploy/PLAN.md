@@ -1,10 +1,62 @@
-# 📧 Phase 6 — Real Email OTP, Access Gate (Tailscale / Cloudflare) & Deploy
+# 📧 Phase 6 — Real Email OTP, Access Gate (Cloudflare) & Deploy
 
 > **Goal:** OTP asli email pe jaye; admin panel bahar se **dhoondha bhi na ja sake**;
 > production deploy + hardening.
 >
 > **Location:** `backend/src/services/email.service.ts`, `admin-web/`, `DEPLOYMENT.md`
-> **Status:** ⏸ NEXT — Phase 3 ✅ done (admin-web shell + login + dashboard)
+> **Status:** ⏸ NEXT — Phase 1–5 ✅ done. Email provider = **Brevo** (boss decision).
+
+---
+
+## 🧭 HOSTING DECISION (final, Nov 2026 — boss)
+
+**Admin web → Vercel Hobby (free). Backend → long-running host (Render free / VPS).
+Gate → Cloudflare Access. Email → Brevo free.**
+
+```
+  browser
+     │  https://admin.<domain>          ← Cloudflare proxy + Access gate (free ≤50 users)
+     ▼
+  ┌──────────────── Vercel (free static) ────────────────┐
+  │ admin-web/dist  (index.html + 1 js + 1 css)          │
+  │ rewrite  /api/*  →  https://<backend-host>/api/v1/*  │  ← same-origin from browser's view
+  └──────────────────────────────────────────────────────┘
+     │                                      ╲ wss://<backend-host>/ws?tenantId=…
+     ▼                                       ╲ (direct, cross-origin fine — no cookie)
+  backend (Express + Prisma, long-running) ───┘
+     ▼
+  Supabase Postgres (free)
+```
+
+### Kyun backend Vercel pe nahi
+- Backend **stateful** hai: in-memory realtime client registry (`realtime.service.ts`),
+  long-running WS server, open Prisma pool. Serverless me har request naya process.
+- Vercel Functions pe WS GA hai (Oct 2026) par Hobby pe connection **300s** me band hota
+  hai aur cross-instance broadcast ke liye **Redis** chahiye — poora rewrite, iske laayak nahi.
+- Static `dist/` Vercel pe perfect fit hai (Vite build = 3 files).
+
+### Vercel Hobby ke limits jo matter karte hain
+- ✅ Rewrites / Reverse proxy **included** free → `/api/*` proxy chalega (timeout 120s).
+- ❌ **Production domain pe password protection free me nahi hai.** Vercel Authentication
+  sirf preview/deployment URLs protect karta hai; production domain public rehta hai.
+  Password Protection / Trusted IPs = Pro (paid).
+  → **Isliye gate Vercel pe nahi, Cloudflare Access pe lagega — uske liye custom domain chahiye.**
+- 100 GB transfer, 1M requests/mahina — admin panel ke liye bahut zyada hai.
+- Free URL: `<project>.vercel.app` — milta hai, par us par Cloudflare Access nahi lag sakta
+  (Cloudflare ko apna zone chahiye). Sirf `robots`/`noindex` + login bachata hai.
+
+### Code changes jo is decision se aate hain
+1. `admin-web/src/lib/api.ts` → `realtimeUrl()` ko absolute `VITE_WS_URL` support karo
+   (rewrite WS proxy nahi karta). Abhi wo `window.location.origin` se `/ws` banata hai.
+2. Vercel `vercel.json` — SPA rewrite + `/api/*` external rewrite.
+3. `ADMIN_WEB_ORIGIN` / `CORS_ORIGIN` prod me exact Vercel+Cloudflare domain.
+4. Backend host pe keep-warm ping (free tier sleep se bachne ke liye) — optional.
+
+### URL chhipana (obscurity) ka sach
+Lambe/random URL se security **nahi** aati: HTTPS certificate transparency logs me
+har domain public hota hai, aur `*.vercel.app` bots scan karte hain. Isliye bachav
+**login + gate** se aata hai, URL ki lambai se nahi. URL chhota/lamba hone ka farak
+sirf itna: galti se koi na aa jaye.
 
 ---
 
@@ -24,32 +76,33 @@
 - [ ] **1.5 Dev fallback:** `debugOtp` only when `NODE_ENV !== 'production'`.
 - [ ] **1.6 Test:** mock provider (no network) se send called + failure path.
 
-### 🔹 Stage 2: Access gate (choose one, both documented)
-- [ ] **2.1 Tailscale (recommended for now):**
-      - Server/PC pe Tailscale install, `tailscale up`
-      - Admin web static build serve (`vite preview` ya Caddy `:8080`)
-      - URL: `http://100.x.y.z:8080` — sirf tailnet devices
-      - Mobile + laptop pe Tailscale app; ACL se sirf owner/staff devices
-      - Verify: tailnet ke bahar se connection timeout
-- [ ] **2.2 Cloudflare Access (client handover):**
-      - `ops-<random>.yourdomain.com` → Cloudflare Tunnel → local `:8080`
-      - Zero Trust → Access application → policy: owner + staff emails only,
-        OTP/Google login, session 8h
-      - Verify: URL khulta hai → CF login → bina allowed email ke block
-- [ ] **2.3 Dono me se jo use ho, `DEPLOYMENT.md` me exact steps + rollback likho.**
+### 🔹 Stage 2: Access gate — **Cloudflare Access (chosen)**
+- [ ] **2.1** Chhota domain (~₹100–800/saal) Cloudflare pe add, DNS proxy ON.
+      `admin.<domain>` CNAME → Vercel project.
+- [ ] **2.2** Zero Trust → Access → Application → `admin.<domain>`:
+      policy = owner email + har sub-admin ka email (allowlist), login = **One-time PIN**
+      (email OTP, Cloudflare free), session 8h.
+- [ ] **2.3** Verify: bahar se URL kholo → Cloudflare login; allowed email → app ka login;
+      galat email → block. Cloudflare band karke bhi app ka login OTP kaam kare (2 layers).
+- [ ] **2.4** `docs/ADMIN_WEB_ACCESS.md` me exact steps + rollback (gate hatana, email add/remove).
+- [ ] **2.5** (Fallback, agar domain/Cloudflare na ho) Tailscale `serve` — sirf owner devices,
+      free 6 users. Tab admin-web Vercel pe nahi, apne host se serve hoga.
 
-### 🔹 Stage 3: Static build + serve
-- [ ] **3.1 `npm run build`** → `dist/`; prod me `VITE_API_URL=/api/v1` (same origin).
-- [ ] **3.2 Caddy/nginx:** SPA fallback `try_files … /index.html`, gzip/brotli,
-      cache hashed assets, `/api` → backend proxy.
+### 🔹 Stage 3: Static build + serve (Vercel)
+- [ ] **3.1 `npm run build`** → `dist/`; prod me `VITE_API_URL=/api/v1` (same origin),
+      `VITE_WS_URL=wss://<backend-host>/ws` (absolute, rewrite WS proxy nahi karta).
+- [ ] **3.2 `vercel.json`:** SPA fallback (`all` → `/index.html`), `/api/:path*` →
+      backend origin, hashed assets `immutable` cache, `X-Robots-Tag: noindex`.
 - [ ] **3.3 Backend env prod:**
       ```
       NODE_ENV=production
-      CORS_ORIGIN=<exact admin origin>   # '*' hatao
+      CORS_ORIGIN=https://admin.<domain>   # '*' hatao
       ACCESS_KEY_PEPPER=<32+ random>
       ADMIN_SESSION_TTL_HOURS=12
-      ADMIN_WEB_ORIGIN=<admin origin>
-      EMAIL_PROVIDER=resend / smtp
+      ADMIN_WEB_ORIGIN=https://admin.<domain>
+      EMAIL_PROVIDER=brevo
+      BREVO_API_KEY=<key>
+      EMAIL_FROM=<verified sender>
       ```
 - [ ] **3.4 Cookies prod me:** `Secure`, `SameSite=Strict`, `Domain` set nahi
       (host-only), `Path=/`.
