@@ -79,8 +79,19 @@ services:
         value: "false"
       - key: RATE_LIMIT_ALLOW_IPS
         value: "" # empty = rate limits actually apply
+
+      # ── Firebase (delivery layer: live mirror, FCM, token verify) ─────
+      # Postgres remains the ledger; Firebase never holds money rows.
+      - key: FIREBASE_PROJECT_ID
+        value: deadesports-865d2
+      - key: FCM_CREDENTIALS_JSON # service-account JSON (one line), paste in dashboard
+        sync: false
       - key: FIREBASE_LIVE_MIRROR
-        value: "false"
+        value: "false" # flip true only after verify:firebase is clean
+      - key: FIREBASE_LIVE_MIRROR_PURGE_MINUTES
+        value: "30" # free plan has no console TTL policy
+      - key: FIREBASE_STORAGE_BUCKET
+        value: "" # Storage needs Blaze (paid) — deferred, Phase 4 FAILs on Spark
 
       # Online wallet top-up is OFF until Razorpay KYC is done: the payment
       # routes are not mounted at all, and wallet credits go through the
