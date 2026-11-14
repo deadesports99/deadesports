@@ -68,13 +68,41 @@
 
 ## 4. IP blocking band karo (Render ke liye zaroori)
 
-Free Brevo kabhi kabhi naye IP se aane wali API calls block karta hai. Render ke IP
-badalte rehte hain, isliye:
+Brevo har API call ka IP note karta hai. Pehle kuch din wo "learning phase" me rehta hai
+(aapke IPs khud authorize ho jate hain — /24 subnet matlab poora 256 ka range).
+**30 din tak koi naya IP na aaye to Brevo khud blocking ON kar deta hai** — aur phir aapke
+naye IP (ghar ka ya Render ka) block ho jate hain. Hamare case me wahi hua hai.
+Render ke IP badalte rehte hain, isliye **deactivate** karna hi sahi hai.
 
-**Settings → Security** → section **"Blocking unauthorized IP addresses"** →
-**Deactivate blocking** chuno.
+> Sirf account owner, ya jis user ke paas **SMTP & API → Authorized IPs** permission hai,
+> wo hi ye badal sakta hai.
 
-> Ye safe hai — security API key se hoti hai, IP se nahi.
+### Exact steps
+
+1. Kholo: **https://app.brevo.com/security/authorised_ips**
+   (ya menu se: apna naam/account → **Settings** → sidebar me **Security** → tab **Authorized IPs**)
+2. Section: **Blocking unauthorized IP addresses**
+3. Yahan **do alag row** hongi — sirf **API keys** wali dekho:
+
+   | Row | Aapko kya karna hai |
+   |---|---|
+   | **API keys** | status **Activated** hoga → right side button **Deactivate for API** dabao |
+   | SMTP keys | isko **mat chhedo** (hum SMTP use nahi karte) |
+
+4. Confirm dialog me **Deactivate blocking** dabao
+5. Confirm karo ki **API keys** row ab **Deactivated** dikh rahi hai
+
+### Dhyan rakho
+
+- ❌ API key **delete/disable mat karo** — ye setting sirf IP ka darwaza kholti hai, key nahi banti/badalni
+- ❌ **"Authorize IP address" me sirf apna ghar ka IP mat daalo** — Render ka IP alag hoga aur
+  kal badal bhi jayega. Blocking off karna hi sahi hai
+- ✅ Blocking off hone ka matlab security gayi nahi — API **key** ke bina koi kuch nahi kar sakta
+
+### Confirm
+
+Usi page pe **API keys** = `Deactivated` dikhna chahiye. Uske baad `npm run dev` se
+backend restart karo (`.env` badla hai) aur OTP login test karo.
 
 ---
 
@@ -187,9 +215,11 @@ Code me provider switch ek line ka kaam hai — kuch aur nahi badalna.
 | Login / dashboard | https://app.brevo.com |
 | **Senders verify** | https://app.brevo.com/senders |
 | **API keys** | https://app.brevo.com/settings/keys/api |
+| **IP blocking off** | https://app.brevo.com/security/authorised_ips |
 | Pricing / free limits | https://www.brevo.com/pricing/ |
 | API docs — send email | https://developers.brevo.com/reference/send-transac-email |
 | API keys ka help article | https://help.brevo.com/hc/en-us/articles/40159485019794 |
+| IP authorize/block help | https://help.brevo.com/hc/en-us/articles/5740111683858 |
 | Transactional logs (mail gaya ya nahi) | https://app.brevo.com/transactional-email/logs |
 
 ---
@@ -200,7 +230,7 @@ Code me provider switch ek line ka kaam hai — kuch aur nahi badalna.
 - [ ] Account approved (mail aaya)
 - [ ] Sender verify (`https://app.brevo.com/senders` me "Verified")
 - [ ] API key bani (`xkeysib-...` copy ho gayi)
-- [ ] Security me IP blocking **off**
+- [ ] Security → Authorized IPs → **API keys = Deactivated**
 - [ ] `backend/.env` me 3 line daali
 - [ ] Backend restart
 - [ ] Test mail aaya (7 me se 1 bhi tarika)
