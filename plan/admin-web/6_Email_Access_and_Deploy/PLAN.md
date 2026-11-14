@@ -140,25 +140,34 @@ first year ~₹100–200 (renewal mehnga).
 - [ ] **2.5** (Fallback, agar domain/Cloudflare na ho) Tailscale `serve` — sirf owner devices,
       free 6 users. Tab admin-web Vercel pe nahi, apne host se serve hoga.
 
-### 🔹 Stage 3: Static build + serve (Vercel)
-- [ ] **3.1 `npm run build`** → `dist/`; prod me `VITE_API_URL=/api/v1` (same origin),
-      `VITE_WS_URL=wss://<backend-host>/ws` (absolute, rewrite WS proxy nahi karta).
-- [ ] **3.2 `vercel.json`:** SPA fallback (`all` → `/index.html`), `/api/:path*` →
-      backend origin, hashed assets `immutable` cache, `X-Robots-Tag: noindex`.
-- [ ] **3.3 Backend env prod:**
-      ```
-      NODE_ENV=production
-      CORS_ORIGIN=https://admin.<domain>   # '*' hatao
-      ACCESS_KEY_PEPPER=<32+ random>
-      ADMIN_SESSION_TTL_HOURS=12
-      ADMIN_WEB_ORIGIN=https://admin.<domain>
-      EMAIL_PROVIDER=brevo
-      BREVO_API_KEY=<key>
-      EMAIL_FROM=<verified sender>
-      ```
-- [ ] **3.4 Cookies prod me:** `Secure`, `SameSite=Strict`, `Domain` set nahi
-      (host-only), `Path=/`.
-- [ ] **3.5 HTTPS mandatory (HSTS), TLS auto (Caddy/Cloudflare).**
+### 🔹 Stage 3: Build + serve (Render single service) — ✅ LOCAL PARITY DONE
+
+> Vercel wala split plan **drop** (Hobby pe prod-domain protection nahi + long WS nahi).
+> Final: **ek** Render free web service jo UI + `/api` + `/ws` serve karti hai.
+> Poora step-by-step: **`docs/DEPLOY_RENDER.md`**.
+
+- [x] **3.1 Express static serving** — `SERVE_ADMIN_WEB=true` + `ADMIN_WEB_DIST`
+      (`backend/src/app.ts`): `/assets/*` → 1-year immutable cache, `/` → `index.html`,
+      SPA deep links (`/wallet`, `/matches/:id`) → `index.html`, `/api/*` unaffected.
+      CSP tuned: `connect-src 'self' ws: wss:`, Google Fonts allowed.
+- [x] **3.2 Full-stack image** — root `Dockerfile` (admin-web build → backend build →
+      runtime 802 MB) + root `.dockerignore`. API-only image `backend/Dockerfile` intact
+      (VPS/Caddy ke liye).
+- [x] **3.3 `render.yaml`** — `dockerContext: .`, `plan: free`, `region: singapore`,
+      `healthCheckPath: /health`, `JWT_SECRET` auto-generated, secrets `sync: false`.
+- [x] **3.4 `PAYMENTS_ENABLED=false`** — online top-up off jab tak Razorpay KYC nahi;
+      payment routes mount hi nahi hote, wallet = manual UTR approval. (Warna
+      `PAYMENT_PROVIDER=mock` production me boot hi nahi hone deta — local Docker test ne
+      pakda.) Test-keys production me daalna **khatarnak** (fake payment = free wallet).
+- [x] **3.5 Verified locally (Docker, production mode)** — `/health` 200, `/` + `/wallet`
+      200 html, `/api/v1/health` 200, `/api/v1/nope` 404 JSON, `/api/v1/payments/*` 404,
+      CSRF gate: protected POST + `Origin: https://evil.com` → **403**, session cookie login
+      → 200. Suite **441/441**.
+- [ ] **3.6 Render pe actual deploy** (aapka: Blueprint → env vars → `prisma:push` +
+      `seed:owner` Supabase pe → `ADMIN_WEB_ORIGIN`/`CORS_ORIGIN` = onrender URL).
+- [ ] **3.7 Keep-warm cron** (cron-job.org, 10 min, `/health`) — free tier 15-min sleep.
+- [ ] **3.8 Android `client_config.json`** → `https://<service>.onrender.com/api/v1` +
+      production `tenant_id`.
 
 ### 🔹 Stage 4: Anti-discovery hardening
 - [ ] **4.1 `robots.txt`:** `Disallow: /` + `<meta name="robots" content="noindex,nofollow">`.

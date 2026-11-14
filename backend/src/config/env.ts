@@ -16,7 +16,7 @@ const envSchema = z.object({
   /** Runtime environment. */
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
-  /** Supabase / PostgreSQL connection string. */
+  /** PostgreSQL connection string (local Docker, Supabase, or any managed Postgres). */
   DATABASE_URL: z.string().url(),
 
   /** Redis connection string (local or Upstash). */
@@ -36,6 +36,21 @@ const envSchema = z.object({
    * Used for the CSRF Origin/Referer gate. Dev default: Vite on 5174.
    */
   ADMIN_WEB_ORIGIN: z.string().url().default('http://localhost:5174'),
+
+  /**
+   * Serve the built admin console (`admin-web/dist`) from this Express process.
+   * Single-origin deploys (Render) need this so cookies + WebSockets just work.
+   */
+  SERVE_ADMIN_WEB: z
+    .string()
+    .default('false')
+    .transform((value) => value === 'true' || value === '1'),
+
+  /**
+   * Folder holding the built admin console. Empty → `<cwd>/admin-web/dist`,
+   * which is exactly where the full-stack Docker image copies it.
+   */
+  ADMIN_WEB_DIST: z.string().default(''),
 
   /** Email transport for admin OTPs. `smtp` still needs nodemailer — not wired. */
   EMAIL_PROVIDER: z.enum(['console', 'smtp', 'resend', 'brevo']).default('console'),
@@ -74,7 +89,7 @@ const envSchema = z.object({
   /** Reverse-proxy trust flag for Render/Caddy deployments. */
   TRUST_PROXY: z.string().default('false').transform((value) => value === 'true' || value === '1'),
 
-  /** PostgreSQL pool sizing for Supabase Pooler and managed Postgres. */
+  /** PostgreSQL pool sizing for managed Postgres / a connection pooler. */
   DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
   DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
@@ -197,6 +212,17 @@ const envSchema = z.object({
   RATE_LIMIT_ALLOW_IPS: z.string().optional(),
 
   // ─── Online payment gateway (wallet top-up) ───────────────────────────
+  /**
+   * Master switch for online wallet top-up. `false` = the payment routes are
+   * not mounted at all and no gateway keys are required, which is the correct
+   * state while Razorpay KYC is pending. Wallet credits still happen through
+   * the owner's manual UTR approval flow, so the panel is fully usable.
+   */
+  PAYMENTS_ENABLED: z
+    .string()
+    .default('true')
+    .transform((value) => value === 'true' || value === '1'),
+
   /** `mock` = no keys needed (demo), `razorpay` = real Indian gateway. */
   PAYMENT_PROVIDER: z.enum(['mock', 'razorpay']).default('mock'),
 

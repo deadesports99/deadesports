@@ -1,35 +1,91 @@
-# Render Blueprint for the production API. Set DATABASE_URL and REDIS_URL in
-# the Render dashboard; secrets are intentionally not stored in this repository.
+# Render Blueprint — ONE free web service that serves:
+#   • the admin console UI   (kernel: admin-web/dist, baked into the image)
+#   • the REST API           (/api/v1/*)
+#   • the realtime gateway   (/ws)
+#   • health probes          (/health, /health/ready)
+#
+# Free tier: 750 instance-hours/month, sleeps after 15 idle minutes, free
+# `*.onrender.com` hostname (no domain purchase needed).
+#
+# Deploy: Render Dashboard → New → Blueprint → pick this repo → Apply.
+# Secrets are NOT stored here: env vars marked `sync: false` are typed in the
+# dashboard once (`docs/DEPLOY_RENDER.md` walks through every value).
+
 services:
   - type: web
-    name: free-fire-tournament-api
+    name: spartan-arena
     runtime: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    plan: free
+    region: singapore # closest free region to India
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      # ── runtime ──────────────────────────────────────────────────────
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: "10000"
+        value: "10000" # Render injects its own PORT; keep them in sync
       - key: TRUST_PROXY
         value: "true"
-      - key: DATABASE_URL
+      - key: SERVE_ADMIN_WEB
+        value: "true"
+      - key: ADMIN_WEB_DIST
+        value: /app/admin-web/dist
+
+      # ── database & cache (paste in dashboard) ────────────────────────
+      - key: DATABASE_URL # Supabase pooler, port 6543, ?pgbouncer=true
         sync: false
-      - key: REDIS_URL
+      - key: REDIS_URL # Upstash, rediss:// URL
         sync: false
-      - key: JWT_SECRET
-        generateValue: true
-      - key: JWT_EXPIRES_IN
-        value: 7d
-      - key: CORS_ORIGIN
-        value: "*"
       - key: DB_POOL_MAX
         value: "10"
       - key: DB_POOL_IDLE_TIMEOUT_MS
         value: "10000"
       - key: DB_POOL_CONNECTION_TIMEOUT_MS
         value: "5000"
-      - key: FCM_CREDENTIALS_JSON
+
+      # ── auth (generated / pasted, never committed) ───────────────────
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ACCESS_KEY_PEPPER # 32+ random chars, paste in dashboard
         sync: false
+      - key: ADMIN_SESSION_TTL_HOURS
+        value: "12"
+      - key: ADMIN_WEB_ORIGIN # https://<service>.onrender.com
+        sync: false
+
+      # ── origins ──────────────────────────────────────────────────────
+      - key: CORS_ORIGIN # https://<service>.onrender.com
+        sync: false
+
+      # ── email (admin OTP + player OTP) ───────────────────────────────
+      - key: EMAIL_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false # "Spartan Arena <deadesports99@gmail.com>"
+      - key: EMAIL_TIMEOUT_MS
+        value: "10000"
+      - key: ADMIN_OTP_DAILY_CAP
+        value: "10"
+
+      # ── safety switches for go-live ──────────────────────────────────
+      - key: PHONE_OTP_BYPASS # must be false live
+        value: "false"
+      - key: RATE_LIMIT_ALLOW_IPS
+        value: "" # empty = rate limits actually apply
+      - key: FIREBASE_LIVE_MIRROR
+        value: "false"
+
+      # Online wallet top-up is OFF until Razorpay KYC is done: the payment
+      # routes are not mounted at all, and wallet credits go through the
+      # owner's manual UTR approval. Flip to true + add RAZORPAY_* keys later.
+      - key: PAYMENTS_ENABLED
+        value: "false"
+      - key: PAYMENT_PROVIDER
+        value: mock

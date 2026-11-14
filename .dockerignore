@@ -1,0 +1,44 @@
+# Docker build context = repository root (needed for the full-stack image:
+# the admin console is built from admin-web/ and served by the backend).
+# Keep this file tight so `docker build .` uploads a few MB, not the whole repo.
+
+.git
+.gitignore
+.github
+
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+**/.turbo
+**/coverage
+**/.vite
+
+# Not part of the runtime image
+android
+images
+docs
+plan
+deliverables
+firebase
+clients
+"git demo repo"
+"boss demand"
+
+Dockerfile
+.dockerignore
+docker-compose*.yml
+*.md
+*.bat
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Local dev leftovers
+dev-server.log
+dev-server.pid
+build_check.log
+build_player.log

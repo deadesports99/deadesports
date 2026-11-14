@@ -55,6 +55,34 @@ describe('paymentConfigProblems (launch rules)', () => {
     assert.deepEqual(paymentConfigProblems({ ...base, nodeEnv: 'test' }), []);
   });
 
+  it('skips gateway rules entirely when online top-up is disabled', () => {
+    // PAYMENTS_ENABLED=false is the legitimate "Razorpay KYC pending" state:
+    // no payment route is mounted, so missing keys must not block the boot.
+    assert.deepEqual(
+      paymentConfigProblems({ ...base, nodeEnv: 'production', paymentsEnabled: false }),
+      [],
+    );
+    assert.deepEqual(
+      paymentConfigProblems({
+        ...base,
+        nodeEnv: 'production',
+        provider: 'razorpay',
+        paymentsEnabled: false,
+      }),
+      [],
+    );
+  });
+
+  it('still validates min/max limits when top-up is disabled', () => {
+    const problems = paymentConfigProblems({
+      ...base,
+      minAmountPaise: 5_000,
+      maxAmountPaise: 1_000,
+      paymentsEnabled: false,
+    });
+    assert.equal(problems.length, 1);
+  });
+
   it('requires both Razorpay keys when the provider is razorpay', () => {
     const problems = paymentConfigProblems({ ...base, nodeEnv: 'production', provider: 'razorpay' });
     assert.equal(problems.length, 2);

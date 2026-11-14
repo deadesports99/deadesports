@@ -1,5 +1,7 @@
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -17,6 +19,7 @@ import { tenantRouter, adminTenantRouter } from './routes/tenant.routes.js';
 import { playerRouter } from './routes/player.routes.js';
 import { adminPlayerRouter } from './routes/adminPlayer.routes.js';
 import { adminMatchRouter } from './routes/adminMatch.routes.js';
+import { paymentConfig } from './config/payment.js';
 import { paymentRouter } from './routes/payment.routes.js';
 import { walletRouter } from './routes/wallet.routes.js';
 import { ApiError } from './utils/ApiError.js';
@@ -29,7 +32,22 @@ const app = express();
 app.set('trust proxy', env.TRUST_PROXY);
 
 // ─── 1. Security headers ────────────────────────────────────────────────
-app.use(helmet());
+// CSP is tuned for the bundled admin console: same-origin bundle/API/WebSocket,
+// Google Fonts, and data/blob images. Nothing else may load.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'connect-src': ["'self'", 'ws:', 'wss:'],
+        'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
+        'script-src': ["'self'"],
+      },
+    },
+  }),
+);
 
 // ─── 2. CORS — allow configured client origins (or wildcard for mobile APIs)
 const allowAllOrigins = env.CORS_ORIGIN.includes('*');
@@ -80,9 +98,46 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
+// ─── 5b. Admin console static build (single-origin deploys) ─────────────
+// Render/Caddy deployments ship `admin-web/dist` inside the same image, so the
+// UI, the API and the WebSocket gateway all live on one origin — cookies stay
+// first-party and no `VITE_WS_URL` juggling is needed.
+const adminWebDist = env.ADMIN_WEB_DIST
+  ? path.resolve(env.ADMIN_WEB_DIST)
+  : path.resolve(process.cwd(), 'admin-web', 'dist');
+const adminWebIndex = path.join(adminWebDist, 'index.html');
+const hasAdminBuild = fs.existsSync(adminWebIndex);
+const serveAdminWeb = env.SERVE_ADMIN_WEB && hasAdminBuild;
+
+if (env.SERVE_ADMIN_WEB && !hasAdminBuild) {
+  console.warn(
+    `[admin-web] SERVE_ADMIN_WEB=true but no build found at ${adminWebIndex} — API-only mode.`,
+  );
+}
+
+if (serveAdminWeb) {
+  // Vite hashes asset filenames → cache them hard; index.html must stay fresh.
+  app.use(
+    '/assets',
+    express.static(path.join(adminWebDist, 'assets'), {
+      index: false,
+      immutable: true,
+      maxAge: '365d',
+    }),
+  );
+  app.use(express.static(adminWebDist, { index: false, maxAge: '1h', etag: true }));
+  console.log(`[admin-web] serving console from ${adminWebDist}`);
+}
+
 // ─── 6. Routes ──────────────────────────────────────────────────────────
-// Root info banner (nice for quick browser check).
-app.get('/', (_req: Request, res: Response) => {
+// Root info banner (nice for quick browser check). With the bundled console the
+// root serves the UI instead, and the banner stays available under /api/v1.
+app.get('/', (_req: Request, res: Response, next: NextFunction) => {
+  if (serveAdminWeb) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(adminWebIndex, (error) => (error ? next(error) : undefined));
+    return;
+  }
   res.status(200).json({
     name: 'Free Fire Tournament Platform API',
     version: '1.0.0',
@@ -139,16 +194,47 @@ app.use('/api/v1/admin/access', adminAccessRouter);
 // Phase 12 — match roster: participants, per-player rewards, cheat flags, bans
 app.use('/api/v1/admin/matches', adminMatchRouter);
 
-// Online wallet top-up (Razorpay / mock) — order, verify, webhook, demo
-app.use('/api/payments', paymentRouter);
-app.use('/api/v1/payments', paymentRouter);
+// Online wallet top-up (Razorpay / mock) — order, verify, webhook, demo.
+// Not mounted at all when PAYMENTS_ENABLED=false: the whole surface is absent.
+if (paymentConfig.enabled) {
+  app.use('/api/payments', paymentRouter);
+  app.use('/api/v1/payments', paymentRouter);
+}
 
-// ─── 7. 404 handler for undefined routes ────────────────────────────────
+// ─── 7. SPA deep links + 404 handler ───────────────────────────────────
+// `/wallet`, `/matches/:id` etc. are client-side routes: send index.html so a
+// browser refresh works. Anything API-ish keeps returning JSON 404.
+if (serveAdminWeb) {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      next();
+      return;
+    }
+    if (!req.accepts('html')) {
+      next();
+      return;
+    }
+    const pathname = req.path;
+    const isApiLike =
+      pathname === '/ws' ||
+      pathname.startsWith('/api') ||
+      pathname.startsWith('/health') ||
+      pathname.startsWith('/time');
+    if (isApiLike) {
+      next();
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(adminWebIndex, (error) => (error ? next(error) : undefined));
+  });
+}
+
+// ─── 8. 404 handler for undefined routes ────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction) => {
   next(ApiError.notFound('Route not found'));
 });
 
-// ─── 8. Global error handler (LAST) ─────────────────────────────────────
+// ─── 9. Global error handler (LAST) ─────────────────────────────────────
 app.use(errorHandler);
 
 export { app };

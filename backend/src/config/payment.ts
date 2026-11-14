@@ -15,6 +15,8 @@ import { env } from './env.js';
 export type PaymentProviderName = 'mock' | 'razorpay';
 
 export interface PaymentConfig {
+  /** Master switch — when false no payment route is mounted and no keys are needed. */
+  enabled: boolean;
   provider: PaymentProviderName;
   currency: 'INR';
   /** ₹10 default — below UPI minimums and gateway fees. */
@@ -37,6 +39,7 @@ export interface PaymentConfig {
 }
 
 export const paymentConfig: PaymentConfig = {
+  enabled: env.PAYMENTS_ENABLED,
   provider: env.PAYMENT_PROVIDER,
   currency: 'INR',
   minAmountPaise: env.PAYMENT_MIN_AMOUNT_PAISE,
@@ -54,6 +57,7 @@ export const paymentConfig: PaymentConfig = {
 
 /** True when the effective signature secret of the active provider is set. */
 export function isPaymentConfigured(): boolean {
+  if (!paymentConfig.enabled) return false;
   if (paymentConfig.provider === 'mock') return true;
   return Boolean(paymentConfig.razorpay.keyId && paymentConfig.razorpay.keySecret);
 }
@@ -64,6 +68,8 @@ export interface PaymentConfigInput {
   minAmountPaise: number;
   maxAmountPaise: number;
   razorpay: { keyId?: string; keySecret?: string; webhookSecret?: string };
+  /** Defaults to enabled so existing call sites/tests keep their meaning. */
+  paymentsEnabled?: boolean;
 }
 
 /**
@@ -76,6 +82,9 @@ export function paymentConfigProblems(input: PaymentConfigInput): string[] {
   if (input.minAmountPaise > input.maxAmountPaise) {
     problems.push('PAYMENT_MIN_AMOUNT_PAISE cannot exceed PAYMENT_MAX_AMOUNT_PAISE');
   }
+
+  // Online top-up switched off: nothing can be charged, so gateway rules are moot.
+  if (input.paymentsEnabled === false) return problems;
 
   if (input.provider === 'razorpay') {
     if (!input.razorpay.keyId) problems.push('RAZORPAY_KEY_ID is required for razorpay');
@@ -112,12 +121,21 @@ export function assertPaymentConfig(): void {
     minAmountPaise: paymentConfig.minAmountPaise,
     maxAmountPaise: paymentConfig.maxAmountPaise,
     razorpay: paymentConfig.razorpay,
+    paymentsEnabled: paymentConfig.enabled,
   });
 
   if (problems.length > 0) {
     throw new Error(
       '❌ Invalid payment configuration:\n' + problems.map((p) => `  - ${p}`).join('\n'),
     );
+  }
+
+  if (!paymentConfig.enabled) {
+    console.warn(
+      '💳 Online wallet top-up is DISABLED (PAYMENTS_ENABLED=false) — payment routes are not ' +
+        'mounted. Wallet credits continue through manual UTR approval.',
+    );
+    return;
   }
 
   const mode =
