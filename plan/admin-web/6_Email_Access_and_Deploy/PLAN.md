@@ -105,6 +105,11 @@ sirf itna: galti se koi na aa jaye.
 > `.env` me `BREVO_API_KEY=` + `EMAIL_PROVIDER=brevo` → backend restart. Uske baad
 > OTP asli mail pe aayega. **Poora step-by-step guide + links: `docs/BREVO_SETUP.md`**
 > (signup, sender verify, API key, IP blocking off, test curl, troubleshooting, quota maths).
+>
+> **✅ SETUP DONE & VERIFIED (Nov 2026):** `EMAIL_PROVIDER=brevo` + key `.env` me set,
+> sender `deadesports99@gmail.com` active, **API-keys IP blocking Deactivated**
+> (dashboard se — `app.brevo.com/security/authorised_ips`). Live proof: asli
+> `email.service.ts` se mail gaya → provider **201** + `messageId`. Free plan 300/din.
 
 ### 🌐 Domain — free options (verified Nov 2026)
 `plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md` me **free domain ka koi source nahi hai** — wo

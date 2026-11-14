@@ -1,5 +1,11 @@
 # 📧 Brevo setup — admin OTP mail (Phase 6)
 
+> ### ✅ STATUS: CONFIGURED & VERIFIED (Nov 2026)
+> Account: `deadesports99@gmail.com` · Plan: **free (300/din)** · Sender: **verified (active)**
+> · IP blocking: **API keys = Deactivated** · `.env`: `EMAIL_PROVIDER=brevo` + key set.
+> Live proof: `📧 [EMAIL:brevo] sent to=deadesports99@gmail.com` (201 + messageId).
+> **Ye guide sirf dobara setup karna pade tab kaam aayega** (naya account / key rotate).
+
 > **Kya hai:** Brevo (pehle Sendinblue) se hum OTP email bhejte hain. Free plan:
 > **300 mail/din** — permanent, **credit card nahi chahiye**.
 > **Kitna time:** 10 minute setup + account approval (kabhi kabhi 2 ghante se 48 ghante).
@@ -226,15 +232,14 @@ Code me provider switch ek line ka kaam hai — kuch aur nahi badalna.
 
 ## 10. Checklist — tick karke aage badho
 
-- [ ] Brevo account bana + email verify
-- [ ] Account approved (mail aaya)
-- [ ] Sender verify (`https://app.brevo.com/senders` me "Verified")
-- [ ] API key bani (`xkeysib-...` copy ho gayi)
-- [ ] Security → Authorized IPs → **API keys = Deactivated**
-- [ ] `backend/.env` me 3 line daali
-- [ ] Backend restart
-- [ ] Test mail aaya (7 me se 1 bhi tarika)
-- [ ] Admin panel se OTP login chal gaya
+- [x] Brevo account bana + email verify
+- [x] Account approved (mail aaya)
+- [x] Sender verify (`https://app.brevo.com/senders` me "Verified") — 2 senders active
+- [x] API key bani (`xkeysib-...` copy ho gayi)
+- [x] Security → Authorized IPs → **API keys = Deactivated**
+- [x] `backend/.env` me 3 line daali
+- [x] Test mail aaya (API 201 + `email.service.ts` se bhi)
+- [ ] Admin panel se OTP login chal gaya  ← **aakhri step, aapka**
 
 **Sab tick?** Ab panel **asli mail pe kaam karta hai** — OTP server ke log me nahi, aapke
 inbox me aayega.
