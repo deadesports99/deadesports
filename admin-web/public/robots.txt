@@ -1,0 +1,3 @@
+# Private operations console — never index or archive.
+User-agent: *
+Disallow: /

@@ -1,0 +1,15 @@
+# deps / build
+node_modules
+dist
+dist-ssr
+*.local
+
+# env — only the example ships
+.env
+.env.*
+!.env.example
+
+# editor / os
+.DS_Store
+Thumbs.db
+*.log

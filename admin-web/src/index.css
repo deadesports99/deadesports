@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    /* Base text colour so a screen that forgets a text-* class stays readable. */
+    color: #0f172a;
+    /* No rubber-band horizontal scroll on any breakpoint. */
+    overflow-x: hidden;
+  }
+
+  html.dark body {
+    color: #e2e8f0;
+  }
+
+  /* Keyboard users get the same focus ring the player app uses. */
+  :focus-visible {
+    outline: 2px solid rgba(0, 194, 255, 0.7);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Admin surfaces: one consistent panel colour across every screen. */
+  .panel-dark {
+    background-color: rgba(12, 18, 30, 0.82);
+    backdrop-filter: blur(18px);
+  }
+
+  .panel-light {
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Smooth slide for the mobile drawer. */
+  @keyframes drawer-in {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+  }
+
+  .animate-drawer {
+    animation: drawer-in 0.18s ease-out;
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.22s ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-drawer,
+    .animate-fade-up {
+      animation: none;
+    }
+  }
+}
