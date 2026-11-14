@@ -4,7 +4,7 @@
 > production deploy + hardening.
 >
 > **Location:** `backend/src/services/email.service.ts`, `admin-web/`, `DEPLOYMENT.md`
-> **Status:** PAUSED — Phase 3–7 baad me (Phase 1–2 auth already done & verified)
+> **Status:** ⏸ NEXT — Phase 3 ✅ done (admin-web shell + login + dashboard)
 
 ---
 

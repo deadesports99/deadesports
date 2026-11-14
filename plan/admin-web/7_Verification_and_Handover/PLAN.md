@@ -3,7 +3,7 @@
 > **Goal:** Sab kuch end-to-end verify — owner/staff permissions, money safety,
 > security checklist, browser matrix, handover docs.
 >
-> **Status:** PAUSED — Phase 3–7 baad me (Phase 1–2 auth already done & verified)
+> **Status:** ⏸ NEXT — Phase 3 ✅ done (admin-web shell + login + dashboard)
 
 ---
 

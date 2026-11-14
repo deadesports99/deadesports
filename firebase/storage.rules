@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Free Fire Tournament — Firebase Storage rules (Phase 4).
+//
+// Uploads go through `POST /api/v1/media/upload`, which writes with the Admin SDK
+// (rules do not apply). Clients therefore never need write access, and they never need
+// read access either: the API returns a permanent, tokenised download URL
+// (`...?alt=media&token=<uuid>`) that works without any Firebase session.
+//
+// Why deny clients outright:
+//   1. A player could otherwise upload arbitrary files (unbounded storage cost).
+//   2. Tenant isolation would depend on custom claims we do not issue (see Phase 2 §3).
+//
+// If a future phase wants direct client uploads, replace this with a path-scoped rule
+// (`media/$(request.auth.token.tenantId)/…`) AND add a size/content-type check here,
+// because storage rules are the only thing standing between a bad client and the bill.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

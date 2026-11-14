@@ -61,3 +61,5 @@ backend/scripts_join_after_publish.mts
 # Generated demo assets kept only locally
 images/
 deliverables/
+.env*.bak
+.local-db-backup/

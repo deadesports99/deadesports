@@ -1,0 +1,40 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "live_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "audience", "order": "ASCENDING" },
+        { "fieldPath": "serverTimeMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "audience", "order": "ASCENDING" },
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "serverTimeMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "audience", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "serverTimeMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "audience", "order": "ASCENDING" },
+        { "fieldPath": "userIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "serverTimeMs", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
