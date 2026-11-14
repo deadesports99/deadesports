@@ -182,6 +182,26 @@ export async function requestAdminOtp(input: {
     : null;
   if (!tenant || !tenant.isActive) throw ApiError.forbidden('Tenant account is inactive');
 
+  // Phase 6: rolling 24h cap per identity. The IP limiter (3/10min) cannot stop
+  // a distributed or key-holding loop from burning the shared provider quota
+  // (Brevo free = 300/day). Counted from the audit trail we already write.
+  if (identity) {
+    const sentInLastDay = await prisma.adminAuditLog.count({
+      where: {
+        tenantId: tenant.id,
+        action: 'ADMIN_OTP_REQUESTED',
+        targetId: identity.id,
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+    });
+    if (sentInLastDay >= env.ADMIN_OTP_DAILY_CAP) {
+      throw new ApiError(
+        429,
+        'Daily sign-in code limit reached. Try again tomorrow, or use an existing session.',
+      );
+    }
+  }
+
   const code = generateOtpCode();
   await prisma.emailOtp.deleteMany({ where: { tenantId: tenant.id, email } });
   await prisma.emailOtp.create({

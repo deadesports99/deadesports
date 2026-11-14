@@ -82,19 +82,28 @@ sirf itna: galti se koi na aa jaye.
 
 ## 📋 Checklist
 
-### 🔹 Stage 1: Email provider
-- [ ] **1.1 `email.service.ts`** with providers via env `EMAIL_PROVIDER`:
-      - `console` (dev — OTP console log, no real mail)
-      - `smtp` (Gmail app password / any SMTP — `SMTP_HOST/PORT/USER/PASS/FROM`)
-      - `resend` (`RESEND_API_KEY`) — free tier, recommended
-      - `brevo` (`BREVO_API_KEY`) — free tier alternative
-- [ ] **1.2 Templates (HTML + text):** Admin OTP (brand name, 10 min expiry,
-      "agar aapne request nahi ki, ignore karo"), Staff access key share (optional).
-- [ ] **1.3 Send failure → 502 with generic message; OTP row delete (retry clean).
-      Send success log me email + provider, **OTP value kabhi nahi**.
-- [ ] **1.4 Rate limit per email/day (e.g. 10) — provider abuse se bacho.**
-- [ ] **1.5 Dev fallback:** `debugOtp` only when `NODE_ENV !== 'production'`.
-- [ ] **1.6 Test:** mock provider (no network) se send called + failure path.
+### 🔹 Stage 1: Email provider — ✅ DONE (Nov 2026)
+- [x] **1.1 `email.service.ts`** providers via env `EMAIL_PROVIDER`:
+      - `console` (dev — no network, never logs the code)
+      - **`brevo`** (`BREVO_API_KEY`) — chosen; `https://api.brevo.com/v3/smtp/email`
+      - `resend` (`RESEND_API_KEY`) — one-line switch if Brevo quota runs out
+      - `smtp` — **not wired** (needs nodemailer); fails loudly on purpose
+      - both HTTP providers use `fetch` + `AbortSignal.timeout(EMAIL_TIMEOUT_MS)` — koi naya dep nahi
+- [x] **1.2 Templates (HTML + text):** shared inline-style shell (brand bar, 32px code box),
+      admin OTP + player OTP. Code subject me bhi hai taaki owner lock screen se forward kar sake.
+- [x] **1.3 Send failure → 502 generic message + OTP row delete (retry clean).**
+      Success log me sirf provider + recipient; **OTP value kabhi nahi**; api key bhi error me nahi.
+- [x] **1.4 Rolling 24h cap per account** (`ADMIN_OTP_DAILY_CAP`, default 10) —
+      count `AdminAuditLog` se (koi naya column nahi). Brevo 300/din ki shared quota bachti hai.
+- [x] **1.5 Dev fallback:** `debugOtp` sirf `NODE_ENV !== 'production'`; player OTP ka
+      plain-code console log bhi ab production me band.
+- [x] **1.6 Tests:** `tests/emailProvider.test.ts` — 11 cases, mocked `fetch` (no network):
+      brevo/resend payload shape, 401 path, missing key, network error, smtp loud-fail,
+      template content, cap 429. Suite **437/437** green, `tsc` clean.
+
+> **Baaki manual step (aapka):** Brevo account → sender email verify → API key
+> `.env` me `BREVO_API_KEY=` + `EMAIL_PROVIDER=brevo` → backend restart. Uske baad
+> OTP asli mail pe aayega.
 
 ### 🌐 Domain — free options (verified Nov 2026)
 `plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md` me **free domain ka koi source nahi hai** — wo

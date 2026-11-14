@@ -16,6 +16,7 @@ import {
 } from './firebase.service.js';
 import { allocatePlayerCode } from './identity.service.js';
 import { generateOtpCode, hashOtp, verifyOtpHash } from '../utils/accessKey.js';
+import { sendPlayerOtpEmail } from './email.service.js';
 
 /** Sign a JWT for a given identity (role included for cheap client-side checks). */
 export function generateToken(payload: TokenPayload): string {
@@ -673,7 +674,25 @@ export async function sendEmailOtp(
     },
   });
 
-  console.log(`📧 [EMAIL OTP] Brand: ${tenant?.brandName} | To: ${normalizedEmail} | Type: ${data.type} | OTP: ${code}`);
+  // Phase 6: the code actually goes out. On provider failure the OTP row is
+  // dropped so the user can retry immediately instead of waiting out an
+  // undeliverable code.
+  try {
+    await sendPlayerOtpEmail(normalizedEmail, code, tenant?.brandName ?? 'Tourney');
+  } catch (error) {
+    await prisma.emailOtp.deleteMany({
+      where: { tenantId: data.tenantId, email: normalizedEmail },
+    });
+    console.error('✖ player OTP email failed:', (error as Error).message);
+    throw new ApiError(502, 'Could not send the verification code. Please try again.');
+  }
+
+  // Dev convenience only — production logs never carry a live code.
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(
+      `📧 [EMAIL OTP] Brand: ${tenant?.brandName} | To: ${normalizedEmail} | Type: ${data.type} | OTP: ${code}`,
+    );
+  }
 
   return {
     message: `6-digit verification code sent to ${normalizedEmail}`,

@@ -6,8 +6,9 @@
 > admin ke mail pe aaye. Admin app abhi rahega, baad me remove kar sakte hain.
 >
 > **Location:** `admin-web/` (naya), `backend/` (auth + schema), `plan/admin-web/`
-> **Status:** 🟢 IN PROGRESS — Phase 1–5 ✅ done (backend auth, `admin-web/` shell,
-> login, dashboard, match operations, money/players/staff/settings). Phase 6–7 next.
+> **Status:** 🟡 IN PROGRESS — Phase 1–5 ✅ done (backend auth, `admin-web/` shell,
+> login, dashboard, match operations, money/players/staff/settings). Phase 6: **email ✅**,
+> **deploy ⏸**. Phase 7 next.
 
 ---
 
@@ -36,10 +37,9 @@
 - Route guards + honest Phase 4/5 placeholders (no fake screens), README, robots
   Disallow + `noindex`.
 
-### ⬜ Baaki (Phase 6–7)
-- Real email provider (`EMAIL_PROVIDER=console` today), deploy + ops hardening (Phase 6).
-- Real email provider (abhi `EMAIL_PROVIDER=console`, OTP backend log me) (Phase 6).
-- Tailscale / Cloudflare Access gate + production deploy (Phase 6).
+### ⬜ Baaki (Phase 6 deploy + Phase 7)
+- Deploy: ek hi Render service pe UI + API + WS (Option A) — `6_Email_Access_and_Deploy/PLAN.md`.
+- Manual: Brevo account + sender verify + `BREVO_API_KEY` `.env` me (code taiyar hai).
 - Permission matrix + security/handover verification (Phase 7).
 
 ### 🔁 Resume karne se pehle
@@ -166,7 +166,7 @@ backend/
 | 3 | Vite shell + login UI + dashboard + design system + permissions | `3_Web_Shell_and_Design/` | ✅ |
 | 4 | Match operations: create / publish / reveal / scorer+roster / manage | `4_Match_Operations/` | ⏭ Next |
 | 5 | Money + players + staff access keys + settings + settlement | `5_Money_Players_and_Staff/` | ⏸ |
-| 6 | Real email provider + Tailscale/Cloudflare Access + deploy | `6_Email_Access_and_Deploy/` | ⏸ |
+| 6 | Real email provider + Tailscale/Cloudflare Access + deploy | `6_Email_Access_and_Deploy/` | 🟡 Email ✅, deploy ⏸ |
 | 7 | Verification: permission matrix, security checklist, handover | `7_Verification_and_Handover/` | ⏸ |
 
 **Rule:** ek phase complete → build/test green → tab next phase. Har phase ke end pe
@@ -214,6 +214,14 @@ backend/
   Access** (free 50 users) on a cheap domain — Vercel free me production domain protection
   nahi hai, isliye gate Cloudflare pe. Code delta: `VITE_WS_URL` (rewrite WS proxy nahi
   karta), `vercel.json`, prod `ADMIN_WEB_ORIGIN`/`CORS_ORIGIN`. Kaam baaki: implement.
+- **Phase 6 — email ✅ (Nov 2026):** `email.service.ts` me real transports — **brevo**
+  (chosen) + resend (fallback) + console; `fetch` + `AbortSignal.timeout`, koi naya
+  dependency nahi. HTML+text templates (admin + player OTP, brand bar, 32px code box,
+  10-min expiry, "request nahi kiya to ignore" line). Provider failure → OTP row delete +
+  502 generic (api key/OTP kabhi error/log me nahi). Naya rolling 24h cap per account
+  (`ADMIN_OTP_DAILY_CAP=10`) audit rows se count — Brevo 300/din ki shared quota safe.
+  Player email OTP ab console print ke bajaye **asli send** hota hai. `tests/emailProvider.test.ts`
+  (11 cases, mocked fetch). Suite **437/437**, `tsc` clean. Baaki: Brevo key + Render deploy.
 
 ---
 

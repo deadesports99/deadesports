@@ -37,8 +37,23 @@ const envSchema = z.object({
    */
   ADMIN_WEB_ORIGIN: z.string().url().default('http://localhost:5174'),
 
-  /** Email transport for admin OTPs. Real providers are wired in Phase 6. */
+  /** Email transport for admin OTPs. `smtp` still needs nodemailer — not wired. */
   EMAIL_PROVIDER: z.enum(['console', 'smtp', 'resend', 'brevo']).default('console'),
+
+  /** Brevo transactional API key (free tier: 300 mails/day). */
+  BREVO_API_KEY: z.string().default(''),
+
+  /** Resend API key (free tier: 3000 mails/month) — fallback switch. */
+  RESEND_API_KEY: z.string().default(''),
+
+  /** Hard timeout for one provider call, so a hung request cannot block login. */
+  EMAIL_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(10_000),
+
+  /**
+   * Rolling 24h cap of sign-in codes per identity. Protects the shared
+   * provider quota (Brevo free = 300/day) from an authenticated loop.
+   */
+  ADMIN_OTP_DAILY_CAP: z.coerce.number().int().positive().max(500).default(10),
 
   /** From address shown to the owner ("Brand <no-reply@...>"). */
   EMAIL_FROM: z.string().default('Apex Free Fire Club <no-reply@apexff.com>'),
