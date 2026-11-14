@@ -10,23 +10,43 @@
 
 ## 🧭 HOSTING DECISION (final, Nov 2026 — boss)
 
-**Admin web → Vercel Hobby (free). Backend → long-running host (Render free / VPS).
-Gate → Cloudflare Access. Email → Brevo free.**
+**Ek hi backend hai aur wo Postgres ke saath hi rahega. Firebase usko replace nahi karta**
+(`firebase-migration` rule #3: money tables never leave PostgreSQL). Deploy ka sawal sirf
+itna hai: **wo ek backend kis machine pe chalega**. Vercel wo machine nahi deta — Render deta hai.
+
+| Hissa | Kahan chalta hai | Free? |
+|---|---|---|
+| UI (`admin-web/dist` — 3 files) | **Render (same service)** ya baad me Vercel | ✅ |
+| Backend (Express + Prisma + `/ws`) | **Render free web service** — Vercel pe nahi | ✅ |
+| Database | Supabase Postgres (existing) | ✅ |
+| Email OTP | Brevo | ✅ 300/din |
+| Access gate | optional — Cloudflare (domain chahiye) ya Tailscale | ✅ |
+
+### ⭐ Option A — DEFAULT (boss: domain nahi chahiye)
+**UI + API + WS sab ek hi Render service pe.** Ek URL `https://<name>.onrender.com`,
+same origin → cookie/cors/WS sab automatic, **zero code change**, realtime chalta hai.
+- Render free: 750 instance-hrs/mahina, 15 min idle pe sleep, jagane me ~1 min.
+- Isliye free keep-warm ping (cron-job.org) — warna pehla click slow.
+- Email/DB Firebase pe nahi jaate: match create, roster, payout, wallet = Postgres hi.
+
+### Option B — baad me, agar UI ko CDN speed chahiye
+UI Vercel pe + backend Render pe. Tab 3 chhote code changes: `VITE_WS_URL` (absolute),
+`vercel.json` rewrite, prod `ADMIN_WEB_ORIGIN`. Realtime tab bhi chalta hai kyunki
+browser WS seedha backend host se jodta hai (cross-origin WS pe koi rok nahi).
 
 ```
-  browser
-     │  https://admin.<domain>          ← Cloudflare proxy + Access gate (free ≤50 users)
-     ▼
-  ┌──────────────── Vercel (free static) ────────────────┐
-  │ admin-web/dist  (index.html + 1 js + 1 css)          │
-  │ rewrite  /api/*  →  https://<backend-host>/api/v1/*  │  ← same-origin from browser's view
-  └──────────────────────────────────────────────────────┘
-     │                                      ╲ wss://<backend-host>/ws?tenantId=…
-     ▼                                       ╲ (direct, cross-origin fine — no cookie)
-  backend (Express + Prisma, long-running) ───┘
-     ▼
-  Supabase Postgres (free)
+  Option A (default)                 Option B (baad me)
+  ┌─ Render (ek service) ─┐          ┌─ Vercel ─┐   ┌─ Render ─┐
+  │ dist/ + /api + /ws    │          │  dist/   │──▶│ /api+/ws │
+  └───────────────────────┘          └──────────┘   └──────────┘
+           └────────→ Supabase Postgres ←──────────────┘
 ```
+
+### Firebase ka role (backend ko hata kar nahi aata)
+`live_events` mirror (default **OFF**: `FIREBASE_LIVE_MIRROR=false`), FCM push,
+Firebase Auth token verify, Storage, stats export. Ye sab **Postgres ke upar** kaam karte
+hain — ledger/wallet/roster Postgres me hi rehta hai.
+
 
 ### Kyun backend Vercel pe nahi
 - Backend **stateful** hai: in-memory realtime client registry (`realtime.service.ts`),
