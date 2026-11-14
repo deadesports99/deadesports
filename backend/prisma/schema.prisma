@@ -70,6 +70,15 @@ model User {
   playerCode     String?
   deviceId       String?
   passwordHash   String?
+  /**
+   * Verified Firebase Auth UID (phone OTP / Google sign-in). Stable external
+   * identity used for account linking and, later, claim-scoped Firestore rules.
+   *
+   * Nullable on purpose: existing rows and email+password accounts have no Firebase
+   * identity yet, and the same human may legitimately hold one account per tenant —
+   * so it is unique *per tenant*, not globally.
+   */
+  firebaseUid    String?
   fcmToken       String? // last registered FCM push token
   lastLoginAt    DateTime?
   lastLoginIp    String?
@@ -86,6 +95,7 @@ model User {
 
   @@unique([tenantId, phoneNumber])
   @@unique([tenantId, playerCode])
+  @@unique([tenantId, firebaseUid])
   @@index([tenantId, inGameUid])
 }
 

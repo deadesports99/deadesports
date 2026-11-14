@@ -7,6 +7,8 @@ import { disconnectRedis } from './config/redis.js';
 import { startMatchSweepScheduler, stopMatchSweepScheduler } from './services/matchSweep.service.js';
 import { expireStalePaymentOrders, reconcileStalePaymentOrders } from './services/payment.settlement.js';
 import { realtimeService } from './services/realtime.service.js';
+import { liveMirrorService } from './services/liveMirror.service.js';
+import { statsExportService } from './services/statsExport.service.js';
 
 // Fail fast before accepting traffic: a misconfigured gateway must never
 // surface as a broken "Add Money" button for players.
@@ -46,7 +48,21 @@ const server = app.listen(env.PORT, () => {
 // 🕒 Auto lifecycle sweep: UPCOMING/OPEN -> ROOM_REVEALED (T-15) -> LIVE.
 // Runs in-process every minute; safe to run alongside an external cron.
 realtimeService.init(server);
+
+// 🔥 Firestore live mirror (Phase 1 — plan/firebase-migration).
+// OFF unless FIREBASE_LIVE_MIRROR=true. When ON, every websocket event is also
+// written to Firestore so clients can subscribe with the Firebase SDK. The hook
+// runs AFTER the socket fan-out and is never awaited, so /ws behaviour is unchanged.
+liveMirrorService.init();
+if (liveMirrorService.isEnabled()) {
+  realtimeService.setMirror((message, scope) => liveMirrorService.publish(message, scope));
+}
+
 startMatchSweepScheduler();
+
+// 📊 Daily aggregate snapshots → Firestore (Phase 5). OFF unless
+// STATS_EXPORT_ENABLED=true; recomputes a small window so a missed night heals.
+statsExportService.startScheduler();
 
 // 💳 Payment checkout sweep: CREATED/PENDING orders past `expiresAt` become
 // EXPIRED. A late gateway success can still be settled (the settlement claim
@@ -100,6 +116,7 @@ async function shutdown(signal: string): Promise<void> {
 
   console.log(`\n⚠ ${signal} received — shutting down gracefully...`);
   stopMatchSweepScheduler();
+  statsExportService.stopScheduler();
   clearInterval(paymentSweepTimer);
   if (reconcileSweepTimer) clearInterval(reconcileSweepTimer);
   realtimeService.shutdown();
@@ -118,6 +135,8 @@ async function shutdown(signal: string): Promise<void> {
       console.log('● Prisma disconnected.');
       await disconnectRedis();
       console.log('● Redis disconnected.');
+      // Best-effort: push out mirror events queued in the last 250 ms.
+      await liveMirrorService.stop();
       console.log('✔ Clean shutdown complete. Bye!');
       process.exit(closeErr ? 1 : 0);
     } catch (err) {

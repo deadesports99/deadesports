@@ -97,8 +97,30 @@ async function deviceStats(
     perDevice.set(slot.deviceIdSnapshot, entry);
   }
 
+  // Accounts whose current profile still points at this device: they belong to
+  // the device even before they ever join a match (no slot snapshot yet).
+  const profileUsers = await prisma.user.findMany({
+    where: { tenantId, deviceId: { in: deviceIds }, role: 'USER' },
+    select: { id: true, isBanned: true, createdAt: true, deviceId: true },
+  });
+  for (const user of profileUsers) {
+    if (!user.deviceId) continue;
+    const entry =
+      perDevice.get(user.deviceId) ??
+      { players: new Map(), matches: new Map<string, Set<string>>() };
+    if (!entry.players.has(user.id)) {
+      entry.players.set(user.id, { banned: user.isBanned, createdAt: user.createdAt });
+    }
+    perDevice.set(user.deviceId, entry);
+  }
+
   // Winnings per user, one query.
-  const userIds = [...new Set(slots.map((s) => s.userId))];
+  const userIds = [
+    ...new Set([
+      ...slots.map((s) => s.userId),
+      ...profileUsers.map((u) => u.id),
+    ]),
+  ];
   const prize = new Map<string, number>();
   if (userIds.length > 0) {
     const results = await prisma.matchResult.groupBy({

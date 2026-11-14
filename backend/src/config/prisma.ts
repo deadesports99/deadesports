@@ -25,9 +25,23 @@ function withoutSslMode(databaseUrl: string): string {
   }
 }
 
+/**
+ * Local Docker Postgres (localhost/127.0.0.1) has no TLS listener, so SSL is
+ * only enabled for remote hosts (Supabase pooler etc.). Keeping it explicit
+ * avoids `Error opening a TLS connection` in local development.
+ */
+function usesTls(databaseUrl: string): boolean {
+  try {
+    const host = new URL(databaseUrl).hostname;
+    return !['localhost', '127.0.0.1', '::1', 'postgres'].includes(host);
+  } catch {
+    return true;
+  }
+}
+
 const pool = new pg.Pool({
   connectionString: withoutSslMode(env.DATABASE_URL),
-  ssl: { rejectUnauthorized: false },
+  ssl: usesTls(env.DATABASE_URL) ? { rejectUnauthorized: false } : undefined,
   // Keep the application-side pool bounded for Supabase's PgBouncer pooler.
   max: env.DB_POOL_MAX,
   idleTimeoutMillis: env.DB_POOL_IDLE_TIMEOUT_MS,

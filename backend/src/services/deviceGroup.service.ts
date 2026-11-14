@@ -113,10 +113,14 @@ export async function listDeviceGroups(
   for (const slot of slots) {
     if (slot.deviceIdSnapshot) addSlot(slot.deviceIdSnapshot, slot.userId, slot.tournamentId);
   }
+  // A device can already be known from slot snapshots; merge the profile-level
+  // accounts into it instead of skipping them, otherwise two accounts that share
+  // a device but never joined the same match never qualify as a group.
   for (const user of users) {
-    if (user.deviceId && !byDevice.has(user.deviceId)) {
-      byDevice.set(user.deviceId, new Map([[user.id, new Set<string>()]]));
-    }
+    if (!user.deviceId) continue;
+    const accounts = byDevice.get(user.deviceId) ?? new Map<string, Set<string>>();
+    if (!accounts.has(user.id)) accounts.set(user.id, new Set<string>());
+    byDevice.set(user.deviceId, accounts);
   }
 
   const qualifying = [...byDevice.entries()].filter(([, accounts]) => accounts.size >= minAccounts);

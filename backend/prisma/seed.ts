@@ -9,6 +9,12 @@ import { prisma } from '../src/config/prisma.js';
 import { generateToken } from '../src/services/auth.service.js';
 
 const TENANT_SUBDOMAIN = 'apex-ff';
+/**
+ * Pinned tenant id — the Android/web clients ship this UUID inside
+ * `client_config.json` / `VITE_TENANT_ID`, so a random id on every fresh seed
+ * broke those builds ("Tenant not found"). Keep the two in sync.
+ */
+const TENANT_ID = '53a09545-e6e2-4cf5-a5c2-7ef18b276a52';
 
 async function main(): Promise<void> {
   console.log('🌱 Seeding database...\n');
@@ -24,6 +30,7 @@ async function main(): Promise<void> {
       isActive: true,
     },
     create: {
+      id: TENANT_ID,
       subdomain: TENANT_SUBDOMAIN,
       brandName: 'Apex Free Fire Club',
       primaryColor: '#FF4757',
@@ -134,6 +141,9 @@ async function main(): Promise<void> {
     await prisma.tournament.create({
       data: {
         tenantId: tenant.id,
+        // Match number is the identity players/staff talk about ("match 1");
+        // without it the app shows no number chip at all.
+        matchNumber: 1,
         title: 'Daily Bermuda Squad Bash #101',
         gameMode: 'BATTLE_ROYALE',
         matchType: 'SQUAD',
@@ -150,6 +160,7 @@ async function main(): Promise<void> {
     await prisma.tournament.create({
       data: {
         tenantId: tenant.id,
+        matchNumber: 2,
         title: 'Midnight Purgatory Solo War',
         gameMode: 'BATTLE_ROYALE',
         matchType: 'SOLO',

@@ -10,6 +10,9 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "seed": "tsx prisma/seed.ts",
+    "verify:mirror": "tsx src/scripts/verifyLiveMirror.ts",
+    "verify:firebase": "tsx src/scripts/verifyFirebase.ts",
+    "export:stats": "tsx src/scripts/exportStats.ts",
     "seed:owner": "tsx src/scripts/seedOwnerAdmin.ts",
     "test": "node --import tsx --experimental-test-module-mocks --test tests/*.test.ts",
     "test:coverage": "node --import tsx --experimental-test-module-mocks --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.raw.info --test tests/*.test.ts && node scripts/normalizeLcov.mjs"

@@ -30,21 +30,58 @@ interface ClientMeta {
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
-function formatPayload(type: RealtimeEventType, data: any): string {
+/**
+ * Who an event was aimed at. Mirrors the four fan-out methods below, and is the
+ * only thing the optional Firestore live mirror needs to know about routing.
+ */
+export type RealtimeMirrorScope = {
+  audience: 'ALL' | 'TENANT' | 'USER' | 'USERS';
+  tenantId?: string;
+  userId?: string;
+  userIds?: string[];
+};
+
+/**
+ * Optional observer for every fanned-out event. Set by the server to wire the
+ * Firestore live mirror (plan/firebase-migration). It is notified AFTER the
+ * websocket fan-out, so a slow or failing observer can never delay a client.
+ */
+export type RealtimeMirrorFn = (message: RealtimeMessage, scope: RealtimeMirrorScope) => void;
+
+function buildMessage(type: RealtimeEventType, data: any): RealtimeMessage {
   const now = Date.now();
-  return JSON.stringify({
+  return {
     type,
     data,
     timestamp: new Date(now).toISOString(),
     serverTimeMs: now,
     serverTimeIst: new Date(now + IST_OFFSET_MS).toISOString(),
-  });
+  };
 }
 
 class RealtimeService {
   private wss: WebSocketServer | null = null;
   private clients: Set<ClientMeta> = new Set();
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private mirror: RealtimeMirrorFn | null = null;
+
+  /**
+   * Register an observer for every fanned-out event (used by the Firestore live
+   * mirror). Pass `null` to detach. Never required — the gateway works identically
+   * without one.
+   */
+  public setMirror(fn: RealtimeMirrorFn | null): void {
+    this.mirror = fn;
+  }
+
+  private notifyMirror(message: RealtimeMessage, scope: RealtimeMirrorScope): void {
+    if (!this.mirror) return;
+    try {
+      this.mirror(message, scope);
+    } catch {
+      // An observer must never be able to break event delivery.
+    }
+  }
 
   public init(server: HttpServer): void {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -154,47 +191,60 @@ class RealtimeService {
   }
 
   public broadcast(type: RealtimeEventType, data: any): void {
-    const payload = formatPayload(type, data);
+    const message = buildMessage(type, data);
+    const payload = JSON.stringify(message);
 
     for (const client of this.clients) {
       if (client.ws.readyState === WebSocket.OPEN) {
         client.ws.send(payload);
       }
     }
+
+    this.notifyMirror(message, { audience: 'ALL' });
   }
 
   public broadcastToTenant(tenantId: string, type: RealtimeEventType, data: any): void {
-    const payload = formatPayload(type, data);
+    const message = buildMessage(type, data);
+    const payload = JSON.stringify(message);
 
     for (const client of this.clients) {
       if (client.ws.readyState === WebSocket.OPEN && (!client.tenantId || client.tenantId === tenantId)) {
         client.ws.send(payload);
       }
     }
+
+    this.notifyMirror(message, { audience: 'TENANT', tenantId });
   }
 
   public sendToUser(userId: string, type: RealtimeEventType, data: any): void {
-    const payload = formatPayload(type, data);
+    const message = buildMessage(type, data);
+    const payload = JSON.stringify(message);
 
     for (const client of this.clients) {
       if (client.userId === userId && client.ws.readyState === WebSocket.OPEN) {
         client.ws.send(payload);
       }
     }
+
+    this.notifyMirror(message, { audience: 'USER', userId });
   }
 
   public sendToUsers(userIds: string[], type: RealtimeEventType, data: any): void {
     const targetSet = new Set(userIds);
-    const payload = formatPayload(type, data);
+    const message = buildMessage(type, data);
+    const payload = JSON.stringify(message);
 
     for (const client of this.clients) {
       if (client.userId && targetSet.has(client.userId) && client.ws.readyState === WebSocket.OPEN) {
         client.ws.send(payload);
       }
     }
+
+    this.notifyMirror(message, { audience: 'USERS', userIds: [...targetSet] });
   }
 
   public shutdown(): void {
+    this.mirror = null;
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;

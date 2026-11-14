@@ -58,12 +58,29 @@ export function isPhoneOtpBypassEnabled(): boolean {
   return process.env.PHONE_OTP_BYPASS === 'true';
 }
 
-/** Throws if a production deploy still has the development login flag on. */
+/**
+ * Refuses to boot a production process that still has a development auth escape
+ * hatch switched on:
+ *
+ *  - `DEV_FAKE_FIREBASE=true`  → accepts `dev_otp_<phone>` / `dev_google_<uid>` tokens
+ *  - `PHONE_OTP_BYPASS=true`   → accepts ANY 10-digit phone with ANY 6-digit OTP
+ *
+ * Both are useful on a dev box and both are a total auth bypass if they ever reach
+ * a live deployment, so the process exits instead of serving traffic.
+ */
 export function assertDevAuthConfig(): void {
-  if (process.env.NODE_ENV === 'production' && process.env.DEV_FAKE_FIREBASE === 'true') {
-    throw new Error(
-      '❌ DEV_FAKE_FIREBASE=true is not allowed in production — unset it before deploying',
-    );
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.DEV_FAKE_FIREBASE === 'true') {
+      throw new Error(
+        '❌ DEV_FAKE_FIREBASE=true is not allowed in production — unset it before deploying',
+      );
+    }
+    if (isPhoneOtpBypassEnabled()) {
+      throw new Error(
+        '❌ PHONE_OTP_BYPASS=true is not allowed in production — any phone + any OTP ' +
+          'would log in as a player. Set PHONE_OTP_BYPASS=false before deploying',
+      );
+    }
   }
 }
 

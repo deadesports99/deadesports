@@ -321,6 +321,13 @@ export class FakePrisma {
         }
         return [...groups.values()].map(({ key, rows }) => ({
           ...key,
+          _sum: args._sum
+            ? Object.fromEntries(
+                Object.keys(args._sum)
+                  .filter((field) => args._sum[field])
+                  .map((field) => [field, rows.reduce((total, row) => total + plain(row[field] ?? 0), 0)]),
+              )
+            : undefined,
           _count: args._count?._all ? { _all: rows.length } : undefined,
         }));
       },

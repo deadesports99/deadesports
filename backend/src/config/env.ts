@@ -92,6 +92,87 @@ const envSchema = z.object({
    */
   PHONE_OTP_BYPASS: z.enum(['true', 'false']).default('false'),
 
+  // ─── Firebase live mirror (Phase 1, see plan/firebase-migration) ──────
+  /**
+   * Master switch for the Firestore live mirror. `true` copies every WebSocket
+   * event into Firestore so clients can subscribe with the Firebase SDK.
+   * OFF by default: with `false` the gateway behaves exactly as before.
+   */
+  FIREBASE_LIVE_MIRROR: z.enum(['true', 'false']).default('false'),
+
+  /** Firestore collection that receives the mirrored events. */
+  FIREBASE_LIVE_MIRROR_COLLECTION: z.string().default('live_events'),
+
+  /**
+   * Hours written into each document's `expireAt` field. Pair it with a
+   * Firestore TTL policy on that field to keep the collection small. `0` = never expire.
+   */
+  FIREBASE_LIVE_MIRROR_TTL_HOURS: z.coerce.number().int().nonnegative().default(24),
+
+  /** In-memory queue cap. Past this, events are dropped and counted (never OOM). */
+  FIREBASE_LIVE_MIRROR_MAX_QUEUE: z.coerce.number().int().positive().max(100_000).default(500),
+
+  /** Documents per Firestore batch write (Firestore hard limit is 500). */
+  FIREBASE_LIVE_MIRROR_BATCH_SIZE: z.coerce.number().int().positive().max(400).default(100),
+
+  // ─── Live feed reader (Phase 2, see plan/firebase-migration) ────────
+  /**
+   * Enables `GET /api/v1/live/events`, the catch-up feed a client calls after a
+   * reconnect to collect what it missed. OFF by default: while off the endpoint
+   * answers `source: "disabled"` and clients keep using the websocket alone.
+   */
+  LIVE_FEED_ENABLED: z.enum(['true', 'false']).default('false'),
+
+  /** Hard cap on `?limit=` regardless of what a client asks for. */
+  LIVE_FEED_MAX_LIMIT: z.coerce.number().int().positive().max(200).default(50),
+
+  /** Page size used when the client does not send `?limit=`. */
+  LIVE_FEED_DEFAULT_LIMIT: z.coerce.number().int().positive().max(200).default(25),
+
+  /**
+   * Firestore document reads allowed per tenant per calendar month across the whole
+   * live feed. Past this the endpoint pauses itself (429 + Retry-After) instead of
+   * letting a polling bug turn into a bill. This is the primary cost guardrail.
+   */
+  LIVE_FEED_MONTHLY_READ_BUDGET: z.coerce.number().int().nonnegative().default(500_000),
+
+  // ─── Firebase Storage media uploads (Phase 4, see plan/firebase-migration) ──
+  /**
+   * Enables `POST /api/v1/media/upload` (tenant logos, banners, match screenshots).
+   * OFF by default: while off the route answers 403 with a reason and every existing
+   * "paste a URL" workflow keeps working untouched.
+   */
+  MEDIA_UPLOAD_ENABLED: z.enum(['true', 'false']).default('false'),
+
+  /**
+   * Storage bucket name. Empty = `<FIREBASE_PROJECT_ID>.firebasestorage.app`
+   * (the current default). Older projects use `<projectId>.appspot.com` — set it
+   * explicitly if uploads fail with "bucket does not exist".
+   */
+  FIREBASE_STORAGE_BUCKET: z.string().default(''),
+
+  /** Hard ceiling per image. Default 5 MiB (logos/banners need far less). */
+  MEDIA_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(5 * 1024 * 1024),
+
+  // ─── Daily stats snapshot → Firestore (Phase 5, see plan/firebase-migration) ──
+  /**
+   * Nightly aggregate snapshot (counts + money totals per tenant per day).
+   * OFF by default. The CLI (`npm run export:stats`) works regardless of this flag.
+   */
+  STATS_EXPORT_ENABLED: z.enum(['true', 'false']).default('false'),
+
+  /** How often the in-process scheduler runs (hours). */
+  STATS_EXPORT_INTERVAL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+
+  /**
+   * Rolling window recomputed on every run. >1 means a missed night heals itself
+   * on the next run (writes are idempotent, keyed `<tenantId>_<YYYY-MM-DD>`).
+   */
+  STATS_EXPORT_DAYS: z.coerce.number().int().min(1).max(31).default(3),
+
+  /** Firestore collection receiving the snapshots. */
+  STATS_EXPORT_COLLECTION: z.string().default('stats'),
+
   /**
    * ⚠️ DEMO / LOCAL TESTING ONLY. Comma-separated IPs that skip every rate
    * limiter (auth, deposit, withdrawal, join). Ignored when NODE_ENV is

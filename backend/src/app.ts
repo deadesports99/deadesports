@@ -9,6 +9,8 @@ import { adminWalletRouter } from './routes/adminWallet.routes.js';
 import { stripTrailingSlashes } from './utils/strings.js';
 import { healthRouter } from './routes/health.routes.js';
 import { timeRouter } from './routes/time.routes.js';
+import { liveRouter } from './routes/live.routes.js';
+import { mediaRouter } from './routes/media.routes.js';
 import { resultRouter } from './routes/result.routes.js';
 import { tournamentRouter } from './routes/tournament.routes.js';
 import { tenantRouter, adminTenantRouter } from './routes/tenant.routes.js';
@@ -97,6 +99,13 @@ app.use('/api/v1', healthRouter);
 // Authoritative Indian Standard Time (IST) sync routes
 app.use('/time', timeRouter);
 app.use('/api/v1/time', timeRouter);
+
+// Live feed catch-up for clients that missed websocket events (Phase 2).
+// Anchored at /api/v1 only — this is an app endpoint, not a public banner.
+app.use('/api/v1/live', liveRouter);
+
+// Media uploads to Firebase Storage (Phase 4). Admin/staff only.
+app.use('/api/v1/media', mediaRouter);
 
 // Auth & RBAC
 app.use('/api/v1/auth/admin', adminAuthRouter);

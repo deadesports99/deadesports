@@ -143,6 +143,47 @@ async function assertDeviceFree(tenantId: string, deviceId?: string): Promise<st
   return trimmed;
 }
 
+/**
+ * Remember the verified Firebase Auth UID on the account (Phase 3 —
+ * plan/firebase-migration/PHASE-3-AUTH-CONSOLIDATION.md).
+ *
+ * Deliberately best-effort and never fatal:
+ *   - no UID (email/password accounts) -> nothing to do
+ *   - UID already stored               -> no write at all
+ *   - write fails                      -> warned once, login still succeeds
+ *
+ * That last case is what makes this deployable in any order: a release where
+ * `prisma db push` has not added the `firebaseUid` column yet keeps letting
+ * players log in instead of failing at the door.
+ */
+let firebaseUidWriteWarned = false;
+
+export async function linkFirebaseUid(
+  userId: string,
+  uid?: string | null,
+  currentUid?: string | null,
+): Promise<void> {
+  const next = typeof uid === 'string' ? uid.trim() : '';
+  if (!userId || !next) return;
+  if (currentUid === next) return;
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { firebaseUid: next },
+      select: { id: true },
+    });
+  } catch (err) {
+    if (!firebaseUidWriteWarned) {
+      firebaseUidWriteWarned = true;
+      console.warn(
+        '[auth] could not store firebaseUid — run `npm run prisma:push` to add the column. ' +
+          `Login is unaffected. (${(err as Error).message})`,
+      );
+    }
+  }
+}
+
 export interface RegisterPlayerInput {
   tenantId: string;
   phoneNumber?: string;
@@ -205,6 +246,9 @@ export async function registerPlayer(data: RegisterPlayerInput): Promise<{ user:
     },
   });
 
+  // Phase 3: remember the verified Firebase identity for account linking.
+  await linkFirebaseUid(user.id, verified.uid);
+
   const token = generateToken({ userId: user.id, tenantId: user.tenantId, role: user.role });
   return { user: sanitizeUser(user), token };
 }
@@ -257,6 +301,9 @@ export async function googleLoginOrRegister(
   } else {
     if (user.isBanned) throw ApiError.forbidden('Your account has been banned');
   }
+
+  // Phase 3: link the Google identity to the account (backfills legacy rows).
+  await linkFirebaseUid(user.id, verified.uid, user.firebaseUid);
 
   const token = generateToken({ userId: user.id, tenantId: user.tenantId, role: user.role });
   return { user: sanitizeUser(user), token };
@@ -321,6 +368,9 @@ export async function loginWithPhone(data: LoginWithPhoneInput): Promise<{ user:
       throw ApiError.forbidden(PHONE_OTP_DISABLED_MESSAGE);
     }
   }
+
+  // Phase 3: link the phone identity to the account (backfills legacy rows).
+  await linkFirebaseUid(user.id, verified.uid, user.firebaseUid);
 
   const token = generateToken({ userId: user.id, tenantId: user.tenantId, role: user.role });
   return { user: sanitizeUser(user), token };
