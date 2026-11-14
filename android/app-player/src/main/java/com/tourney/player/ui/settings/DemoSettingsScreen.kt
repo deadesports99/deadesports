@@ -167,16 +167,16 @@ fun SettingsScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Top left title: Settings (text-2xl font-black)
+        // Top left title: Settings (matches the compact in-app type scale)
         Text(
             "Settings",
-            fontSize = 24.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Black,
             color = S.Text,
-            letterSpacing = (-0.5).sp,
-            modifier = Modifier.padding(top = 2.dp, bottom = 0.dp),
+            letterSpacing = (-0.3).sp,
+            modifier = Modifier.padding(top = 16.dp, bottom = 2.dp),
         )
 
         // ── SECTION 1: main settings card ───────────────────────────────
@@ -201,7 +201,7 @@ fun SettingsScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
@@ -215,14 +215,14 @@ fun SettingsScreen(
                             if (isDark) Icons.Filled.DarkMode else Icons.Filled.LightMode,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(16.dp),
                         )
                     }
-                    Column(modifier = Modifier.padding(start = 14.dp)) {
-                        Text("Appearance", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = S.Text)
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text("Appearance", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = S.Text)
                         Text(
                             if (isDark) "Dark Mode" else "Light Mode",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = S.TextSecondary,
                             modifier = Modifier.padding(top = 2.dp),
@@ -259,7 +259,7 @@ fun SettingsScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
@@ -273,14 +273,14 @@ fun SettingsScreen(
                             Icons.Filled.Notifications,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(16.dp),
                         )
                     }
-                    Column(modifier = Modifier.padding(start = 14.dp)) {
-                        Text("Notifications", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = S.Text)
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text("Notifications", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = S.Text)
                         Text(
                             "Match Alerts & Room ID",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = S.TextSecondary,
                             modifier = Modifier.padding(top = 2.dp),
@@ -361,7 +361,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onSignOut)
-                    .padding(14.dp),
+                    .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Badge(S.Red) {
@@ -369,17 +369,17 @@ fun SettingsScreen(
                         Icons.Filled.Logout,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
                 Text(
                     "Log Out",
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = S.Rose500,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 14.dp),
+                        .padding(start = 12.dp),
                 )
                 Icon(
                     Icons.Filled.ChevronRight,
@@ -467,21 +467,21 @@ private fun SettingsRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Badge(badgeColor) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
         }
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 14.dp),
+                .padding(start = 12.dp),
         ) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (danger) S.Rose500 else S.Text)
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (danger) S.Rose500 else S.Text)
             Text(
                 subtitle,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = S.TextSecondary,
                 maxLines = 1,
@@ -504,20 +504,20 @@ private fun SettingsRow(
 private fun Badge(color: Color, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(32.dp)
             .clip(CircleShape)
             .background(color),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
 
-/** `h-px w-full ml-[62px] bg-white/5` */
+/** `h-px w-full ml-[56px] bg-white/5` */
 @Composable
 private fun SettingsDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 62.dp)
+            .padding(start = 56.dp)
             .height(1.dp)
             .background(S.Divider),
     )

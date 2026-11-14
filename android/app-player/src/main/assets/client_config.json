@@ -11,7 +11,7 @@
   "api_base_url": "http://localhost:5000/api/v1",
   "supabase_url": "https://zupnlhdtfirufmlurkef.supabase.co",
   "supabase_anon_key": "",
-  "tenant_id": "a3c11cd0-324e-4886-b27c-9667fd7f59dc",
+  "tenant_id": "53a09545-e6e2-4cf5-a5c2-7ef18b276a52",
   "upi_id": "thunderesports@okaxis",
   "upi_name": "Thunder eSports",
   "min_deposit": 10,

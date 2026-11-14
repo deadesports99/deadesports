@@ -1,5 +1,11 @@
 package com.tourney.player.ui.matches
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,11 +29,18 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,8 +49,10 @@ import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentStatus
 import com.tourney.core.ui.formatMatchTime
 import com.tourney.core.ui.formatMoney
+import com.tourney.core.util.TimeAuthority
 import com.tourney.player.ui.theme.DemoColors
 import com.tourney.player.ui.theme.DemoRadius
+import kotlinx.coroutines.delay
 
 /**
  * One match row — a 1:1 port of `components/tournaments/MatchCard.tsx`:
@@ -51,6 +66,12 @@ fun MatchCard(
     joined: Boolean,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Seated player AND the organiser already published the custom room.
+     * The CTA then becomes "Room ID Ready" instead of a plain "Joined ✓", so the
+     * player knows the code has arrived and that tapping opens it.
+     */
+    roomReady: Boolean = false,
 ) {
     val fillFraction = if (tournament.totalSlots <= 0) 0f
     else (tournament.slotsBooked.toFloat() / tournament.totalSlots).coerceIn(0f, 1f)
@@ -68,9 +89,10 @@ fun MatchCard(
             .background(DemoColors.Card.copy(alpha = 0.85f))
             .border(1.dp, DemoColors.BorderSoft, RoundedCornerShape(DemoRadius.Card))
             .clickable(enabled = actionEnabled, onClick = onOpen)
-            .padding(14.dp),
+            // Slightly tighter at the top so the chips + date sit a touch higher.
+            .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 14.dp),
     ) {
-        // ── Top: match number chip, map chip, mode chip, kickoff time ───
+        // ── Top: match number + map + mode chips, live countdown on the right ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -99,28 +121,23 @@ fun MatchCard(
                 iconTint = DemoColors.TextSecondary,
             )
             Box(Modifier.weight(1f))
-            Text(
-                formatMatchTime(tournament.matchTime),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = DemoColors.TextMuted,
-                maxLines = 1,
+            MatchCountdown(
+                matchTimeIso = tournament.matchTime,
+                isLive = isLive,
             )
         }
 
-        // ── Title ───────────────────────────────────────────────────────
+        // Title line intentionally omitted: the top chips already carry the
+        // match number + map + mode ("7 | Bermuda • Squad" was a duplicate).
+
+        // ── Kickoff date + time, directly under the chips row ───────────
         Text(
-            tournament.displayName,
-            style = TextStyle(
-                fontSize = 13.sp,
-                lineHeight = 17.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = (-0.3).sp,
-            ),
-            color = DemoColors.TextPrimary,
+            formatMatchTime(tournament.matchTime),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = DemoColors.TextMuted,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = 5.dp),
         )
 
         // ── Prize pool / per kill / entry fee strip ─────────────────────
@@ -239,11 +256,20 @@ fun MatchCard(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(ctaBackground)
+                    .border(
+                        // A published room gets a gold ring so it reads as "open me".
+                        width = if (joined && roomReady) 1.dp else 0.dp,
+                        color = if (joined && roomReady) DemoColors.Gold else Color.Transparent,
+                        shape = RoundedCornerShape(8.dp),
+                    )
                     .clickable(enabled = actionEnabled, onClick = onOpen)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
                     when {
+                        // Seated + room published → the player must see that the
+                        // custom room code is available now.
+                        joined && roomReady -> "Room ID Ready"
                         joined -> "Joined ✓"
                         isLive -> "Watch live"
                         isFull -> "Slot Full"
@@ -258,7 +284,111 @@ fun MatchCard(
     }
 }
 
-/** `rounded-md border px-2 py-0.5 text-[10px] font-bold` with a 10dp icon. */
+/** Minutes before kickoff at which the countdown switches to the urgent (red) state. */
+private const val LIVE_SOON_SECONDS = 15L * 60L
+
+/**
+ * Real countdown to kickoff — ticks every second off the server-synced clock
+ * ([TimeAuthority]), so a phone with a wrong clock still shows the right numbers.
+ *
+ *  > 1 day   → "2d 04h 10m"
+ *  > 1 hour  → "02:15:22"
+ *  < 1 hour  → "14:59"
+ *  last 15 min / live / started → red + pulsing dot
+ */
+@Composable
+private fun MatchCountdown(matchTimeIso: String, isLive: Boolean) {
+    var secondsLeft by remember(matchTimeIso) { mutableStateOf(remainingSeconds(matchTimeIso)) }
+
+    LaunchedEffect(matchTimeIso) {
+        while (true) {
+            secondsLeft = remainingSeconds(matchTimeIso)
+            delay(1_000L)
+        }
+    }
+
+    val started = secondsLeft <= 0L
+    val urgent = !isLive && !started && secondsLeft <= LIVE_SOON_SECONDS
+    val accent = when {
+        isLive || started || urgent -> DemoColors.Danger
+        else -> DemoColors.Gold
+    }
+
+    Column(horizontalAlignment = Alignment.End) {
+        Text(
+            when {
+                isLive -> "MATCH"
+                started -> "KICKOFF"
+                else -> "MATCH STARTS IN"
+            },
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = DemoColors.TextMuted,
+            letterSpacing = 1.sp,
+            maxLines = 1,
+        )
+        Row(
+            modifier = Modifier.padding(top = 1.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // Pulsing dot only when it matters (live, or inside the last 15 min).
+            if (isLive || urgent) {
+                val pulse = rememberInfiniteTransition(label = "kickoffPulse")
+                val dotAlpha by pulse.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 0.2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(900, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "kickoffDot",
+                )
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .alpha(dotAlpha)
+                        .clip(RoundedCornerShape(50))
+                        .background(accent),
+                )
+            }
+            Text(
+                when {
+                    isLive -> "LIVE NOW"
+                    started -> "STARTING NOW"
+                    else -> formatCountdown(secondsLeft)
+                },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 0.5.sp,
+                color = accent,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+/** Seconds left until [iso] kickoff, floored at 0 (a past match reads as started). */
+private fun remainingSeconds(iso: String): Long = runCatching {
+    val kickoff = java.time.Instant.parse(iso).toEpochMilli()
+    ((kickoff - TimeAuthority.currentTimeMillis()) / 1_000L).coerceAtLeast(0L)
+}.getOrDefault(0L)
+
+/** Compact, always-monospace countdown text. */
+private fun formatCountdown(totalSeconds: Long): String {
+    val days = totalSeconds / 86_400L
+    val hours = (totalSeconds % 86_400L) / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+    return when {
+        days > 0L -> String.format(java.util.Locale.US, "%dd %02dh %02dm", days, hours, minutes)
+        hours > 0L -> String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+        else -> String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+    }
+}
+
+/** Match row / info chips (map, mode) — still used by other cards. */
 @Composable
 private fun Chip(
     text: String,

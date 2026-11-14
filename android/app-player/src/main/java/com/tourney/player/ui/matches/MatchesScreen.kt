@@ -129,6 +129,8 @@ fun MatchesScreen(
     var selectedFilter by rememberSaveable { mutableStateOf(FEED_FILTERS.first()) }
     var selectedGame by rememberSaveable { mutableStateOf(GAME_TITLES.first().name) }
     var sheetMatch by remember { mutableStateOf<Tournament?>(null) }
+    // Seated player tapped "Room ID Ready" → custom-room bottom sheet.
+    var roomSheetMatch by remember { mutableStateOf<Tournament?>(null) }
     val sheetScope = rememberCoroutineScope()
     // Room ID & Password fetched for the open sheet (seated players only).
     var sheetRoomId by remember { mutableStateOf<String?>(null) }
@@ -323,13 +325,24 @@ fun MatchesScreen(
 
             items(visible, key = { it.id }) { tournament ->
                 val joined = tournament.mySlot != null
+                // Published room + a confirmed seat = the player may open the code.
+                val roomReady = joined && tournament.isRoomReadyToView()
                 MatchCard(
                     tournament = tournament,
                     joined = joined,
+                    roomReady = roomReady,
                     onOpen = {
                         if (joined) {
-                            if (tournament.roomUnlocked == true) onOpenRoom(tournament.id) else onOpenScoreboard(tournament.id)
+                            if (roomReady) {
+                                // Old "Custom Room" layout, now a bottom sheet.
+                                roomSheetMatch = tournament
+                            } else if (tournament.roomUnlocked == true) {
+                                onOpenRoom(tournament.id)
+                            } else {
+                                onOpenScoreboard(tournament.id)
+                            }
                         } else {
+                            // Not seated → only the Join sheet, never room details.
                             viewModel.clearJoinError()
                             sheetMatch = tournament
                         }
@@ -339,6 +352,17 @@ fun MatchesScreen(
 
             item { Spacer(Modifier.height(16.dp)) }
         }
+    }
+
+    // ── Custom Room bottom sheet (seated players only) ───────────────────
+    val roomMatch = roomSheetMatch
+    if (roomMatch != null) {
+        RoomDetailsSheet(
+            tournamentId = roomMatch.id,
+            tournamentTitle = roomMatch.displayName,
+            onDismiss = { roomSheetMatch = null },
+            onToast = onToast,
+        )
     }
 
     // ── Join sheet ───────────────────────────────────────────────────────
