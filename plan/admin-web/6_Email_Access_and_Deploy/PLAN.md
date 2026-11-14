@@ -103,7 +103,8 @@ sirf itna: galti se koi na aa jaye.
 
 > **Baaki manual step (aapka):** Brevo account → sender email verify → API key
 > `.env` me `BREVO_API_KEY=` + `EMAIL_PROVIDER=brevo` → backend restart. Uske baad
-> OTP asli mail pe aayega.
+> OTP asli mail pe aayega. **Poora step-by-step guide + links: `docs/BREVO_SETUP.md`**
+> (signup, sender verify, API key, IP blocking off, test curl, troubleshooting, quota maths).
 
 ### 🌐 Domain — free options (verified Nov 2026)
 `plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md` me **free domain ka koi source nahi hai** — wo

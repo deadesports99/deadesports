@@ -97,8 +97,8 @@ export async function sendEmail(message: OutgoingEmail): Promise<void> {
           sender,
           to: [{ email: message.to }],
           subject: message.subject,
-          textContent: message.text,
-          ...(message.html ? { htmlContent: message.html } : {}),
+          // Brevo accepts only ONE body type per request (htmlContent | textContent).
+          ...(message.html ? { htmlContent: message.html } : { textContent: message.text }),
         },
       );
       console.log(`📧 [EMAIL:brevo] sent to=${message.to}`);

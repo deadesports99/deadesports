@@ -100,9 +100,16 @@ describe('brevo provider', () => {
       sender: { name: 'Thunder eSports', email: 'no-reply@thunder.in' },
       to: [{ email: 'owner@example.com' }],
       subject: 'Sign-in code 123456',
-      textContent: 'plain body',
+      // Brevo takes one body type only: HTML wins when both are available.
       htmlContent: '<b>html body</b>',
     });
+  });
+
+  it('falls back to textContent when no HTML was supplied', async () => {
+    setEnv({ EMAIL_PROVIDER: 'brevo', BREVO_API_KEY: 'brevo-test-key' });
+    await emailService.sendEmail({ to: 'a@b.com', subject: 's', text: 'plain only' });
+    assert.equal(calls[0].body.textContent, 'plain only');
+    assert.equal(calls[0].body.htmlContent, undefined);
   });
 
   it('throws on a non-2xx response so the caller can 502', async () => {
@@ -186,10 +193,21 @@ describe('admin OTP template', () => {
     const body = calls[0].body;
     assert.match(body.subject, /424242/);
     assert.match(body.subject, /Apex FF/);
-    assert.match(body.textContent, /10 minutes/);
-    assert.match(body.textContent, /used once/);
+    // Brevo: HTML body only, and it must carry the code + the warnings.
+    assert.ok(body.htmlContent, 'html body missing');
+    assert.equal(body.textContent, undefined);
     assert.match(body.htmlContent, /424242/);
+    assert.match(body.htmlContent, /10 minutes/);
     assert.match(body.htmlContent, /rotate your access key/);
+  });
+
+  it('keeps a plain-text version for the non-Brevo providers', async () => {
+    setEnv({ EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 'k' });
+    await emailService.sendAdminOtpEmail('owner@example.com', '555111', 'Apex FF');
+    const body = calls[0].body;
+    assert.match(body.text, /555111/);
+    assert.match(body.text, /10 minutes/);
+    assert.match(body.html, /555111/);
   });
 });
 
