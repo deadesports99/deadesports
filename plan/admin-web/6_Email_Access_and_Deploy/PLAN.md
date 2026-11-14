@@ -96,6 +96,23 @@ sirf itna: galti se koi na aa jaye.
 - [ ] **1.5 Dev fallback:** `debugOtp` only when `NODE_ENV !== 'production'`.
 - [ ] **1.6 Test:** mock provider (no network) se send called + failure path.
 
+### 🌐 Domain — free options (verified Nov 2026)
+`plan/PRODUCTION_CLOUD_EXECUTION_PLAN.md` me **free domain ka koi source nahi hai** — wo
+`api.<your-domain>` placeholder use karta hai aur Phase 7 me CNAME suppose karta hai,
+matlab wahan paid domain mana gaya hai. "Jindagi bhar free owned domain" jaisa kuch nahi hota;
+jo free hai uske 3 darje hain:
+
+| Type | Example | Free? | Cloudflare Access gate? |
+|---|---|---|---|
+| Platform hostname (aapka nahi) | `<svc>.onrender.com`, `<proj>.vercel.app` | ✅ forever | ❌ (apna zone chahiye) |
+| Free subdomain, DNS aapka | `you.eu.org`, `you.us.kg`, `you.is-a.dev`, `you.pp.ua` | ✅ forever | ✅ **eu.org** (custom NS allowed) |
+| Platform DNS, custom NS nahi | DuckDNS, ClouDNS free zone | ✅ | ❌ |
+| Freenom `.tk/.ml/.ga` | — | ❌ **dead** (2024 me band, Meta lawsuit) | — |
+
+**Faisla:** abhi `<svc>.onrender.com` (₹0, aaj kaam). Gate chahiye to **eu.org**
+manual review (~2 hafte) → Cloudflare NS → Access free. Paid chahiye to .xyz/.top
+first year ~₹100–200 (renewal mehnga).
+
 ### 🔹 Stage 2: Access gate — **Cloudflare Access (chosen)**
 - [ ] **2.1** Chhota domain (~₹100–800/saal) Cloudflare pe add, DNS proxy ON.
       `admin.<domain>` CNAME → Vercel project.
