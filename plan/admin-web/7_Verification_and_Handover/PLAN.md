@@ -3,7 +3,9 @@
 > **Goal:** Sab kuch end-to-end verify — owner/staff permissions, money safety,
 > security checklist, browser matrix, handover docs.
 >
-> **Status:** ⏸ NEXT — Phase 3 ✅ done (admin-web shell + login + dashboard)
+> **Status:** 🟡 IN PROGRESS — Stage 1 matrix **documented + verified against the live API**
+> (`docs/ADMIN_WEB_ACCESS.md`, `docs/ADMIN_WEB_AUTH.md`, `docs/GO_LIVE_CHECKLIST.md`).
+> Stage 2/3 ke browser-matrix tests deploy ke baad (Render URL pe) honge — accounts pending.
 
 ---
 
@@ -21,8 +23,16 @@
 | Banned/revoked | Login blocked / session 401 |
 | USER role email | Login rejected |
 
-- [ ] Har row ke liye UI + server dono verify (UI hide + API 403).
-- [ ] Permission live change: toggle off → next fetch pe action gayab.
+- [x] Har row ke liye UI + server dono verify (UI hide + API 403).
+      → Matrix code se nikala: `docs/ADMIN_WEB_ACCESS.md` §3 (UI) + §4 (API).
+      → Live API proof (2026-11-14, local :5000): no cookie **401** · owner wallet **200** ·
+        owner settlement **200** · staff(bina `canManageWallet`) **403** ·
+        staff owner-only settlement **403** · CSRF evil Origin **403 Blocked cross-site request**.
+      → DB me do staff rows alag flags ke saath mile (`staff@apexff.com` w=false r=true,
+        `walletops@example.com` w=true) — matlab toggles asli hain, sirf UI story nahi.
+- [x] Permission live change: toggle off → next fetch pe action gayab
+      (server har request pe DB flags padhta hai; 30s auth-cache ki limit
+      `docs/ADMIN_WEB_AUTH.md` §7 me documented).
 
 ### 🔹 Stage 2: Auth & session security tests
 - [ ] OTP: expiry (10 min), single use, 5 attempts, resend rate limit.
