@@ -66,3 +66,6 @@ deliverables/
 
 # One-line service-account JSON for the Render dashboard (never commit)
 fcm-one-line.txt
+
+# Scratch dir used by local tooling
+.tmp/
