@@ -19,8 +19,8 @@
   └───────────┬───────────────────┬───────────┘
               │                   │
               ▼                   ▼
-   Neon Postgres            Upstash Redis
-   (free 0.5 GB)            (free 10k cmd/din)
+   Neon Postgres            Render Key Value
+   (free 1 GB)              (free 25 MB, same region)
               │
               │   Firebase (delivery layer, Spark/free)
               └─────────────▶ Firestore live_events · FCM push · Auth token verify
@@ -54,7 +54,7 @@ WebSocket ko `VITE_WS_URL` ki zaroorat nahi, CORS ka jhanjhat nahi. Isi liye
 | GitHub | Code already hai ✅ | — |
 | Render | App chalana | https://render.com |
 | **Neon** | PostgreSQL (ledger) | https://neon.com |
-| Upstash | Redis | https://upstash.com |
+| Render Key Value | Redis (Render ke andar hi, alag signup nahi) | https://dashboard.render.com/new/redis |
 | cron-job.org | Sleep se bachana | https://cron-job.org |
 | Brevo | OTP mail (already done ✅) | https://app.brevo.com |
 | Firebase | Live mirror + push (already setup ✅) | https://console.firebase.google.com |
@@ -82,12 +82,19 @@ postgresql://neondb_owner:PASS@ep-cool-name-123456.ap-southeast-1.aws.neon.tech/
 > ⚠️ Neon free compute **5 min idle** ke baad suspend hota hai — pehla query ~500 ms slow.
 > Ye Render ke 15-min sleep se chhota hai, to keep-warm cron dono ko jagaye rakhta hai.
 
-## 5. Step B — Upstash Redis
+## 5. Step B — Redis (Render Key Value, free)
 
-1. https://upstash.com → **Create database**
-   - Name: `spartan-arena` · Region: **ap-south-1 (Mumbai)** · TLS: **on**
-2. Database page → **REST API / Redis Connect** → **`REDIS_URL`** copy karo
-   - Dikhega: `rediss://default:AbCd...@xxx.upstash.io:6379` (`rediss` = TLS, `s` mat hatana)
+> **Upstash kyun nahi:** Upstash ke free plan me Asia region hi nahi hai (sirf US/EU/Brazil
+> aur GCP ka Tokyo). Render ka apna Key Value free me **Singapore** milta hai, jo web
+> service ke **same region + private network** me hota hai → per command ~1 ms (vs ~70 ms
+> Tokyo se). Isliye Render Key Value chuna.
+
+1. Render dashboard → **New → Key Value**
+   - Name: `spartan-cache` · Region: **Singapore (Southeast Asia)** · Plan: **Free (25 MB, 50 connections)**
+2. Ban jaane par **Internal Key Value URL** copy karo
+   - Dikhega: `redis://red-xxxxxxxxxxxx:6379` (internal, private network, password nahi)
+3. Ye hi `REDIS_URL` hai. 25 MB kaafi hai: Redis sirf slot-locks + rate-limit counters
+   rakhta hai (kuch KB), aur restart pe slot-locks DB se `hydrateSlotsFromDb` se wapas aate hain.
 
 ## 6. Step C — Render pe deploy
 
@@ -322,9 +329,9 @@ Purana version tab tak chalta rahega jab tak naya healthy na ho jaaye.
 | Item | Cost |
 |---|---|
 | Render web service (free) | ₹0 |
-| **Neon** Postgres (free 0.5 GB) | ₹0 |
+| **Neon** Postgres (free 1 GB) | ₹0 |
 | Firebase Firestore + FCM (Spark free) | ₹0 |
-| Upstash Redis (free 10k cmd/day) | ₹0 |
+| Render Key Value (free 25 MB, same region) | ₹0 |
 | Brevo mail (300/day) | ₹0 |
 | cron-job.org keep-warm | ₹0 |
 | Domain | **nahi chahiye** — `*.onrender.com` |

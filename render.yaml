@@ -37,7 +37,7 @@ services:
       # ── database & cache (paste in dashboard) ────────────────────────
       - key: DATABASE_URL # Neon Postgres (ledger) — full URL with ?sslmode=require
         sync: false
-      - key: REDIS_URL # Upstash, rediss:// URL
+      - key: REDIS_URL # Render Key Value internal URL (redis://red-xxxx:6379)
         sync: false
       - key: DB_POOL_MAX
         value: "10"
