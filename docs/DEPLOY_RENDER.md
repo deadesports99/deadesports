@@ -338,3 +338,55 @@ Purana version tab tak chalta rahega jab tak naya healthy na ho jaaye.
 | **Total** | **₹0 / month** |
 
 Scale badhne par: Render Starter $7/mo (no sleep, 512 MB→) — tab tak free kaafi hai.
+
+---
+
+## 15. Live setup — jo actually hua (15 Nov 2026)
+
+**URL: https://spartan-arena.onrender.com** ✅ (live)
+
+| Cheez | Value |
+|---|---|
+| Render service | `spartan-arena` (`srv-dbspjjc9v7es73b9tbf0`) — free, **Singapore**, Docker |
+| Render Key Value | `spartan-cache` (`red-dbspevui0phs73dpbh30`) — free 25 MB, Singapore, internal URL |
+| Neon | project `spartan-arena`, branch `production`, `neondb`, region `ap-southeast-1` (Singapore), Postgres 17 |
+| Env vars | 29 (render.yaml ke saare, `sync:false` waale dashboard/API se bharay gaye) |
+| Deploy | Render API se create (`POST /v1/services`) + `POST /v1/services/<id>/deploys` |
+| Keep-warm | `.github/workflows/keepalive.yml` — har 10 min `/health` ping (GitHub Actions, free) |
+
+### Verification (real production pe)
+
+| Check | Result |
+|---|---|
+| `GET /health` | **200** (cold start 13.5 s, warm <200 ms) |
+| `GET /` | **200** `text/html` — title `Spartan Arena — Admin Console` |
+| `GET /wallet` (SPA fallback) | **200** html |
+| `GET /api/v1/health` | **200** |
+| `GET /api/v1/nope` | **404** JSON `Route not found` |
+| `POST /api/v1/auth/admin/otp/request` | **200** + email actually delivered (Brevo, 6-digit code) |
+| `POST /api/v1/auth/admin/otp/verify` (galat code) | **400** |
+| `POST /api/v1/auth/admin/otp/verify` (sahi code) | **200** `Signed in` + `admin_session` cookie |
+| `GET /api/v1/admin/access` (cookie) | **200** |
+| `GET /api/v1/admin/access` (bina cookie) | **401** |
+| `POST` + `Origin: https://evil.example` (cookie ke saath) | **403** `Blocked cross-site request` |
+| Existing tables | `prisma db push` → 13 tables, 9.5 s |
+| Seed | tenant `apex-ff`, owner `deadesports99@gmail.com` (ADMIN), demo staff + player |
+
+### Code push ke baad deploy kaise kare (auto-deploy OFF hai)
+
+Service **public repo URL** se juda hai (GitHub App connect nahi kiya), isliye
+Render khud push pe deploy nahi karta. Do tarike:
+
+1. **Dashboard:** https://dashboard.render.com → `spartan-arena` → **Manual Deploy → Deploy latest commit**
+2. **API se** (assistant karta hai):
+   ```bash
+   curl -X POST "https://api.render.com/v1/services/srv-dbspjjc9v7es73b9tbf0/deploys" \
+     -H "Authorization: Bearer $RENDER_API_KEY"
+   ```
+
+Auto-deploy chahiye to baad me **Settings → Build & Deploy → Connect GitHub** karo
+(GitHub App install me GitHub ka email-verification code maangta hai — 1 min ka kaam).
+
+### Local se badlaav
+
+Kuch bhi badla → commit + `git push` → upar wala deploy command → 1-2 min me live.
