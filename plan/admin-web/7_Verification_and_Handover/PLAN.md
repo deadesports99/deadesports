@@ -87,3 +87,72 @@
 - Money operations idempotent aur ledger-verified.
 - Security checklist complete, koi secret frontend me nahi.
 - Handover docs se naya admin/staff 10 minute me onboard ho sake.
+
+---
+
+## ✅ Stage 2 — live verification on https://spartan-arena.onrender.com (15 Nov 2026)
+
+Deploy ho gaya, to saare guards **asli production** pe chala ke dekhe gaye
+(mock nahi, real Render + real Neon + real cookies).
+
+### Permission matrix (minted SUB_ADMIN tokens + real owner cookie)
+
+| Endpoint | Guard | ADMIN | walletops | roomonly | prizeops |
+|---|---|---|---|---|---|
+| `GET /admin/wallet/deposits` | `canManageWallet` | **200** | **200** | 403 | 403 |
+| `GET /admin/wallet/settlement` | `canManageWallet` + `ADMIN` | **200** | 403 | 403 | 403 |
+| `GET /admin/players` | `ADMIN` | **200** | 403 | 403 | 403 |
+| `GET /auth/admin/staff` | `ADMIN` | **200** | 403 | 403 | 403 |
+| `GET /admin/access` | `ADMIN` | **200** | 403 | 403 | 403 |
+| `GET /tournaments/:id/participants` | `canDistributePrize` | 404 | 403 | 403 | **404** |
+
+`404` = guard pass ho gaya, resource nahi mila (fake id) — yahi expected proof hai.
+No-token control: **401**. `walletops` ke paas `canManageWallet` hai par `ADMIN` nahi,
+isliye settlement pe **403** — owner-only rule sach me lagu hai.
+
+### Session + CSRF
+
+| Check | Result |
+|---|---|
+| `POST /auth/admin/otp/request` (owner) | **200** + Brevo mail delivered |
+| `POST /auth/admin/otp/verify` sahi code | **200**, `admin_session` cookie (`HttpOnly; Strict`) |
+| galat code | **400** |
+| bina cookie `/admin/access` | **401** |
+| cookie + `Origin: https://evil.example` (POST) | **403** `Blocked cross-site request` |
+| cookie POST bina Origin/Referer | **403** (yahi asli CSRF shape) |
+| Bearer token (Android path) + evil Origin | **200** — gate sirf cookie pe |
+
+### Staff key lifecycle (asli OTP ke saath)
+
+| Step | Result |
+|---|---|
+| Owner `POST /admin/access` → staff + 24-char key | **201**, key ek baar dikhti hai |
+| `otp/request` owner email + key | **200** `requiresKey: true` |
+| `otp/verify` + key | **200**, token me `accessKeyId` claim |
+| staff → `wallet/deposits` (perm nahi) | **403** |
+| staff → `tournaments/:id/room` (perm hai) | **404** (guard pass) |
+| owner key **revoke** → same cookie | **401** `Your permission key is no longer active` |
+
+> Note: revoke ka asar **30 s** ke andar dikhta hai (`keyStateCache` TTL) — turant
+> nahi. Isi window me purani cache valid rehti hai. Test 32 s wait ke baad kiya gaya.
+
+### Do cheezein jo test se pata chali (docs me daali gayi)
+
+1. `regenerate` **naya key row** banata hai aur purana revoke karta hai — purane key-id
+   pe revoke call karna no-op hai (`if (key.revokedAt) return;`). UI hamesha list ka
+   **latest ACTIVE** key dikhaye, isi liye theek hai.
+2. `POST /admin/access` body: `{name, email, phoneNumber, permissions}` — sirf `userId`
+   bhejne pe `400 Validation failed`. Staff ka login email = **owner ka email + key**,
+   staff ka apna email nahi (schema comment ke mutabik).
+
+### Android path
+
+| Check | Result |
+|---|---|
+| Bearer token (no cookie) `GET /api/v1/tournaments` | **200**, 2 tournaments |
+| `client_config.json` (player + admin) | `https://spartan-arena.onrender.com/api/v1` |
+
+### Test data cleanup
+
+Test ke liye banaye 4 staff (walletops/roomonly/prizeops/Revoke Test) → `DELETE` se
+deactivate (**200**), saare keys revoke → **0 active keys** bache.

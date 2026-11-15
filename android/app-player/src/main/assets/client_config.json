@@ -8,7 +8,7 @@
   "corner_radius_dp": 12,
   "font_style": "default",
   "enable_dark_mode": true,
-  "api_base_url": "http://localhost:5000/api/v1",
+  "api_base_url": "https://spartan-arena.onrender.com/api/v1",
   "tenant_id": "53a09545-e6e2-4cf5-a5c2-7ef18b276a52",
   "upi_id": "thunderesports@okaxis",
   "upi_name": "Thunder eSports",
