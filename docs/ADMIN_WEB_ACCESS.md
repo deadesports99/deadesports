@@ -92,8 +92,8 @@ USER       → hamesha 403
 | Action | Endpoint | Asar |
 |---|---|---|
 | Naya key | `POST /api/v1/admin/access` | 24-char key **ek baar** dikhti hai |
-| Revoke | `POST /api/v1/admin/access/:id/revoke` | session **agle request pe** dead |
-| Regenerate | `POST /api/v1/admin/access/:id/regenerate` | purani dead, nayi dikhti hai |
+| Revoke | `POST /api/v1/admin/access/:id/revoke` | session **agle request pe** dead — par **30 s** tak chal sakta hai (key cache TTL) |
+| Regenerate | `POST /api/v1/admin/access/:id/regenerate` | **naya key row** banta hai + purana auto-revoke (purane id pe revoke dobara call karna no-op hai) |
 | List | `GET /api/v1/admin/access` | sirf `keyHint` (last 4) + permissions |
 
 ## 7. Verify karna (2 min, curl se)
