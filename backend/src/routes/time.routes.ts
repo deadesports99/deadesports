@@ -24,7 +24,7 @@ export function getIstTimeInfo(date: Date = new Date()) {
 
 /**
  * GET /api/v1/time
- * Returns authoritative Indian Standard Time directly verified by Supabase PostgreSQL.
+ * Returns authoritative Indian Standard Time read from the PostgreSQL clock.
  * Client devices MUST use this to prevent device clock spoofing.
  */
 timeRouter.get('/', async (_req: Request, res: Response) => {
@@ -35,14 +35,14 @@ timeRouter.get('/', async (_req: Request, res: Response) => {
     res.setHeader('X-Server-Time', dbTime?.epoch_ms ? dbTime.epoch_ms.toString() : Date.now().toString());
     res.setHeader('X-Server-Time-IST', dbTime?.ist_formatted || getIstTimeInfo().istFormatted);
 
-    return sendResponse(res, 200, 'Authoritative server time from Supabase', {
+    return sendResponse(res, 200, 'Authoritative server time from PostgreSQL', {
       serverTimeUtc: dbTime?.utc_now || new Date().toISOString(),
       serverTimeIst: dbTime?.ist_now || getIstTimeInfo().ist,
       istFormatted: dbTime?.ist_formatted || getIstTimeInfo().istFormatted,
       epochMs: dbTime?.epoch_ms ? Number(dbTime.epoch_ms) : Date.now(),
       timezone: 'Asia/Kolkata',
       offsetMinutes: 330,
-      source: 'supabase_postgres',
+      source: 'postgres',
     });
   } catch {
     const fallback = getIstTimeInfo();

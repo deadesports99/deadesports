@@ -1,10 +1,13 @@
 # Firebase Migration — Master Plan & Delivery Record
 
-> **Status:** Phases 1–5 **implemented and switchable**, each OFF by default.
-> Real-Firebase proof (one Firestore write, one Storage object) is still **pending** —
-> it needs the service account, see `ACTIVATION-CHECKLIST.md` §2.
+> **Status:** Phases 1–5 **implemented**; **Phases 1 + 2 are switched ON and proven against the
+> real project** (2026-11-14). Free (Spark) plan only: Firestore `(default)` in `asia-south1`,
+> deny-all rules + 4 composite indexes deployed, service account in `backend/.env`,
+> `verify:firebase` = **5 PASS / 1 FAIL / 1 SKIP**. Because **billing is disabled**, the console
+> TTL policy is replaced by `liveMirrorService.purgeExpired()` (30-min sweep, proven) and Phase 4
+> **Storage is deferred** (needs Blaze; nothing renders `logoUrl` yet). See `PHASE-0-INFRA-SETUP.md`.
 > **Owner:** Jay Kumar · **Rule of the whole programme: nothing that works today may stop working.**
-> **Last updated:** 2026-11-12 · `tsc` clean · **423/423 tests pass**
+> **Last updated:** 2026-11-14 · `tsc` clean · **439/439 tests pass**
 
 ---
 
@@ -91,8 +94,9 @@ background/offline delivery.
 
 | # | Phase | Risk | Breaks nothing? | Status |
 | --- | --- | --- | --- | --- |
-| 1 | **Live mirror** — every WebSocket broadcast is also written to Firestore | Very low | ✅ additive + env-flagged | ✅ **done** |
-| 2 | **Live reader** — `GET /api/v1/live/events` catch-up feed, server-mediated, with a read-cost budget guard | Low | ✅ new read path only | ✅ **done** |
+| 0 | **Infra** — Firestore database, rules, indexes, `.firebaserc` | none | ✅ nothing touches our data | 🟡 **Firestore done · Storage + service account pending** → `PHASE-0-INFRA-SETUP.md` |
+| 1 | **Live mirror** — every WebSocket broadcast is also written to Firestore | Very low | ✅ additive + env-flagged | ✅ **done** · enabled locally · real doc proven |
+| 2 | **Live reader** — `GET /api/v1/live/events` catch-up feed, server-mediated, with a read-cost budget guard | Low | ✅ new read path only | ✅ **done** · enabled locally · read proven on real Firestore |
 | 3 | **Auth consolidation** — `firebaseUid` mapped on `User`, dev auth bypasses refused in production | Low | ⚠️ additive column + index (**already applied**) | ✅ **done** |
 | 4 | **Storage** — admin uploads for tenant logos / banners / screenshots, permanent tokenised URLs | Very low | ✅ new endpoint only | ✅ **done** |
 | 5 | **Stats snapshots** — one aggregate document per tenant per day (counts + money totals, no player data) | Very low | ✅ new collection only | ✅ **done** |
@@ -185,18 +189,52 @@ this document does not pretend otherwise.
 
 ---
 
+## 6b. Supabase decommissioning ✅ (2026-11-14)
+
+The app already had **zero runtime dependency** on Supabase (no `@supabase/supabase-js`, no SDK,
+local Docker Postgres as source of truth). This sweep removed the leftovers so nobody
+re-introduces them by copy-paste:
+
+| Removed / changed | Why it was safe |
+| --- | --- |
+| `supabase_url` + `supabase_anon_key` from all 4 `client_config.json` (player APK, admin APK, `clients/_template`, `clients/sample_client`) | no Kotlin/TS file ever read them — the field was dead config, and an empty `anon_key` invites someone to paste a real one into a git-tracked asset |
+| `backend/src/scripts/enableRealtime.ts` (deleted) | it only added tables to the `supabase_realtime` publication; nothing referenced it, and realtime is our own `/ws` gateway + Firestore mirror |
+| `supabase` and `supabase-remote` MCP servers from `mcp_config.json` and `.agents/mcp_config.json` | tooling only; Firebase MCP stays |
+| Supabase wording in `env.ts`, `prisma.ts`, `tournament.service.ts`, `time.routes.ts`, `checkTime.ts`, `setupTimeSync.ts`, `testMatchLifecycle.ts` | comments/logs now say PostgreSQL; `/api/v1/time` answers `source: "postgres"` instead of `"supabase_postgres"` |
+| `get_server_time()` created in the local Postgres | `/api/v1/time` was silently falling back to `source: "server_clock"`; it now reads the database clock as designed |
+| `backend/.env.supabase.bak` kept (gitignored) | it is the only copy of the hosted data pointer — delete it once nobody needs the old tenant `a3c11cd0…` |
+
+Docs updated: `LOCAL_DEV.md` now says the Supabase section is *data recovery only*, and
+`start-local.bat` starts all three servers + `adb reverse`.
+
+Final state: `tsc` clean, **439/439** tests pass, `/api/v1/time` → `source: "postgres"`.
+
+---
+
 ## 7. Evidence ledger
 
 | Claim | Evidence |
 | --- | --- |
 | Compiles | `npx tsc --noEmit` clean after every phase |
-| No regressions | **423/423** tests pass; 80 of them were written for this programme (19 + 10 + 10 + 16 + 13 + 12) |
+| No regressions | **439/439** tests pass (up from 423 at handover; 80 of them were written for this programme — 19 + 10 + 10 + 16 + 13 + 12) |
 | Phase 2 works over HTTP | 401 no token · 200 while disabled · **429 `budget_exhausted` with zero Firestore calls** |
 | Phase 4 works over HTTP | 401 / 403 player / 200 admin config / 400 empty body / clear 403 when disabled |
 | Phase 3 guard works | `❌ PHONE_OTP_BYPASS=true is not allowed in production`, process refuses to boot |
 | Phase 5 works on real Postgres | 2 snapshots built from the live DB (`matchesScheduled: 2`, `newPlayers: 2`), no PII in the payload |
 | `verify:firebase` behaves honestly | local run with no service account → `1 of 7 FAILED`, `exit=1` |
-| **NOT proven** | one real Firestore write, one real read with indexes, one real Storage object. Reasons: no `FCM_CREDENTIALS_JSON` in `backend/.env`, no ADC, and the local `gcloud` login is expired (`invalid_grant`) |
+| **Firestore exists and accepts writes** | 2026-11-14: `firestore:databases:create` → `Successfully created … databases/(default)`; a doc written through the Firebase MCP into `_verify/mcp-setup-check`, read back, then deleted → root collection list = `{}` |
+| Firestore rules live | `firebase deploy --only firestore:rules` → `released rules firestore.rules to cloud.firestore`; `get_security_rules` returns the repo's deny-all file |
+| Firestore indexes live | `firestore:indexes` → 4 entries on `live_events` (`audience+serverTimeMs`, `+tenantId`, `+userId`, `+userIds CONTAINS`), state `CREATING` right after deploy |
+| Firestore empty before enabling | MCP `firestore_list_collections` on the root → `{}` (no stray test data left behind) |
+| **Backend really writes to Firestore** | 2026-11-14 `npm run verify:mirror` → `stats: {"written":1,"failedBatches":0}`; MCP read of `live_events` shows the doc with `expireAt` (TTL field set) and `serverTimeMs` |
+| **`verify:firebase` on the real project** | `PASS Setup (service account)` · `PASS Setup (round-trip)` · `PASS Phase 1 mirror` · `PASS Phase 2 feed` · `PASS Phase 5 stats` · `FAIL Phase 4 (no bucket)` · `SKIP rules` |
+| Two production bugs the activation run caught | (a) Phase 2 feed died on real Firestore — duplicate `orderBy('serverTimeMs')` from a double `fresh()` wrapper → `INVALID_ARGUMENT`; wrapper removed. (b) Phase 1 proof demanded a `type+createdAt` index we never shipped; the probe now uses an equality filter and picks the newest doc in code. Details: `PHASE-0-INFRA-SETUP.md` |
+| **FCM push proven end-to-end** (2026-11-15) | `POST /auth/fcm-token` → `200`, `FcmTokenSync: FCM token synced`, `User.fcmToken` = 1, `sendEachForMulticast` → `successCount: 1`, device `dumpsys notification` → `channel=ff_room_alerts`, heads-up shown |
+| **Real match E2E, API + money** (2026-11-15) | `scripts/e2eMatchFlow.ts` → **ALL 14 CHECKS PASSED**: 48/48 seats, `SLOTS_FULL`, ₹480 fees once per seat, room reveal readable by a seated player, ₹345 prizes (rank share + kills), double payout → `409`, scoreboard 48 rows |
+| **Real match E2E, phone UI** (2026-11-15) | Match 10 shown on device → tapped Join → slot row + `JOIN_FEE ₹10` ledger + wallet ₹2,145 → ₹2,135 + card flips to **Joined ✓ 1/48** |
+| **Mirror carries a real match** (2026-11-15) | Firestore `live_events` after the E2E run: `SLOT_BOOKED×48`, `WALLET_UPDATED×48`, `MATCH_CREATED×1`, `ROOM_CREDENTIALS_REVEALED×2`, `MATCH_STATUS_CHANGED×2`; match-10 query returns `SLOT_BOOKED` + `MATCH_CREATED`, `audience: TENANT`, `expireAt` set; `/live/events` feed returns 50 events with real types |
+| **NOT proven** | one real Storage object (needs the Blaze plan; Phase 4 deferred) |
+| TTL without billing | console TTL refuses (`billing disabled`) → `purgeExpired()` + `FIREBASE_LIVE_MIRROR_PURGE_MINUTES=30` deletes expired `live_events` docs; probe: `purge deleted: 1`, fresh doc kept, log `🧹 live mirror purge every 30 min` |
 
 ### Database change actually applied (Phase 3)
 
@@ -264,6 +302,7 @@ rewrite of the money tests.** That is why it is marked refused above.
 ```
 plan/firebase-migration/
 ├─ README.md                       ← this file (master plan + delivery record)
+├─ PHASE-0-INFRA-SETUP.md          ← infra provisioning record + who is blocked on what
 ├─ PHASE-1-LIVE-MIRROR.md          ← write path: websocket events → Firestore
 ├─ PHASE-2-LIVE-READER.md          ← read path: catch-up feed + read-cost budget guard
 ├─ PHASE-3-AUTH-CONSOLIDATION.md   ← stable identity + production auth guards + DDL
@@ -284,9 +323,11 @@ firebase deploy --only firestore:rules,firestore:indexes,storage --project deade
 
 ## 11. Next steps, in priority order
 
-1. **Prove it on the real project** — `ACTIVATION-CHECKLIST.md` §1–2:
-   deploy rules/indexes, then `cd backend && npm run verify:firebase`. Nothing gets
-   enabled before that run is green.
+0. ✅ **Infra (Phase 0)** — Firestore database + rules + indexes + `.firebaserc` are live.
+   Remaining, both human-only: **service account JSON** into `backend/.env`, and
+   **Storage „Get Started”** in the console. Details: `PHASE-0-INFRA-SETUP.md`.
+1. **Prove it on the real project** — `ACTIVATION-CHECKLIST.md` §2:
+   `cd backend && npm run verify:firebase`. Nothing gets enabled before that run is green.
 2. **Enable one phase at a time** (`FIREBASE_LIVE_MIRROR` → `LIVE_FEED_ENABLED` →
    `MEDIA_UPLOAD_ENABLED` → `STATS_EXPORT_ENABLED`), restart + watch after each.
 3. **Firestore TTL policy** on `live_events.expireAt` — the only unbounded-growth risk

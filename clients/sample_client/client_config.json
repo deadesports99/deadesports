@@ -19,8 +19,6 @@
   },
   "backend": {
     "api_base_url": "https://api.alphaesports.in/api/v1",
-    "supabase_url": "https://zupnlhdtfirufmlurkef.supabase.co",
-    "supabase_anon_key": "",
     "tenant_id": "a3c11cd0-324e-4886-b27c-9667fd7f59dc"
   },
   "payments": {

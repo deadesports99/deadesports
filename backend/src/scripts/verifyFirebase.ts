@@ -202,26 +202,39 @@ async function checkPhase1Mirror(ctx: Ctx): Promise<Outcome> {
   }
 
   // Prove it is really in Firestore, not just counted in memory.
+  //
+  // Deliberately no `.orderBy()`: an equality filter on `type` rides Firestore's
+  // automatic single-field index, so this proof needs no extra composite index
+  // (and therefore no "wait for the index build" step). The newest of the few
+  // returned documents is picked in code instead.
   const db = await getDb(ctx);
   const found = await db
     .collection(env.FIREBASE_LIVE_MIRROR_COLLECTION)
     .where('type', '==', 'MIRROR_PING')
-    .orderBy('createdAt', 'desc')
-    .limit(1)
+    .limit(10)
     .get();
 
   if (found.empty) {
     return { status: 'fail', detail: `stats say written=${after.written} but no MIRROR_PING document is readable` };
   }
 
-  ctx.mirrorDocId = found.docs[0]!.id;
-  const data = found.docs[0]!.data() as { tenantId?: string; expireAt?: unknown };
+  const millis = (doc: any): number => {
+    const createdAt = doc.data()?.createdAt;
+    if (!createdAt) return 0;
+    if (typeof createdAt.toMillis === 'function') return createdAt.toMillis();
+    if (typeof createdAt.seconds === 'number') return createdAt.seconds * 1000;
+    return 0;
+  };
+  const doc = [...found.docs].sort((a: any, b: any) => millis(b) - millis(a))[0]!;
+
+  ctx.mirrorDocId = doc.id;
+  const data = doc.data() as { tenantId?: string; expireAt?: unknown };
   ctx.tenantId = ctx.tenantId ?? data.tenantId ?? null;
 
   return {
     status: 'pass',
     detail:
-      `document ${found.docs[0]!.id} in "${env.FIREBASE_LIVE_MIRROR_COLLECTION}"` +
+      `document ${doc.id} in "${env.FIREBASE_LIVE_MIRROR_COLLECTION}"` +
       ` · tenantId ${data.tenantId ?? '(none)'} · expireAt ${data.expireAt ? 'set (TTL)' : 'MISSING'}`,
   };
 }

@@ -2,7 +2,7 @@ import { prisma } from '../config/prisma.js';
 import { sweepMatchStates } from '../services/matchSweep.service.js';
 
 async function main() {
-  console.log('--- TESTING MATCH LIFECYCLE SYNC WITH SUPABASE ---');
+  console.log('--- TESTING MATCH LIFECYCLE SYNC WITH POSTGRES ---');
 
   // Find the 'barmunda mtch' tournament
   const match = await prisma.tournament.findFirst({
@@ -19,7 +19,7 @@ async function main() {
   // Set its matchTime to NOW (so it goes LIVE)
   const dbNow: any = await prisma.$queryRawUnsafe('SELECT NOW() as now;');
   const currentTime = new Date(dbNow[0].now);
-  console.log('Setting matchTime to Supabase NOW:', currentTime);
+  console.log('Setting matchTime to PostgreSQL NOW:', currentTime);
 
   await prisma.tournament.update({
     where: { id: match.id },

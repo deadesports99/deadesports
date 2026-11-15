@@ -11,7 +11,7 @@ import { env } from './env.js';
  */
 /**
  * pg v9 treats `sslmode=require` as `verify-full`, which overrides the explicit
- * `ssl` object below and breaks against Supabase's pooler (its chain contains a
+ * `ssl` object below and breaks against managed poolers (their chain contains a
  * managed/self-signed CA). We therefore keep TLS on via `ssl` and drop only the
  * URL flag — same intent as the original `rejectUnauthorized: false` config.
  */
@@ -27,7 +27,7 @@ function withoutSslMode(databaseUrl: string): string {
 
 /**
  * Local Docker Postgres (localhost/127.0.0.1) has no TLS listener, so SSL is
- * only enabled for remote hosts (Supabase pooler etc.). Keeping it explicit
+ * only enabled for remote hosts (managed poolers etc.). Keeping it explicit
  * avoids `Error opening a TLS connection` in local development.
  */
 function usesTls(databaseUrl: string): boolean {
@@ -42,7 +42,7 @@ function usesTls(databaseUrl: string): boolean {
 const pool = new pg.Pool({
   connectionString: withoutSslMode(env.DATABASE_URL),
   ssl: usesTls(env.DATABASE_URL) ? { rejectUnauthorized: false } : undefined,
-  // Keep the application-side pool bounded for Supabase's PgBouncer pooler.
+  // Keep the application-side pool bounded for a PgBouncer-style pooler.
   max: env.DB_POOL_MAX,
   idleTimeoutMillis: env.DB_POOL_IDLE_TIMEOUT_MS,
   connectionTimeoutMillis: env.DB_POOL_CONNECTION_TIMEOUT_MS,

@@ -261,7 +261,7 @@ function broadcastFeedChanged(
   }
 }
 
-// ─── In-Memory Feed Cache (eliminates 1.5s DB roundtrip to Supabase) ────────
+// ─── In-Memory Feed Cache (eliminates a ~1.5s DB roundtrip per request) ─────
 interface ListCacheEntry {
   data: {
     items: Record<string, unknown>[];
@@ -631,7 +631,7 @@ async function loadJoinContext(
  * Join concurrency gate.
  *
  * Why: a nearly-full match turns into a stampede — 100+ taps at the same
- * instant, all wanting the last seat. Supabase's session pooler only gives us
+ * instant, all wanting the last seat. A session pooler only gives us
  * 15 server connections, so without a gate Prisma's own pool spills
  * `P2024 timeout exceeded when trying to connect` (a 500/503) for the overflow.
  *

@@ -3,19 +3,41 @@
 > Everything below runs on the machine that holds the service account (Render, or your
 > laptop if you put the JSON in `backend/.env`).
 >
-> **Nothing here is done yet.** This laptop cannot prove any Firebase write: there is no
-> `FCM_CREDENTIALS_JSON` in `backend/.env`, no Application Default Credentials, and the
-> local `gcloud` login is expired (`invalid_grant`). So Phases 1–5 are verified by unit
-> tests + real HTTP smoke, **not** by a real Firestore document. That gap is exactly what
-> step 2 closes.
+> **Updated 2026-11-14:** step 1 is **partly done** — the Firestore database `(default)`
+> (`asia-south1`), its deny-all rules and the 4 composite indexes are deployed, and
+> `.firebaserc` is pinned. What is still missing is the **service account JSON** (step 2)
+> and **Firebase Storage setup in the console** (step 1b). Full record:
+> `PHASE-0-INFRA-SETUP.md`.
+>
+> Before 2026-11-14 this laptop could not prove any Firebase write because the project had
+> no Firestore database at all and no `FCM_CREDENTIALS_JSON`. The database now exists and
+> accepts writes (proven through the Firebase MCP), but our backend still cannot write
+> until step 2 is done.
 
 ---
 
-## 1. Deploy the Firebase project files (once)
+## 1. Deploy the Firebase project files
 
 ```bash
 cd "C:/Free Fire turnament"
 firebase deploy --only firestore:rules,firestore:indexes,storage --project deadesports-865d2
+```
+
+**Status:** `firestore:rules` + `firestore:indexes` ✅ deployed 2026-11-14
+(`firebase/.firebaserc` now pins the project, so `--project` is optional when you run it
+from `firebase/`). `storage` ❌ still refuses:
+
+```
+Error: Firebase Storage has not been set up on project 'deadesports-865d2'.
+Go to https://console.firebase.google.com/project/deadesports-865d2/storage and click 'Get Started'
+```
+
+### 1b. Firebase Storage (one console click, needs the Blaze plan)
+
+Console → Storage → **Get Started** → production mode → location `asia-south1`, then:
+
+```bash
+cd firebase && firebase deploy --only storage
 ```
 
 What it does:

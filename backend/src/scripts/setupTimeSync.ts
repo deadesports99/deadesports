@@ -1,7 +1,7 @@
 import { prisma } from '../config/prisma.js';
 
 async function main() {
-  console.log('⚡ Initializing Supabase PostgreSQL Server-Time & Tamper-Proof Engine...');
+  console.log('⚡ Initializing PostgreSQL Server-Time & Tamper-Proof Engine...');
 
   // 1. Create function get_server_time()
   await prisma.$queryRawUnsafe(`
@@ -20,7 +20,7 @@ async function main() {
       );
     $$;
   `);
-  console.log('✔ Function get_server_time() installed in Supabase');
+  console.log('✔ Function get_server_time() installed in PostgreSQL');
 
   // 2. Create function sync_match_lifecycle()
   await prisma.$queryRawUnsafe(`
@@ -32,7 +32,7 @@ async function main() {
       v_revealed_count integer := 0;
       v_live_count integer := 0;
     BEGIN
-      -- Advance matches to ROOM_REVEALED if within 15 mins of matchTime (using Supabase server clock)
+      -- Advance matches to ROOM_REVEALED if within 15 mins of matchTime (using the database clock)
       WITH updated_revealed AS (
         UPDATE "Tournament"
         SET status = 'ROOM_REVEALED',
@@ -43,7 +43,7 @@ async function main() {
       )
       SELECT count(*) INTO v_revealed_count FROM updated_revealed;
 
-      -- Advance matches to LIVE if matchTime has arrived (using Supabase server clock)
+      -- Advance matches to LIVE if matchTime has arrived (using the database clock)
       WITH updated_live AS (
         UPDATE "Tournament"
         SET status = 'LIVE'
@@ -63,11 +63,11 @@ async function main() {
     END;
     $$;
   `);
-  console.log('✔ Function sync_match_lifecycle() installed in Supabase');
+  console.log('✔ Function sync_match_lifecycle() installed in PostgreSQL');
 
   // 3. Verify functions by calling them
   const serverTimeResult: any = await prisma.$queryRawUnsafe(`SELECT get_server_time() as time_info;`);
-  console.log('👉 Verified Supabase Server Time:', serverTimeResult[0].time_info);
+  console.log('👉 Verified PostgreSQL Server Time:', serverTimeResult[0].time_info);
 
   const lifecycleResult: any = await prisma.$queryRawUnsafe(`SELECT sync_match_lifecycle() as sync_info;`);
   console.log('👉 Verified Match Lifecycle Sync:', lifecycleResult[0].sync_info);

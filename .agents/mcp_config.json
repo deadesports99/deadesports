@@ -19,24 +19,12 @@
         "--init",
         "-i",
         "--rm",
-        "-e", "SONARQUBE_URL=${SONARQUBE_URL}",
-        "-e", "SONARQUBE_TOKEN=${SONARQUBE_TOKEN}",
+        "-e",
+        "SONARQUBE_URL=${SONARQUBE_URL}",
+        "-e",
+        "SONARQUBE_TOKEN=${SONARQUBE_TOKEN}",
         "sonarsource/sonarqube-mcp"
       ]
-    },
-    "supabase": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@supabase/mcp-server-supabase@latest"
-      ],
-      "env": {
-        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}",
-        "SUPABASE_PROJECT_REF": "${SUPABASE_PROJECT_REF}"
-      }
-    },
-    "supabase-remote": {
-      "url": "https://mcp.supabase.com/mcp"
     },
     "firebase": {
       "command": "npx",

@@ -1,7 +1,6 @@
 # Local dev stack: PostgreSQL + Redis for the Free Fire Tournament backend.
 # Usage:  docker compose -f docker-compose.dev.yml up -d
 # Postgres is exposed on host port 5433 (5432 is often taken by a local install).
-version: '3.9'
 
 services:
   postgres:

@@ -1,4 +1,4 @@
-import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { applicationDefault, cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
@@ -107,6 +107,11 @@ export function getFirebaseApp(): App | null {
         projectId: serviceAccount.project_id || projectId,
       });
       console.log('[firebase] Admin SDK initialized with Service Account — Full Auth & FCM active');
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      // Documented fallback #2 — opt-in only, so a laptop with a stale ADC file can
+      // never hijack the project-Id-only mode below.
+      app = initializeApp({ credential: applicationDefault(), projectId });
+      console.log('[firebase] Admin SDK initialized with Application Default Credentials');
     } else {
       app = initializeApp({ projectId });
       console.log(`[firebase] Admin SDK initialized with Project ID (${projectId}) for token verification`);

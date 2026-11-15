@@ -9,7 +9,7 @@ async function main() {
       EXTRACT(EPOCH FROM NOW()) * 1000 as epoch_ms;
   `);
 
-  console.log('--- SUPABASE SERVER TIME (TAMPER PROOF) ---');
+  console.log('--- DATABASE SERVER TIME (TAMPER PROOF) ---');
   console.log('UTC:', result[0].utc_now);
   console.log('IST (India):', result[0].ist_now);
   console.log('IST Formatted:', result[0].ist_formatted);

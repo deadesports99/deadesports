@@ -56,6 +56,9 @@ realtimeService.init(server);
 liveMirrorService.init();
 if (liveMirrorService.isEnabled()) {
   realtimeService.setMirror((message, scope) => liveMirrorService.publish(message, scope));
+  // Housekeeping: the Firestore console TTL policy needs the Blaze plan, so the
+  // mirror deletes its own expired documents instead (free, same result).
+  liveMirrorService.startPurgeScheduler();
 }
 
 startMatchSweepScheduler();
@@ -117,6 +120,7 @@ async function shutdown(signal: string): Promise<void> {
   console.log(`\n⚠ ${signal} received — shutting down gracefully...`);
   stopMatchSweepScheduler();
   statsExportService.stopScheduler();
+  liveMirrorService.stopPurgeScheduler();
   clearInterval(paymentSweepTimer);
   if (reconcileSweepTimer) clearInterval(reconcileSweepTimer);
   realtimeService.shutdown();

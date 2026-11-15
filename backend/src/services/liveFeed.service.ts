@@ -147,14 +147,16 @@ function buildQueries(
         .where('tenantId', '==', scope.tenantId),
     ),
     fresh(collection().where('audience', '==', AUDIENCE.USER).where('userId', '==', scope.userId)),
-    fresh(
-      collection()
-        .where('audience', '==', AUDIENCE.USERS)
-        .where('userIds', 'array-contains', scope.userId)
-        .where('serverTimeMs', '>', sinceMs)
-        .orderBy('serverTimeMs')
-        .limit(limit),
-    ),
+    // No `fresh()` wrapper here: this query already carries its own
+    // serverTimeMs range + orderBy. Wrapping it added a second orderBy on the
+    // same field and Firestore rejected the whole feed with
+    // `3 INVALID_ARGUMENT: order by clause cannot contain duplicate fields serverTimeMs`.
+    collection()
+      .where('audience', '==', AUDIENCE.USERS)
+      .where('userIds', 'array-contains', scope.userId)
+      .where('serverTimeMs', '>', sinceMs)
+      .orderBy('serverTimeMs')
+      .limit(limit),
   ];
 }
 

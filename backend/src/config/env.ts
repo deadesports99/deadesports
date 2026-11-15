@@ -145,6 +145,13 @@ const envSchema = z.object({
   /** Documents per Firestore batch write (Firestore hard limit is 500). */
   FIREBASE_LIVE_MIRROR_BATCH_SIZE: z.coerce.number().int().positive().max(400).default(100),
 
+  /**
+   * Free stand-in for a Firestore TTL policy (the console TTL needs the Blaze plan).
+   * Every N minutes the mirror deletes `live_events` documents whose `expireAt`
+   * has passed. `0` disables the sweep.
+   */
+  FIREBASE_LIVE_MIRROR_PURGE_MINUTES: z.coerce.number().int().nonnegative().max(1440).default(30),
+
   // ─── Live feed reader (Phase 2, see plan/firebase-migration) ────────
   /**
    * Enables `GET /api/v1/live/events`, the catch-up feed a client calls after a

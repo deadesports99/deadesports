@@ -129,6 +129,10 @@ class LiveMirrorService {
   private injectedSink: LiveMirrorSink | null = null;
   private sinkFactoryTried = false;
 
+  /** Direct Firestore handle for housekeeping (the sink is a write-only closure). */
+  private db: any = null;
+  private purgeTimer: NodeJS.Timeout | null = null;
+
   private queued = 0;
   private written = 0;
   private dropped = 0;
@@ -231,6 +235,7 @@ class LiveMirrorService {
 
   /** Flush best-effort and stop. Called from the server's graceful shutdown. */
   public async stop(): Promise<void> {
+    this.stopPurgeScheduler();
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -239,6 +244,76 @@ class LiveMirrorService {
     await this.flush();
     this.sink = null;
     this.sinkFactoryTried = false;
+    this.db = null;
+  }
+
+  /**
+   * Free stand-in for a Firestore **TTL policy**.
+   *
+   * The console TTL feature refuses to work while billing is disabled (the whole
+   * Firebase project is on the free Spark plan), so the mirror cleans up after
+   * itself instead: delete at most `maxDocs` documents whose `expireAt` has
+   * passed. `expireAt` is a single field, so Firestore's automatic index serves
+   * this query — no composite index, no bill.
+   *
+   * Never throws. Returns how many documents were deleted.
+   */
+  public async purgeExpired(maxDocs = 400): Promise<number> {
+    if (!this.enabled) return 0;
+    const db = await this.getDb();
+    if (!db) return 0;
+
+    try {
+      const snapshot = await db
+        .collection(this.collection)
+        .where('expireAt', '<', new Date())
+        .limit(maxDocs)
+        .get();
+      if (snapshot.empty) return 0;
+
+      const batch = db.batch();
+      for (const doc of snapshot.docs) batch.delete(doc.ref);
+      await batch.commit();
+      return snapshot.size;
+    } catch (err) {
+      this.warn('live mirror purge failed', err);
+      return 0;
+    }
+  }
+
+  /**
+   * Runs `purgeExpired` on an interval (`FIREBASE_LIVE_MIRROR_PURGE_MINUTES`,
+   * 0 disables). One pass runs immediately so a long downtime heals on boot.
+   */
+  public startPurgeScheduler(): void {
+    const minutes = env.FIREBASE_LIVE_MIRROR_PURGE_MINUTES;
+    if (!this.enabled || !minutes || minutes <= 0) return;
+    if (this.purgeTimer) return;
+
+    const run = async (): Promise<void> => {
+      let total = 0;
+      // Bounded loop: 10 batches per run max, so one pass can never run away.
+      for (let i = 0; i < 10; i += 1) {
+        const deleted = await this.purgeExpired(400);
+        total += deleted;
+        if (deleted < 400) break;
+      }
+      if (total > 0) {
+        console.log(`[liveMirror] purged ${total} expired "${this.collection}" document(s)`);
+      }
+    };
+
+    this.purgeTimer = setInterval(() => void run(), minutes * 60 * 1000);
+    this.purgeTimer.unref?.();
+    console.log(`🧹 live mirror purge every ${minutes} min (free stand-in for a TTL policy)`);
+    void run();
+  }
+
+  public stopPurgeScheduler(): void {
+    if (this.purgeTimer) {
+      clearInterval(this.purgeTimer);
+      this.purgeTimer = null;
+    }
   }
 
   public stats(): LiveMirrorStats {
@@ -287,6 +362,26 @@ class LiveMirrorService {
     }, FLUSH_INTERVAL_MS);
     // Do not keep the event loop alive just for a pending mirror flush.
     this.timer.unref?.();
+  }
+
+  /**
+   * Lazy Firestore handle, used only by housekeeping (`purgeExpired`).
+   * Returns null when the mirror is off or no service account is configured.
+   */
+  private async getDb(): Promise<any | null> {
+    if (this.db) return this.db;
+    if (!env.FCM_CREDENTIALS_JSON) return null;
+
+    try {
+      const app = getFirebaseApp();
+      if (!app) return null;
+      const { getFirestore } = await import('firebase-admin/firestore');
+      this.db = getFirestore(app);
+      return this.db;
+    } catch (err) {
+      this.warn('could not open Firestore for purge', err);
+      return null;
+    }
   }
 
   private async resolveSink(): Promise<LiveMirrorSink | null> {

@@ -12,9 +12,16 @@
 One-click start/stop (repo root):
 
 ```bat
-start-local.bat      :: Docker DB → backend → admin console → browser
+start-local.bat      :: Docker → Postgres+Redis → backend :5000 → admin :5174 → player :5173
+                     :: → adb reverse tcp:5000 (phone ho to) → browser kholta hai
 stop-local.bat       :: Postgres + Redis band (volume safe)
 ```
+
+`start-local.bat` idempotent hai — dobara chalao to jo already up hai use skip kar deta hai.
+Reboot ke baad bas ye ek file chalao, aur kuch manual nahi karna.
+
+Firebase delivery layer (mirror + live feed) locally **ON** hai — details
+`plan/firebase-migration/` me, service account `backend/.env` ke `FCM_CREDENTIALS_JSON` me.
 
 First-time DB setup:
 
@@ -65,13 +72,34 @@ cd android
   (Gradle release me localhost accept nahi karta).
 - Client config badalne ke baad **APK dobara build + install** karna zaroori hai.
 
-## Hosted Supabase par wapas jaana
+## Purana Supabase DB (sirf data recovery ke liye)
+
+The app ka Supabase par **koi runtime dependency nahi** hai (2026-11-14 se):
+na `@supabase/supabase-js`, na Supabase SDK, na hosted DB connection — local Docker
+Postgres source of truth hai aur Firebase delivery layer (mirror/feed/stats) hai.
+Sirf purana hosted data ek backup file me pada hai, agar kabhi recover karna ho:
 
 ```bash
 cd backend
-copy /Y .env.supabase.bak .env      # Windows (bash: cp .env.supabase.bak .env)
-# restart backend
+cp .env.supabase.bak .env      # hosted Supabase ka DATABASE_URL
+# backend restart
 ```
 
-Phir upar wale chaaron jagah tenant id `a3c11cd0-...` kar do aur admin/player web +
-APKs rebuild kar lo.
+Phir tenant id `a3c11cd0-...` kar do chaaron jagah (admin-web, player-web, dono APK config)
+warna login "Tenant not found" dega. Aam taur par iski zaroorat nahi — local DB me poora
+demo data hai.
+
+## Local DB functions (ek baar)
+
+`/api/v1/time` DB clock se padhta hai (`get_server_time()`). Naye/local database par ek baar:
+
+```bash
+docker exec -i ff-postgres psql -U postgres -d freefire_tournament -c "\
+  CREATE OR REPLACE FUNCTION get_server_time() RETURNS json LANGUAGE sql STABLE AS \$\$
+  SELECT json_build_object('utc_now',NOW(),'ist_now',NOW() AT TIME ZONE 'Asia/Kolkata',
+    'ist_formatted',TO_CHAR(NOW() AT TIME ZONE 'Asia/Kolkata','YYYY-MM-DD HH24:MI:SS'),
+    'epoch_ms',(EXTRACT(EPOCH FROM NOW())*1000)::bigint,
+    'timezone','Asia/Kolkata','offset_minutes',330); \$\$;"
+```
+
+Function na ho to endpoint `source: "server_clock"` par fallback karta hai (app nahi tootti).

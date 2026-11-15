@@ -36,6 +36,7 @@ import com.tourney.core.network.TourneyRealtimeClient
 import com.tourney.core.payment.PaymentOrdersApi
 import com.tourney.core.payment.TopUpController
 import com.tourney.core.payment.WalletMath
+import com.tourney.core.fcm.FcmTokenSync
 import com.tourney.core.network.ApiClient
 import com.tourney.core.network.DeviceIdProvider
 import com.tourney.core.network.apiCall
@@ -212,6 +213,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 persistLogin(response)
+                FcmTokenSync.syncIfLoggedIn(getApplication())
                 authUi = UiState.Success(response.user)
                 prefetchData()
             } catch (e: ApiException) {
@@ -237,6 +239,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 persistLogin(response)
+                FcmTokenSync.syncIfLoggedIn(getApplication())
                 authUi = UiState.Success(response.user)
                 prefetchData()
             } catch (e: ApiException) {
@@ -271,6 +274,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 persistLogin(response)
+                FcmTokenSync.syncIfLoggedIn(getApplication())
                 authUi = UiState.Success(response.user)
                 prefetchData()
             } catch (e: ApiException) {
@@ -335,6 +339,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 persistLogin(response)
+                FcmTokenSync.syncIfLoggedIn(getApplication())
                 authUi = UiState.Success(response.user)
                 prefetchData()
             } catch (e: ApiException) {

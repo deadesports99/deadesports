@@ -20,7 +20,7 @@ import 'dotenv/config';
 import pg from 'pg';
 
 const API = process.env.E2E_API ?? 'http://localhost:5000/api/v1';
-const TENANT = 'a3c11cd0-324e-4886-b27c-9667fd7f59dc';
+const TENANT = process.env.E2E_TENANT ?? '53a09545-e6e2-4cf5-a5c2-7ef18b276a52';
 const ADMIN_PHONE = '9999900001';
 
 const argv = process.argv.slice(2);
@@ -36,7 +36,9 @@ const CLEANUP = argv.includes('--cleanup');
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL!.split('?')[0],
-  ssl: { rejectUnauthorized: false },
+  ssl: /supabase|render|amazonaws/i.test(process.env.DATABASE_URL ?? '')
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 const checks: Array<{ ok: boolean; label: string; detail?: string }> = [];
@@ -133,6 +135,14 @@ async function main() {
     const phone = `90000000${String(i).padStart(2, '0')}`;
     players.push(await login(phone));
   }
+  // Local dev: the auto-created test bots start at ₹0 and E2E only needs the entry fee.
+  // (Same direct reset the --cleanup branch already does; join/payout money paths stay real.)
+  await pool.query(
+    `update "User" set "depositBalance" = $1
+      where "phoneNumber" = any($2::text[]) and ("depositBalance" + "winningBalance") < $3`,
+    [200, players.map((p) => p.phone), ENTRY_FEE],
+  );
+
   console.log(`\nphase 2 — ${players.length} players joining…`);
   const balanceBefore = new Map<string, number>();
   for (const p of players) {
