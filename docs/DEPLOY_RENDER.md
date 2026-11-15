@@ -378,11 +378,12 @@ Service **public repo URL** se juda hai (GitHub App connect nahi kiya), isliye
 Render khud push pe deploy nahi karta. Do tarike:
 
 1. **Dashboard:** https://dashboard.render.com → `spartan-arena` → **Manual Deploy → Deploy latest commit**
-2. **API se** (assistant karta hai):
+2. **Script se** (ek command; status bhi batata hai):
    ```bash
-   curl -X POST "https://api.render.com/v1/services/srv-dbspjjc9v7es73b9tbf0/deploys" \
-     -H "Authorization: Bearer $RENDER_API_KEY"
+   RENDER_API_KEY=rnd_xxx node scripts/deploy-render.mjs
+   RENDER_API_KEY=rnd_xxx node scripts/deploy-render.mjs --status
    ```
+   API key: https://dashboard.render.com/u/settings#api-keys
 
 Auto-deploy chahiye to baad me **Settings → Build & Deploy → Connect GitHub** karo
 (GitHub App install me GitHub ka email-verification code maangta hai — 1 min ka kaam).
