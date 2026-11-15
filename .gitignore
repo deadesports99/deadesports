@@ -63,3 +63,6 @@ images/
 deliverables/
 .env*.bak
 .local-db-backup/
+
+# One-line service-account JSON for the Render dashboard (never commit)
+fcm-one-line.txt

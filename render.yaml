@@ -90,6 +90,8 @@ services:
         value: "true" # delivery layer only; a Firebase outage never breaks the API
       - key: FIREBASE_LIVE_MIRROR_PURGE_MINUTES
         value: "30" # free plan has no console TTL policy
+      - key: LIVE_FEED_ENABLED
+        value: "true" # GET /api/v1/live/events — reads the mirror, no billing involved
       - key: FIREBASE_STORAGE_BUCKET
         value: "" # Storage needs Blaze (paid) — deferred, Phase 4 FAILs on Spark
 

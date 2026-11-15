@@ -181,11 +181,18 @@ Browser me:
 ```json
 {
   "api_base_url": "https://<service>.onrender.com/api/v1",
-  "tenant_id": "<production tenant uuid>"
+  "tenant_id": "a3c11cd0-324e-4886-b27c-9667fd7f59dc"
 }
 ```
 
 `localhost:5000` hatana **zaroori** hai warna phone se app dead rahega.
+
+> **Tenant id** local aur prod me alag hai — ye galti sabse aam hai:
+> **local dev** = `53a09545-e6e2-4cf5-a5c2-7ef18b276a52` (docker Postgres),
+> **prod (Neon)** = `a3c11cd0-324e-4886-b27c-9667fd7f59dc` (hosted DB ka tenant).
+> Local me prod id daaloge to "tenant not found", prod me local id daaloge to khaali list — dono
+> silent lagte hain. Chaar jagah match hona chahiye: dono APK `client_config.json`,
+> `admin-web/.env` (`VITE_TENANT_ID`), `player-web/.env`.
 
 ## 11b. Step H2 — Firebase go-live (delivery layer)
 
@@ -238,6 +245,54 @@ cd backend && npm run verify:firebase
 
 > 💸 **Cost guardrail:** Spark = 50k document reads/din free. Mirror sirf `live_events`
 > likhta hai (bounded queue 500, batch 100) — normal din me ye limit ke 1% se bhi kam.
+
+**6) App side — push tabhi chalega jab token backend tak pahunche**
+
+APK me `google-services.json` hona chahiye (file gitignored hai, CI iske bina build karta hai →
+us build me push nahi jaayega, baaki sab chalega). Login ke baad app khud
+`POST /api/v1/auth/fcm-token` maarta hai (`FcmTokenSync` — app start par bhi, agar session hai).
+Check:
+
+```bash
+# prod DB (Neon) par
+select count(*) from "User" where "fcmToken" is not null;   -- 0 se zyada hona chahiye
+```
+
+Ek asli push bhej kar test karo (admin console se room reveal, ya `sendPush()`).
+Phone par notification na aaye to pehle `POST_NOTIFICATIONS` permission dekho.
+
+**7) Key hygiene (zaroori)**
+
+- `fcm-one-line.txt` Render me paste karne ke baad **delete** karo.
+- `C:\Users\<you>\Downloads\deadesports-865d2-firebase-adminsdk-*.json` bhi **delete** karo —
+  wahi credentials ab `.env` aur Render secret me hain; download folder me rehna risk hai.
+- Ye key kabhi commit na ho: `.gitignore` me `fcm-one-line.txt` aur `backend/.env` already hain
+  (`git status` me dikhna nahi chahiye).
+
+## 11c. Step H3 — Prod smoke test (deploy ke baad, 6 commands)
+
+Deploy hote hi laptop se ye chalao — har line ke saamne expected output:
+
+```bash
+BASE=https://<service>.onrender.com
+
+curl -s $BASE/health                       # {"status":"ok",...}
+curl -s $BASE/health/ready                 # {"status":"ready","database":"up","redis":"up"}
+curl -s $BASE/api/v1/time                  # "source":"postgres"   ← "server_clock" aaya to get_server_time() missing
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/v1/live/events   # 401 — bina auth ke kholna hi nahi chahiye
+```
+
+Render → **Logs** me ye 3 lines dikhni chahiye:
+
+```
+🔥 Firestore live mirror ON → collection "live_events"
+🧹 live mirror purge every 30 min
+🚀 Server running in PRODUCTION mode
+```
+
+Aur admin console par ek match banao → kuch der me Firestore Console → `live_events` me
+`MATCH_CREATED` doc dikhna chahiye. Nahi dikha to `FCM_CREDENTIALS_JSON` galat/trailing
+comma hai (`verify:firebase` wahi batayega).
 
 ## 12. Update kaise hote hain (roz ka kaam)
 
