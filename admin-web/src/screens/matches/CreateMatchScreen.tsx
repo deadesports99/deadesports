@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CalendarClock, Clock, Eye, ShieldCheck, Sparkles } from 'lucide-react';
 import { ApiError, api } from '../../lib/api';
@@ -34,9 +34,10 @@ const SLOT_LIMITS: Record<GameMode, { min: number; max: number; step: number }> 
 
 /**
  * Share of entry-fee collection paid back to players as kill bounties.
- * Must match PRIZE_POOL_SHARE in backend/src/services/tournament.service.ts.
+ * Fallback platform cut when the tenant has not set one yet.
+ * The live value comes from Tenant.commissionRate (Settings screen).
  */
-const PRIZE_POOL_SHARE = 0.8;
+const DEFAULT_COMMISSION_PERCENT = 20;
 const HOURS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
 const QUICK_HOURS = [1, 3, 6, 12, 24];
@@ -82,6 +83,12 @@ export function CreateMatchScreen() {
   const [entryFee, setEntryFee] = useState('');
   const [perKillPrize, setPerKillPrize] = useState('');
 
+  // Platform cut, seeded from the tenant settings so the number the admin sees
+  // here matches what the server will actually keep. Editable per match.
+  const [cutPercentText, setCutPercentText] = useState(String(DEFAULT_COMMISSION_PERCENT));
+  /** Last value confirmed on the server, so we only PATCH when it really moved. */
+  const lastSavedCutRef = useRef(DEFAULT_COMMISSION_PERCENT);
+
   const [schedule, setSchedule] = useState<ScheduleDraft>(() => defaultSchedule());
 
   const [visibilityMode, setVisibilityMode] = useState<'ALWAYS' | 'WITHIN'>('ALWAYS');
@@ -90,15 +97,41 @@ export function CreateMatchScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Seed the cut from the tenant's saved rate. Fails silently: the admin can
+  // still type a number, and the default is a safe 20%.
+  useEffect(() => {
+    let alive = true;
+    api.settings
+      .get()
+      .then((settings) => {
+        if (alive && typeof settings.commissionRate === 'number') {
+          setCutPercentText(String(settings.commissionRate));
+          lastSavedCutRef.current = settings.commissionRate;
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const fee = Number(entryFee || 0);
   const perKill = perKillPrize.trim() ? Number(perKillPrize) : undefined;
 
   /**
-   * Per-kill pool preview: a full house at the chosen seats x entry fee, of
-   * which PRIZE_POOL_SHARE goes back to players. The server recomputes this
-   * from the seats actually sold, so this is only the opening number.
+   * The admin owns the platform cut. Everything below recomputes from it, so
+   * moving the percentage instantly shows what the match earns and what it
+   * pays out. The server uses the same number from Tenant.commissionRate.
    */
-  const autoPool = Math.round(fee * totalSlots * PRIZE_POOL_SHARE * 100) / 100;
+  const cutPercent = Math.min(50, Math.max(0, Number(cutPercentText || 0)));
+  const playerShare = 1 - cutPercent / 100;
+
+  /** Cash in if every seat sells: seats x entry fee. */
+  const collectedAtFull = Math.round(fee * totalSlots * 100) / 100;
+  /** Pool paid back to players at a full house. */
+  const autoPool = Math.round(collectedAtFull * playerShare * 100) / 100;
+  /** What the match keeps when every seat sells. */
+  const profitAtFull = Math.round((collectedAtFull - autoPool) * 100) / 100;
 
   const matchIso = useMemo(() => scheduleToIso(schedule), [schedule]);
   const matchInFuture = isDraftInFuture(schedule);
@@ -154,6 +187,13 @@ export function CreateMatchScreen() {
 
     setSubmitting(true);
     try {
+      // The cut lives on the tenant, so persist it before creating the match.
+      // Without this the admin's number would only affect the preview.
+      if (cutPercent !== lastSavedCutRef.current) {
+        await api.settings.update({ commissionRate: cutPercent });
+        lastSavedCutRef.current = cutPercent;
+      }
+
       const created = await api.matches.create({
         gameMode,
         matchType,
@@ -286,7 +326,7 @@ export function CreateMatchScreen() {
               <ShieldCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-300" /> Entry & prizes
             </h3>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-4">
               <Field label="Entry fee (₹) *">
                 <TextInput
                   inputMode="decimal"
@@ -303,6 +343,17 @@ export function CreateMatchScreen() {
                   onChange={(event) => setPerKillPrize(event.target.value.replace(/[^\d.]/g, '').slice(0, 8))}
                 />
               </Field>
+              <Field label="Your cut (%)">
+                <TextInput
+                  inputMode="decimal"
+                  value={cutPercentText}
+                  placeholder={String(DEFAULT_COMMISSION_PERCENT)}
+                  aria-label="Platform cut percent"
+                  onChange={(event) =>
+                    setCutPercentText(event.target.value.replace(/[^\d.]/g, '').slice(0, 5))
+                  }
+                />
+              </Field>
               <Field label="Prize pool (₹) — auto">
                 <TextInput
                   value={autoPool ? String(autoPool) : '0'}
@@ -314,11 +365,20 @@ export function CreateMatchScreen() {
               </Field>
             </div>
 
+            {/* Live money split — moves the moment any number above changes. */}
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <MoneyCell label="Collected (full house)" value={collectedAtFull} tone="plain" />
+              <MoneyCell label={`To players (${100 - cutPercent}%)`} value={autoPool} tone="good" />
+              <MoneyCell label={`Your profit (${cutPercent}%)`} value={profitAtFull} tone="profit" />
+              <MoneyCell label="Per seat profit" value={Math.round(fee * (cutPercent / 100) * 100) / 100} tone="plain" />
+            </div>
+
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <InfoNote>
                 Players pay <b>₹{fee || 0}</b> to join. The pool grows by
-                <b> ₹{(fee * PRIZE_POOL_SHARE).toFixed(2)}</b> with every player who joins, and is
-                <b> {Math.round(PRIZE_POOL_SHARE * 100)}%</b> of everything collected.
+                <b> ₹{(fee * playerShare).toFixed(2)}</b> with every player who joins, and is
+                <b> {100 - cutPercent}%</b> of everything collected — the other
+                <b> {cutPercent}%</b> is yours.
               </InfoNote>
               <InfoNote>
                 Pure per-kill format: no 1st/2nd/3rd prize. Every confirmed kill pays
@@ -552,6 +612,37 @@ export function CreateMatchScreen() {
             </InfoNote>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One money number in the live split strip. `tone` colours the value so the
+ * admin can read "what I keep" at a glance without parsing labels.
+ */
+function MoneyCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'plain' | 'good' | 'profit';
+}) {
+  const valueClass =
+    tone === 'profit'
+      ? 'text-emerald-700 dark:text-emerald-300'
+      : tone === 'good'
+        ? 'text-cyan-700 dark:text-cyan-300'
+        : 'text-slate-900 dark:text-slate-100';
+  return (
+    <div className="rounded-xl border border-slate-200/70 bg-white/60 px-2.5 py-2 dark:border-white/10 dark:bg-white/5">
+      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+      <div className={`text-[15px] font-black tabular-nums ${valueClass}`}>
+        ₹{(Number.isFinite(value) ? value : 0).toFixed(2)}
       </div>
     </div>
   );

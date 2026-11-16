@@ -52,25 +52,32 @@ export const SLOT_LIMITS = {
 export type SlotLimits = (typeof SLOT_LIMITS)[keyof typeof SLOT_LIMITS];
 
 /**
- * Share of the entry-fee collection that goes back to players.
+/**
+ * Default platform cut, in percent. Kept only as a fallback for callers that
+ * have not loaded the tenant; the live value is Tenant.commissionRate.
  *
  * This is a pure per-kill format: there is no 1st/2nd/3rd placement prize, the
- * pool exists only to guarantee that every confirmed kill can be paid. 80% is
- * the market norm in Indian Free Fire custom rooms (organisers keep 20-30%), and
- * it is also the safe end: a BR lobby has 52 seats so at most 51 kills can be
- * recorded, which at a sane kill rate still fits inside 80% of the collection.
+ * pool exists only to guarantee that every confirmed kill can be paid. 20% is
+ * the market norm in Indian Free Fire custom rooms, and the admin can move it
+ * anywhere between 0% and 50%.
  */
-export const PRIZE_POOL_SHARE = 0.8;
+export const DEFAULT_COMMISSION_PERCENT = 20;
 
 /**
- * The prize pool for a per-kill match: seats sold x entry fee x payout share.
+ * The prize pool for a per-kill match: seats sold x entry fee x (100 - cut)%.
  *
  * It grows as players join and shrinks back if a seat is cancelled/refunded,
  * so the pool shown to players never promises money the match does not hold.
  */
-export function computePrizePool(entryFee: number, seatsSold: number, perKillPrize: number): number {
+export function computePrizePool(
+  entryFee: number,
+  seatsSold: number,
+  perKillPrize: number,
+  commissionPercent: number = DEFAULT_COMMISSION_PERCENT,
+): number {
   const collected = Math.max(0, seatsSold) * Math.max(0, entryFee);
-  const pool = collected * PRIZE_POOL_SHARE;
+  const share = 1 - Math.min(100, Math.max(0, commissionPercent)) / 100;
+  const pool = collected * share;
   // A pool with no kills recorded is still a pool; never round below one kill's
   // worth when at least one seat is paid for, so the display is never "₹0"
   // next to a live per-kill rate.
@@ -79,8 +86,23 @@ export function computePrizePool(entryFee: number, seatsSold: number, perKillPri
 }
 
 /** Pool advertised before anyone joins: a full house at the current rate. */
-function initialPrizePool(entryFee: number, totalSlots: number, perKillPrize: number): number {
-  return computePrizePool(entryFee, totalSlots, perKillPrize);
+function initialPrizePool(
+  entryFee: number,
+  totalSlots: number,
+  perKillPrize: number,
+  commissionPercent: number = DEFAULT_COMMISSION_PERCENT,
+): number {
+  return computePrizePool(entryFee, totalSlots, perKillPrize, commissionPercent);
+}
+
+/** Loads the tenant's cut, falling back to the default when not yet set. */
+async function commissionFor(tenantId: string): Promise<number> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { commissionRate: true },
+  });
+  const rate = tenant?.commissionRate;
+  return typeof rate === 'number' && Number.isFinite(rate) ? rate : DEFAULT_COMMISSION_PERCENT;
 }
 
 /** Resolve the seat window for a game mode (unknown mode falls back to BR). */
@@ -277,7 +299,12 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
           mapType: data.mapType,
           entryFee: data.entryFee,
           // Placeholder: recomputed from real seats sold on every join.
-          prizePool: initialPrizePool(data.entryFee, totalSlots, data.perKillPrize),
+          prizePool: initialPrizePool(
+            data.entryFee,
+            totalSlots,
+            data.perKillPrize,
+            await commissionFor(creator.tenantId),
+          ),
           perKillPrize: data.perKillPrize,
           totalSlots,
           matchTime: data.matchTime,
@@ -915,6 +942,10 @@ const MAX_JOIN_ATTEMPTS = 8;
       }
     };
 
+    // The tenant's platform cut is read once, outside the transaction: the pool
+    // for this seat must use the rate the admin has configured right now.
+    const commissionPercent = await commissionFor(user.tenantId);
+
     try {
         const result = await prisma.$transaction(
           async (tx) => {
@@ -1048,6 +1079,7 @@ const MAX_JOIN_ATTEMPTS = 8;
               Number(liveTournament.entryFee),
               booked,
               Number(liveTournament.perKillPrize),
+              commissionPercent,
             );
             await tx.tournament.update({
               where: { id: tournamentId },

@@ -550,6 +550,8 @@ export interface TenantSettings {
   upiName: string;
   supportWhatsapp: string;
   minDeposit: number;
+  /** Platform cut on every match, in percent (0-50). Players get the rest. */
+  commissionRate: number;
   allowPhoneAuth: boolean;
   allowGoogleAuth: boolean;
   allowEmailAuth: boolean;

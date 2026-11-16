@@ -12,6 +12,15 @@ export const WHATSAPP_REGEX = /^\d{10,15}$/;
 export const MIN_DEPOSIT_FLOOR = 10;
 export const MIN_DEPOSIT_CEILING = 10000;
 
+/**
+ * Platform cut on a match, in percent. The admin owns this number: the prize
+ * pool is whatever is left after it. 20% is the Indian custom-room norm, and
+ * 50% is the hard ceiling so a match can never pay out less than half.
+ */
+export const DEFAULT_COMMISSION_PERCENT = 20;
+export const MIN_COMMISSION_PERCENT = 0;
+export const MAX_COMMISSION_PERCENT = 50;
+
 // ─── VIEWS ───────────────────────────────────────────────────────────────
 
 export interface TenantSettingsView {
@@ -20,6 +29,8 @@ export interface TenantSettingsView {
   upiName: string;
   supportWhatsapp: string;
   minDeposit: number;
+  /** Platform cut on every match, in percent (0-50). Players get the rest. */
+  commissionRate: number;
   allowPhoneAuth: boolean;
   allowGoogleAuth: boolean;
   allowEmailAuth: boolean;
@@ -30,6 +41,7 @@ export interface UpdateTenantSettingsInput {
   upiName?: string;
   supportWhatsapp?: string;
   minDeposit?: number;
+  commissionRate?: number;
   allowPhoneAuth?: boolean;
   allowGoogleAuth?: boolean;
   allowEmailAuth?: boolean;
@@ -41,6 +53,7 @@ function toSettingsView(tenant: {
   upiName: string | null;
   supportWhatsapp: string | null;
   minDeposit: number;
+  commissionRate?: number | null;
   allowPhoneAuth?: boolean | null;
   allowGoogleAuth?: boolean | null;
   allowEmailAuth?: boolean | null;
@@ -51,6 +64,7 @@ function toSettingsView(tenant: {
     upiName: tenant.upiName ?? tenant.brandName,
     supportWhatsapp: tenant.supportWhatsapp ?? '',
     minDeposit: tenant.minDeposit ?? MIN_DEPOSIT_FLOOR,
+    commissionRate: tenant.commissionRate ?? DEFAULT_COMMISSION_PERCENT,
     allowPhoneAuth: tenant.allowPhoneAuth ?? true,
     allowGoogleAuth: tenant.allowGoogleAuth ?? true,
     allowEmailAuth: tenant.allowEmailAuth ?? true,
@@ -72,6 +86,7 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
       upiName: true,
       supportWhatsapp: true,
       minDeposit: true,
+      commissionRate: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
       allowEmailAuth: true,
@@ -105,6 +120,7 @@ export async function updateTenantSettings(
     upiName?: string;
     supportWhatsapp?: string | null;
     minDeposit?: number;
+    commissionRate?: number;
     allowPhoneAuth?: boolean;
     allowEmailAuth?: boolean;
     allowGoogleAuth?: boolean;
@@ -151,6 +167,21 @@ export async function updateTenantSettings(
     data.minDeposit = minDeposit;
   }
 
+  if (input.commissionRate !== undefined) {
+    const rate = Number(input.commissionRate);
+    if (
+      !Number.isFinite(rate) ||
+      rate < MIN_COMMISSION_PERCENT ||
+      rate > MAX_COMMISSION_PERCENT
+    ) {
+      throw ApiError.badRequest(
+        `Commission must be between ${MIN_COMMISSION_PERCENT}% and ${MAX_COMMISSION_PERCENT}%`,
+      );
+    }
+    // One decimal place is plenty for a percentage; float noise is not.
+    data.commissionRate = Math.round(rate * 10) / 10;
+  }
+
   if (input.allowPhoneAuth !== undefined) {
     data.allowPhoneAuth = Boolean(input.allowPhoneAuth);
   }
@@ -183,6 +214,7 @@ export async function updateTenantSettings(
       upiName: true,
       supportWhatsapp: true,
       minDeposit: true,
+      commissionRate: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
       allowEmailAuth: true,
