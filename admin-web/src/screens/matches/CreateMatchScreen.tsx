@@ -31,6 +31,12 @@ const SLOT_LIMITS: Record<GameMode, { min: number; max: number; step: number }> 
   BATTLE_ROYALE: { min: 20, max: 52, step: 1 },
   CLASH_SQUAD: { min: 2, max: 8, step: 1 },
 };
+
+/**
+ * Share of entry-fee collection paid back to players as kill bounties.
+ * Must match PRIZE_POOL_SHARE in backend/src/services/tournament.service.ts.
+ */
+const PRIZE_POOL_SHARE = 0.8;
 const HOURS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
 const QUICK_HOURS = [1, 3, 6, 12, 24];
@@ -74,7 +80,6 @@ export function CreateMatchScreen() {
   };
 
   const [entryFee, setEntryFee] = useState('');
-  const [prizePool, setPrizePool] = useState('');
   const [perKillPrize, setPerKillPrize] = useState('');
 
   const [schedule, setSchedule] = useState<ScheduleDraft>(() => defaultSchedule());
@@ -86,8 +91,14 @@ export function CreateMatchScreen() {
   const [error, setError] = useState('');
 
   const fee = Number(entryFee || 0);
-  const pool = Number(prizePool || 0);
   const perKill = perKillPrize.trim() ? Number(perKillPrize) : undefined;
+
+  /**
+   * Per-kill pool preview: a full house at the chosen seats x entry fee, of
+   * which PRIZE_POOL_SHARE goes back to players. The server recomputes this
+   * from the seats actually sold, so this is only the opening number.
+   */
+  const autoPool = Math.round(fee * totalSlots * PRIZE_POOL_SHARE * 100) / 100;
 
   const matchIso = useMemo(() => scheduleToIso(schedule), [schedule]);
   const matchInFuture = isDraftInFuture(schedule);
@@ -108,9 +119,9 @@ export function CreateMatchScreen() {
   const numbersValid =
     Number.isFinite(fee) &&
     fee >= 0 &&
-    Number.isFinite(pool) &&
-    pool >= 0 &&
-    (perKill === undefined || (Number.isFinite(perKill) && perKill >= 0));
+    perKill !== undefined &&
+    Number.isFinite(perKill) &&
+    perKill > 0;
 
   const canSubmit = !submitting && numbersValid && matchInFuture && visibilityValid;
 
@@ -137,7 +148,7 @@ export function CreateMatchScreen() {
       return;
     }
     if (!numbersValid) {
-      setError('Entry fee, prize pool and per-kill must be zero or more.');
+      setError('Entry fee must be zero or more and the per-kill prize must be greater than 0.');
       return;
     }
 
@@ -148,8 +159,8 @@ export function CreateMatchScreen() {
         matchType,
         mapType,
         entryFee: fee,
-        prizePool: pool,
-        ...(perKill !== undefined && perKill > 0 ? { perKillPrize: perKill } : {}),
+        prizePool: autoPool,
+        perKillPrize: perKill ?? 0,
         matchTime: matchIso,
         totalSlots,
         visibilityHours: visibilityMode === 'ALWAYS' ? null : parsedVisibilityHours,
@@ -276,7 +287,7 @@ export function CreateMatchScreen() {
             </h3>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Entry fee (₹)">
+              <Field label="Entry fee (₹) *">
                 <TextInput
                   inputMode="decimal"
                   value={entryFee}
@@ -284,15 +295,7 @@ export function CreateMatchScreen() {
                   onChange={(event) => setEntryFee(event.target.value.replace(/[^\d.]/g, '').slice(0, 8))}
                 />
               </Field>
-              <Field label="Prize pool (₹)">
-                <TextInput
-                  inputMode="decimal"
-                  value={prizePool}
-                  placeholder="0"
-                  onChange={(event) => setPrizePool(event.target.value.replace(/[^\d.]/g, '').slice(0, 8))}
-                />
-              </Field>
-              <Field label="Per-kill prize (₹, optional)">
+              <Field label="Per-kill prize (₹) *">
                 <TextInput
                   inputMode="decimal"
                   value={perKillPrize}
@@ -300,16 +303,26 @@ export function CreateMatchScreen() {
                   onChange={(event) => setPerKillPrize(event.target.value.replace(/[^\d.]/g, '').slice(0, 8))}
                 />
               </Field>
+              <Field label="Prize pool (₹) — auto">
+                <TextInput
+                  value={autoPool ? String(autoPool) : '0'}
+                  readOnly
+                  disabled
+                  aria-label="Prize pool (auto-calculated)"
+                  className="cursor-not-allowed opacity-70"
+                />
+              </Field>
             </div>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <InfoNote>
-                Players pay <b>₹{fee || 0}</b> to join. Max payout per match is the prize pool
-                <b> ₹{pool || 0}</b> — the server refuses anything above it.
+                Players pay <b>₹{fee || 0}</b> to join. The pool grows by
+                <b> ₹{(fee * PRIZE_POOL_SHARE).toFixed(2)}</b> with every player who joins, and is
+                <b> {Math.round(PRIZE_POOL_SHARE * 100)}%</b> of everything collected.
               </InfoNote>
               <InfoNote>
-                Rank prizes: 1st 50%, 2nd 30%, 3rd 20% of the pool. Kills pay
-                <b> ₹{perKill ?? 0}</b> each on top (the roster screen previews it live).
+                Pure per-kill format: no 1st/2nd/3rd prize. Every confirmed kill pays
+                <b> ₹{perKill ?? 0}</b>, so a player's payout is simply kills × ₹{perKill ?? 0}.
               </InfoNote>
             </div>
           </GlassCard>
@@ -512,8 +525,8 @@ export function CreateMatchScreen() {
                 <dd className="font-bold">₹{fee || 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-600 dark:text-slate-400">Prize pool</dt>
-                <dd className="font-bold">₹{pool || 0}</dd>
+                <dt className="text-slate-600 dark:text-slate-400">Prize pool (auto)</dt>
+                <dd className="font-bold">₹{autoPool || 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-600 dark:text-slate-400">Per kill</dt>

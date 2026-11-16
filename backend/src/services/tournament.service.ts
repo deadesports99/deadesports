@@ -51,6 +51,38 @@ export const SLOT_LIMITS = {
 
 export type SlotLimits = (typeof SLOT_LIMITS)[keyof typeof SLOT_LIMITS];
 
+/**
+ * Share of the entry-fee collection that goes back to players.
+ *
+ * This is a pure per-kill format: there is no 1st/2nd/3rd placement prize, the
+ * pool exists only to guarantee that every confirmed kill can be paid. 80% is
+ * the market norm in Indian Free Fire custom rooms (organisers keep 20-30%), and
+ * it is also the safe end: a BR lobby has 52 seats so at most 51 kills can be
+ * recorded, which at a sane kill rate still fits inside 80% of the collection.
+ */
+export const PRIZE_POOL_SHARE = 0.8;
+
+/**
+ * The prize pool for a per-kill match: seats sold x entry fee x payout share.
+ *
+ * It grows as players join and shrinks back if a seat is cancelled/refunded,
+ * so the pool shown to players never promises money the match does not hold.
+ */
+export function computePrizePool(entryFee: number, seatsSold: number, perKillPrize: number): number {
+  const collected = Math.max(0, seatsSold) * Math.max(0, entryFee);
+  const pool = collected * PRIZE_POOL_SHARE;
+  // A pool with no kills recorded is still a pool; never round below one kill's
+  // worth when at least one seat is paid for, so the display is never "₹0"
+  // next to a live per-kill rate.
+  const floor = seatsSold > 0 ? Math.max(0, perKillPrize) : 0;
+  return Math.round(Math.max(pool, floor) * 100) / 100;
+}
+
+/** Pool advertised before anyone joins: a full house at the current rate. */
+function initialPrizePool(entryFee: number, totalSlots: number, perKillPrize: number): number {
+  return computePrizePool(entryFee, totalSlots, perKillPrize);
+}
+
 /** Resolve the seat window for a game mode (unknown mode falls back to BR). */
 export function slotLimitsFor(gameMode: string): SlotLimits {
   return gameMode === 'CLASH_SQUAD' ? SLOT_LIMITS.CLASH_SQUAD : SLOT_LIMITS.BATTLE_ROYALE;
@@ -111,8 +143,10 @@ export interface CreateTournamentInput {
   matchType: 'SOLO' | 'DUO' | 'SQUAD';
   mapType: 'BERMUDA' | 'PURGATORY' | 'KALAHARI' | 'ALPINE' | 'NEXTERRA';
   entryFee: number;
-  prizePool: number;
-  perKillPrize?: number;
+  /** Ignored — derived from seats sold x entry fee x the payout share. */
+  prizePool?: number;
+  /** Required: this is a per-kill format, every confirmed kill pays this. */
+  perKillPrize: number;
   matchTime: Date;
   totalSlots?: number;
   /** null = list immediately; N = hide from players until N hours before start. */
@@ -204,8 +238,8 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
   if (data.matchTime.getTime() <= Date.now()) {
     throw ApiError.badRequest('matchTime must be in the future');
   }
-  if (data.entryFee < 0 || data.prizePool < 0 || (data.perKillPrize ?? 0) < 0) {
-    throw ApiError.badRequest('entryFee, prizePool and perKillPrize cannot be negative');
+  if (data.entryFee < 0 || data.perKillPrize <= 0) {
+    throw ApiError.badRequest('entryFee cannot be negative and perKillPrize must be greater than 0');
   }
 
   // Seat count is per PLAYER (every player pays their own entry fee).
@@ -242,8 +276,9 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
           matchType: data.matchType,
           mapType: data.mapType,
           entryFee: data.entryFee,
-          prizePool: data.prizePool,
-          perKillPrize: data.perKillPrize ?? 0,
+          // Placeholder: recomputed from real seats sold on every join.
+          prizePool: initialPrizePool(data.entryFee, totalSlots, data.perKillPrize),
+          perKillPrize: data.perKillPrize,
           totalSlots,
           matchTime: data.matchTime,
           ...visibility,
@@ -567,6 +602,8 @@ interface JoinMatch {
   matchTime: Date;
   totalSlots: number;
   entryFee: string;
+  /** Per-kill rate driving the auto prize pool. */
+  perKillPrize: string;
   title: string;
   roomId: string | null;
   roomRevealedAt: Date | null;
@@ -647,6 +684,7 @@ async function loadJoinContext(
            t."matchTime",
            t."totalSlots",
            t."entryFee",
+           t."perKillPrize",
            t.title,
            t."roomId",
            t."roomRevealedAt",
@@ -1003,7 +1041,20 @@ const MAX_JOIN_ATTEMPTS = 8;
               status = 'SLOTS_FULL';
             }
 
-            return { slot, freshUser, status, bookedCount: booked };
+            // Per-kill pool grows with every paid seat, in the same transaction
+            // as the debit, so the number players see always matches the cash
+            // actually collected for this match.
+            const prizePool = computePrizePool(
+              Number(liveTournament.entryFee),
+              booked,
+              Number(liveTournament.perKillPrize),
+            );
+            await tx.tournament.update({
+              where: { id: tournamentId },
+              data: { prizePool },
+            });
+
+            return { slot, freshUser, status, bookedCount: booked, prizePool };
           },
           {
             // ReadCommitted on purpose: the unique (tournamentId, slotNumber) index

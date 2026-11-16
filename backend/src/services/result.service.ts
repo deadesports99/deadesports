@@ -22,8 +22,12 @@ import {
  */
 export const ROOM_REVEAL_WINDOW_MS = DEFAULT_ROOM_REVEAL_MINUTES * MINUTE_MS;
 
-/** Rank -> share of prizePool (rank 1 = Booyah). Ranks 4+ earn kill-money only. */
-const RANK_PRIZE_SHARE: Record<number, number> = { 1: 0.5, 2: 0.3, 3: 0.2 };
+/**
+ * Per-kill only: this platform runs kill-bounty matches, so there is no
+ * placement (1st/2nd/3rd) prize. Empty on purpose — keep it so the wider
+ * payout code still compiles if a placement format is ever reintroduced.
+ */
+const RANK_PRIZE_SHARE: Record<number, number> = {};
 
 /** Statuses from which a payout may be executed by Spectator / Staff. */
 const PAYOUTABLE_STATUSES = ['ROOM_REVEALED', 'LIVE', 'UNDER_REVIEW', 'OPEN', 'SLOTS_FULL'] as const;
@@ -340,7 +344,8 @@ export async function finishMatchAndPayWinner(
 
   const pool = Number(tournament.prizePool);
   const perKill = Number(tournament.perKillPrize);
-  const rankPrize = round2(0.5 * pool); // rank 1 = Booyah = 50% of the pool
+  // Per-kill format: the winner is paid for kills only, never for placement.
+  const rankPrize = 0;
   const killPrize = round2(kills * perKill);
   const totalPrize = round2(rankPrize + killPrize);
 
@@ -594,9 +599,7 @@ export async function distributeTournamentPrizes(
         });
         if (approved?.isApproved) continue;
 
-        const rankPrize = entry.rank === null
-          ? 0
-          : round2((RANK_PRIZE_SHARE[entry.rank] ?? 0) * pool);
+        const rankPrize = 0;
         const killPrize = round2(entry.verifiedKills * perKill);
         const totalPrize = round2(rankPrize + killPrize);
 
@@ -617,7 +620,7 @@ export async function distributeTournamentPrizes(
             category: 'WINNING_PRIZE',
             balanceAfter: creditedUser.winningBalance,
             referenceId: tournamentId,
-            notes: `Prize: ${entry.rank === null ? 'unranked' : `rank ${entry.rank}`} (${rankPrize}) + ${entry.verifiedKills} kills x ${perKill} (${killPrize})`,
+            notes: `Prize: ${entry.verifiedKills} kills x ${perKill} = ${killPrize}`,
           },
         });
 

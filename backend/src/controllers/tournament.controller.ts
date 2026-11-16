@@ -13,8 +13,11 @@ const createTournamentSchema = z.object({
   matchType: z.enum(['SOLO', 'DUO', 'SQUAD']),
   mapType: z.enum(['BERMUDA', 'PURGATORY', 'KALAHARI', 'ALPINE', 'NEXTERRA']),
   entryFee: z.coerce.number().nonnegative('entryFee cannot be negative'),
-  prizePool: z.coerce.number().nonnegative('prizePool cannot be negative'),
-  perKillPrize: z.coerce.number().nonnegative('perKillPrize cannot be negative').optional(),
+  /** Ignored — the prize pool is always derived from the per-kill rate and seats sold. */
+  prizePool: z.coerce.number().nonnegative('prizePool cannot be negative').optional(),
+  perKillPrize: z.coerce
+    .number({ error: 'perKillPrize is required' })
+    .positive('perKillPrize must be greater than 0'),
   matchTime: z.coerce.date({ error: 'matchTime must be a valid ISO date' }),
   totalSlots: z.coerce.number().int().min(2).max(52).optional(),
   /** null/omitted = list immediately; N = hide from players until N hours before start. */
