@@ -64,6 +64,8 @@ backend/scripts_join_after_publish.mts
 images/
 deliverables/
 .env*.bak
+.env*.bak_*
+.env.bak_*
 .local-db-backup/
 
 # One-line service-account JSON for the Render dashboard (never commit)
