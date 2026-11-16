@@ -120,7 +120,6 @@ The previous hosted DB used `a3c11cd0-324e-4886-b27c-9667fd7f59dc`. Clients ship
 id, so old builds now fail with **"Tenant not found"**. Already updated to the new id:
 
 - `android/app-player/src/main/assets/client_config.json`
-- `android/app-admin/src/main/assets/client_config.json`
 - `player-web/.env`, `player-web/.env.example`, `player-web/src/lib/api.ts`
 - `backend/prisma/seed.ts` — the tenant id is now **pinned** (`TENANT_ID`) instead of being random
   on every fresh seed. If the tenant id changes again, update the list above + this note.

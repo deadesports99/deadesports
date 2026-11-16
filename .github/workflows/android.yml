@@ -49,13 +49,13 @@ jobs:
       - name: Gradle wrapper permissions
         run: chmod +x gradlew
 
-      - name: Build player + admin
-        run: ./gradlew :app-player:assembleDebug :app-admin:assembleDebug --no-daemon --console=plain --stacktrace
+      - name: Build player
+        run: ./gradlew :app-player:assembleDebug --no-daemon --console=plain --stacktrace
 
       - name: Lint (non-blocking)
         # Lint fails build na kare — pehle ek baseline bane, phir blocking karenge.
         continue-on-error: true
-        run: ./gradlew :app-player:lintDebug :app-admin:lintDebug --no-daemon --console=plain
+        run: ./gradlew :app-player:lintDebug --no-daemon --console=plain
 
       - name: Upload APKs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -63,7 +63,6 @@ jobs:
           name: debug-apks-${{ github.run_number }}
           path: |
             android/app-player/build/outputs/apk/debug/*.apk
-            android/app-admin/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
           retention-days: 7
 
@@ -74,6 +73,5 @@ jobs:
           name: lint-reports-${{ github.run_number }}
           path: |
             android/app-player/build/reports/lint-results-debug.html
-            android/app-admin/build/reports/lint-results-debug.html
           if-no-files-found: ignore
           retention-days: 7

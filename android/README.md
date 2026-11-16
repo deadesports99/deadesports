@@ -8,7 +8,6 @@ White-label Free Fire tournament platform — native Android client apps built o
 | Module | App | Purpose |
 | --- | --- | --- |
 | `:app-player` | Player APK | Tournament Feed, 48-slot picker, T-15 min Room ID countdown, wallet, Official Spectator Scoreboard (Phase 2 screens) |
-| `:app-admin` | Owner/Staff APK | Permission-driven dynamic dashboard (ADMIN = all, SUB_ADMIN = granted cards); Spectator Scorecard Console (Phase 2) |
 | `:core` | Shared library | White-label theming (`ClientConfig`/`Theme`), domain models, DataStore `SessionManager`, `AppButton`/`GlassCard` UI kit |
 
 ## Toolchain (verified builds)
@@ -21,20 +20,19 @@ White-label Free Fire tournament platform — native Android client apps built o
 
 ```bash
 cd android
-./gradlew :app-player:assembleDebug :app-admin:assembleDebug    # demo APKs
-./gradlew :app-player:assembleRelease :app-admin:assembleRelease # R8 release (unsigned)
+./gradlew :app-player:assembleDebug    # demo APK
+./gradlew :app-player:assembleRelease  # R8 release (unsigned)
 ```
 
-Artifacts: `app-player/build/outputs/apk/{debug,release}/`, same for `app-admin`.
-Debug ≈ 18.5 MB; R8 release ≈ 1.4 MB (shrink + obfuscate).
+Artifacts: `app-player/build/outputs/apk/{debug,release}/`.
+Debug ≈ 12 MB; R8 release ≈ 1 MB (shrink + obfuscate).
 
 ## ⚡ 10-Minute Client Rebranding (proven: 19 s rebuild)
 
 Every client gets the same 3 files edited — **zero Kotlin changes**:
 
 1. `app-player/src/main/assets/client_config.json`
-2. `app-admin/src/main/assets/client_config.json`
-3. Client logo → `res/mipmap/` (optional)
+2. Client logo → `res/mipmap/` (optional)
 
 `client_config.json` drives EVERYTHING at build time (applicationId + app label via
 `JsonSlurper` → `resValue`) and at runtime (colors, shapes, dark mode via `ClientConfig`).
@@ -77,7 +75,7 @@ Live proof from Phase 1: changed only the player config → 19 s incremental reb
   `mipmap-anydpi-v26` adaptive icons.
 - Production APKs use the HTTPS API URL from `client_config.json`.
 - Override it without editing branding files:
-  `./gradlew :app-player:assembleDebug :app-admin:assembleDebug -PapiBaseUrl=https://api.example.com/api/v1`.
+  `./gradlew :app-player:assembleDebug -PapiBaseUrl=https://api.example.com/api/v1`.
 - Local emulator development can use `10.0.2.2:5000` through a local/debug
   override; production Android traffic remains HTTPS-only.
 
@@ -85,9 +83,8 @@ Live proof from Phase 1: changed only the player config → 19 s incremental reb
 
 - `:core` networking: `TourneyApi` (12 endpoints), `AuthInterceptor` (Bearer from DataStore cache), `ApiClient` singleton (base URL + tenant from `client_config.json`), Moshi **codegen** DTOs (R8-safe, zero reflection), generic `ApiEnvelope<T>` + `ApiException` (parses `secondsUntilReveal` from the room-lock 403).
 - `:app-player` screens: Login/Register (phone + IGN + UID), Tournament Feed (map/type badges, slot progress), 48-Seat Slot Picker (squad team-code create/join, leader code share + copy), Timed Room ID (T-15 countdown → copy creds), Official Spectator Scoreboard (hacker red banners), Wallet (deposit/winning + ledger history).
-- `:app-admin` screens: login, permission-gated Dashboard (ADMIN all / SUB_ADMIN granted), Create Match (canCreateMatch), Publish Room (canUpdateRoomId), **Spectator Scorer Console** (canDistributePrize — kills steppers, ranks, hack flags, 1-click payout + confirm + summary).
 - Backend addition: `GET /api/v1/wallet` (balances + double-entry ledger) to serve the WalletScreen.
-- Builds verified: debug 18.0 MB both apps, R8 release 846 KB both apps, zero errors.
+- Builds verified: debug APK, R8 release 846 KB, zero errors.
 
 ## Phase 3 (Done) — FCM Push + UPI Withdrawals + Realtime
 

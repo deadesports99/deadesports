@@ -50,7 +50,6 @@ Ye id in sab jagah same hona chahiye, warna login "Tenant not found" deta hai:
 - `admin-web/.env` → `VITE_TENANT_ID`
 - `player-web/.env` → `VITE_TENANT_ID`
 - `android/app-player/src/main/assets/client_config.json` → `tenant_id`
-- `android/app-admin/src/main/assets/client_config.json` → `tenant_id`
 
 ## Demo login (local only)
 
@@ -73,7 +72,6 @@ Manual:
 adb reverse tcp:5000 tcp:5000          # USB connected device → laptop's backend
 cd android
 ./gradlew.bat :app-player:installDebug
-./gradlew.bat :app-admin:installDebug
 ```
 
 - `adb reverse` USB/disconnect ke baad reset ho sakta hai — dobara chalao.

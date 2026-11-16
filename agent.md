@@ -51,7 +51,7 @@ C:\Free Fire turnament\
 │
 ├── android\                                # 📱 Native Android (Kotlin + Compose Multi-Module)
 │   ├── build.gradle.kts                    # Root build script (Kotlin 2.1.20, AGP 8.10.1)
-│   ├── settings.gradle.kts                 # Includes :core, :app-player, :app-admin
+│   ├── settings.gradle.kts                 # Includes :core, :app-player
 │   ├── gradle\libs.versions.toml           # Version catalog (Compose BOM 2024.12.01)
 │   │
 │   ├── core\                               # 🧩 Shared Library Module
@@ -68,7 +68,6 @@ C:\Free Fire turnament\
 │   │   └── java\com\tourney\player\        # LoginRegisterScreen, TournamentFeedScreen, SlotPickerScreen,
 │   │                                       # RoomScreen (T-15 countdown), ScoreboardScreen, WalletScreen
 │   │
-│   ├── app-admin\                          # 🛡️ Admin/Staff APK Module
 │   │   ├── assets\client_config.json       # Admin branding configuration
 │   │   └── java\com\tourney\admin\         # AdminDashboardScreen (permission-gated), CreateTournamentScreen,
 │   │                                       # PublishRoomScreen, SpectatorScorerScreen (1-Click Payout)
@@ -100,11 +99,10 @@ C:\Free Fire turnament\
 - **Build Status:** `npm run build` compiles cleanly with 0 errors.
 
 ### 🔹 Android Phases (Complete & Build Passing):
-- **Phase 1 (Multi-Module & Dynamic Theming):** `:core`, `:app-player`, `:app-admin` setup. 10-minute dynamic rebranding via `client_config.json`, OLED dark & light themes, DataStore `SessionManager.kt`.
+- **Phase 1 (Multi-Module & Dynamic Theming):** `:core`, `:app-player` setup. 10-minute dynamic rebranding via `client_config.json`, OLED dark & light themes, DataStore `SessionManager.kt`.
 - **Phase 2 (Full UI Flows & Retrofit API):**
   - `:core`: `TourneyApi.kt` (12 endpoints), `AuthInterceptor.kt` (auto Bearer token), `ApiClient.kt` (dynamic base URL from config).
   - `:app-player`: `LoginRegisterScreen.kt`, `TournamentFeedScreen.kt`, `SlotPickerScreen.kt` (interactive 48-slot picker with squad codes), `RoomScreen.kt` (T-15 min real-time countdown), `ScoreboardScreen.kt` (hacker flags), `WalletScreen.kt`.
-  - `:app-admin`: `AdminDashboardScreen.kt` (dynamic role/permission filtered cards), `CreateTournamentScreen.kt`, `PublishRoomScreen.kt`, and `SpectatorScorerScreen.kt` (live kills steppers, hacker disqualify toggle, 1-click payout).
 - **Build Status:** `./gradlew assembleDebug` (18 MB) and `assembleRelease` (846 KB) pass with 0 errors.
 
 - **Phase 3 (FCM, Wallet Withdrawals & Realtime State):**
@@ -255,7 +253,7 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/8_Match_Vis
    (12h match + 10h window hidden → 13h window listed, details 404→200, join 409 IST message,
    0h/500h rejected, player 403, immediate listing, clone inheritance, 2h window on 12h match →
    `secondsUntilListed = 36000`, joined player keeps a match after the window is tightened,
-   auto-cleanup) · `:app-admin` + `:app-player` `assembleDebug` ✅ ·
+   auto-cleanup) · `:app-player` `assembleDebug` ✅ ·
    **physical-device walkthrough** (RMX5070 via adb, screenshots in `screenshots/phase8_*.png`):
    admin created a match 12h ahead with a 10h window (player feed = 0 matches, card showed
    `🕒 Hidden — lists to players at 12:15 PM`), then changed it to 13h through the
@@ -386,7 +384,7 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/11_Match_Li
    name / IGN / FF UID) and `PATCH /admin/players/:id/ban` with instant auth-cache invalidation
    (banned JWT dies on the next request). Admin dashboard has a Player Management card and a
    full search/ban/unban screen.
-7. **Verification** — backend `npm run build` clean, Android `:core + :app-admin + :app-player`
+7. **Verification** — backend `npm run build` clean, Android `:core + :app-player`
    compile clean, backend unit suite **40/40**. Live DB E2E (temporary rows removed after):
    auto code `APE-0215`, auto match `#12 Bermuda Solo #12`, player search, ban/unban, finish with
    UID paid **₹70** (₹50 rank + 2×₹10 kills), ledger + result written, second finish rejected.
@@ -433,3 +431,63 @@ When continuing from this file in a new chat:
    - Payouts must stay atomic: lock the tournament row, write `WINNING_PRIZE` ledger, upsert the
      approved result, then set COMPLETED. Never allow a second payout on a completed match.
    - Ban/unban is owner-only and must call `invalidateAuthCache(userId)`.
+
+---
+
+## 🖥️ 6. Computer / Browser Control → Hermes Agent (MANDATORY)
+
+Jab bhi task ke liye **computer ya browser ko control** karna ho (Chrome kholna, page par
+navigate karna, button click karna, form bharna, console/network inspect karna, GUI app chalana,
+screenshot lena, ya koi bug live reproduce karna) — tab `https://github.com/NousResearch/hermes-agent.git`
+ka **Hermes Agent** use karna hai. Apna alag Playwright/Puppeteer script likhne ki zaroorat nahi.
+
+### Installed location (is machine par)
+
+```text
+C:\Users\Jay Kumar\hermes-agent      # repo (editable install, `hermes` command PATH me hai)
+hermes                                # CLI entrypoint
+```
+
+### Basic usage
+
+```bash
+# Sanity check — model chal raha hai?
+hermes chat -Q -q "say exactly: HERMES_OK"
+
+# Full toolsets (browser_exec + computer_use available karte hain)
+hermes chat -Q -q "<task description>"
+
+# Sirf browser toolset
+hermes chat -Q -t browser -q "<task>"
+```
+
+> ⚠️ `-t browser` me sirf `browser_vault` milta hai. Real navigation/clicks ke liye
+> **toolset restrict mat karo** (full `hermes chat -Q -q ...` use karo) taaki
+> `browser_exec` aur `computer_use` dono load hon.
+
+### Rules
+
+1. **Pehle Hermes, phir manual.** GUI/browser wala kaam milte hi Hermes se karwana hai.
+2. **Read-only diagnose bhi Hermes se** — real Chrome me page kholna, `window.fetch`
+   intercept lagana, network requests count karna — ye sab `browser_exec` se hota hai.
+3. **Destructive GUI actions** (browser band karna, `hermes browser close-profile`) se pehle
+   user se confirm karo — `close-profile` unsaved tabs uda deta hai.
+4. **Programmatic path pehle try karo** (curl, DB query, `npx tsc`) — agar wahi kaam ho
+   jaye to Hermes ki zaroorat nahi. Hermes tab jab real browser/GUI chahiye.
+5. **Hermes ka output verbatim report karo** (request counts, page text, errors) — apni
+   taraf se numbers guess mat karo.
+
+### Example — UI double-submit bug reproduce karna
+
+```bash
+hermes chat -Q -q "Use browser_exec. Go to http://localhost:5174/matches
+Inject: window.__c=[]; const _o=window.fetch; window.fetch=function(...a){window.__c.push(String(a[0])); return _o.apply(this,a)};
+Click 'Send sign-in code' 4 times rapidly in one JS expression, wait 5s,
+report window.__c.length and contents. Report exact numbers only."
+```
+
+Yeh exact technique se admin login ka **7-OTP bug** pakda gaya tha: button ka `busy` guard
+React state tha (async), isliye rapid clicks same tick me 4 requests bhej rahe the. Fix =
+synchronous `useRef` latch (`otpRequestInFlight`) + backend 60s resend grace window
+(`OTP_RESEND_GRACE_MS` in `adminAuth.service.ts`).
+

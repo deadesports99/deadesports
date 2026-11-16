@@ -32,8 +32,7 @@ Free Fire turnament/
 ├── backend/                 # API (Node + Express + Prisma + Redis)
 ├── android/
 │   ├── core/                # shared UI, API client, theme engine, FCM service, art
-│   ├── app-player/          # Player APK  (reads src/main/assets/client_config.json)
-│   └── app-admin/           # Admin APK
+│   └── app-player/          # Player APK  (reads src/main/assets/client_config.json)
 ├── clients/
 │   ├── _template/           # copy this for every new client
 │   └── sample_client/       # working demo (Thunder eSports)
@@ -141,9 +140,9 @@ password to leak). Staff are created from inside the app (Staff Management).
    - Enable **Phone** provider.
    - *(Optional for Instant Testing)*: Under "Phone numbers for testing", add `+91 9999900001` with OTP `123456` and `+91 9999900003` with OTP `123456`.
 3. **Add Android app** using the exact package IDs from `client_config.json`:
-   - `com.alphaesports.ff` (player) & `com.alphaesports.ff.admin` (admin).
+   - `com.alphaesports.ff` (player).
    - Add SHA-1 and SHA-256 fingerprints for SMS verification (SafetyNet / Play Integrity).
-   - Download `google-services.json` and drop into `clients/<slug>/google-services.json` (or `android/app-player/` and `android/app-admin/`).
+   - Download `google-services.json` and drop into `clients/<slug>/google-services.json` (or `android/app-player/`).
 4. The Gradle build detects `google-services.json` automatically and enables Firebase Phone Auth + FCM push.
 5. Backend push & token verification: **Project settings → Service accounts → Generate new private key** →
    paste the JSON string into `FCM_CREDENTIALS_JSON` in `backend/.env`.
@@ -202,7 +201,7 @@ Create one keystore per client (**never** share across clients):
 ```bat
 keytool -genkey -v -keystore android\keystore\alpha-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias alpha
 ```
-Add to `android/app-player/build.gradle.kts` (and `app-admin`):
+Add to `android/app-player/build.gradle.kts`:
 ```kotlin
 android {
     signingConfigs {

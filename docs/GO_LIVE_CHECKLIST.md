@@ -124,7 +124,6 @@ curl -s -o /dev/null -w "404    %{http_code}\n"  $B/api/v1/nope
 
 - [ ] `android/app-player/src/main/assets/client_config.json`:
       `api_base_url` = `https://____.onrender.com/api/v1` · `tenant_id` = production tenant
-- [ ] `android/app-admin/src/main/assets/client_config.json` — wahi
 - [ ] Purana `http://localhost:5000` **kahin bacha nahi** (`grep -r localhost android/`)
 - [ ] Real phone pe install → login → match list load
 

@@ -182,8 +182,7 @@ Browser me:
 
 ## 11. Step H — Mobile apps ko naya URL do
 
-`android/app-player/src/main/assets/client_config.json` **aur**
-`android/app-admin/src/main/assets/client_config.json`:
+`android/app-player/src/main/assets/client_config.json`:
 
 ```json
 {

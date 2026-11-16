@@ -1,5 +1,5 @@
 // White-Label Free Fire Tournament Platform — Android
-// Multi-module: :app-player (gamers), :app-admin (owner/staff), :core (shared)
+// Multi-module: :app-player (gamers), :core (shared)
 pluginManagement {
     repositories {
         google {
@@ -25,5 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "TourneyFF"
 
 include(":app-player")
-include(":app-admin")
 include(":core")

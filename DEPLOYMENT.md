@@ -63,7 +63,7 @@ The production hostname can be overridden without changing branding files:
 
 ```bash
 cd android
-./gradlew :app-player:assembleDebug :app-admin:assembleDebug \
+./gradlew :app-player:assembleDebug \
   -PapiBaseUrl=https://api.example.com/api/v1
 ```
 

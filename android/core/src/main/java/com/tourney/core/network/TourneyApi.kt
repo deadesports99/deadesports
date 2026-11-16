@@ -1,53 +1,19 @@
 package com.tourney.core.network
 
 import com.tourney.core.model.ApiEnvelope
-import com.tourney.core.model.AckRequest
-import com.tourney.core.model.AdminDepositsResponse
-import com.tourney.core.model.AdminPaymentsResponse
-import com.tourney.core.model.AdminPlayersResponse
-import com.tourney.core.model.BanPlayerRequest
-import com.tourney.core.model.BanPlayerResponse
-import com.tourney.core.model.PlayerDetailResponse
-import com.tourney.core.model.DeviceBanRequest
-import com.tourney.core.model.DeviceBanResponse
-import com.tourney.core.model.DeviceGroupDetail
-import com.tourney.core.model.DeviceGroupsResponse
-import com.tourney.core.model.WatchDeviceActionResponse
-import com.tourney.core.model.WatchDeviceRequest
-import com.tourney.core.model.WatchedDevice
-import com.tourney.core.model.WatchlistResponse
-import com.tourney.core.model.SuspiciousPlayersResponse
-import com.tourney.core.model.MatchRosterResponse
-import com.tourney.core.model.ParticipantBanRequest
-import com.tourney.core.model.ParticipantBanResponse
-import com.tourney.core.model.PayoutAwardsRequest
-import com.tourney.core.model.PayoutAwardsResponse
-import com.tourney.core.model.ReconcilePaymentResponse
-import com.tourney.core.model.ApproveWithdrawalRequest
-import com.tourney.core.model.DailySettlement
-import com.tourney.core.model.DepositActionResponse
 import com.tourney.core.model.DepositSubmitResponse
 import com.tourney.core.model.EmailOtpResponse
 import com.tourney.core.model.PlayerDepositsResponse
 import com.tourney.core.model.SubmitDepositRequest
 import com.tourney.core.model.AuthResponse
-import com.tourney.core.model.CancelMatchRequest
-import com.tourney.core.model.CancelMatchResult
-import com.tourney.core.model.CreateStaffRequest
-import com.tourney.core.model.CreateTournamentRequest
-import com.tourney.core.model.CloneTournamentRequest
 import com.tourney.core.model.FcmTokenRequest
 import com.tourney.core.model.FcmTokenResponse
-import com.tourney.core.model.FinishMatchRequest
-import com.tourney.core.model.FinishMatchResult
 import com.tourney.core.model.JoinRequest
 import com.tourney.core.model.JoinResult
 import com.tourney.core.model.LoginRequest
 import com.tourney.core.model.GoogleAuthRequest
 import com.tourney.core.model.SendEmailOtpRequest
 import com.tourney.core.model.VerifyEmailOtpRequest
-import com.tourney.core.model.PayoutRequest
-import com.tourney.core.model.PayoutResponse
 import com.tourney.core.model.CreatePaymentOrderRequest
 import com.tourney.core.model.PaymentOrderCreated
 import com.tourney.core.model.PaymentOrderStatus
@@ -55,39 +21,24 @@ import com.tourney.core.model.PaymentGatewayInfo
 import com.tourney.core.model.VerifyPaymentRequest
 import com.tourney.core.model.VerifyPaymentResponse
 import com.tourney.core.model.PlayerStats
-import com.tourney.core.model.PublishRoomRequest
 import com.tourney.core.model.RegisterRequest
-import com.tourney.core.model.RejectWithdrawalRequest
 import com.tourney.core.model.RoomCredentials
-import com.tourney.core.model.RoomRevealRequest
 import com.tourney.core.model.ScoreboardResponse
 import com.tourney.core.model.SlotsResponse
-import com.tourney.core.model.StaffActionResponse
-import com.tourney.core.model.StaffListResponse
-import com.tourney.core.model.GoLiveResult
-import com.tourney.core.model.SweepResult
 import com.tourney.core.model.TenantSettings
 import com.tourney.core.model.Tournament
 import com.tourney.core.model.TournamentListResponse
-import com.tourney.core.model.UpdateTenantSettingsRequest
-import com.tourney.core.model.UpdateStaffRequest
-import com.tourney.core.model.UpdateVisibilityRequest
 import com.tourney.core.model.UpdateGameProfileRequest
 import com.tourney.core.model.User
-import com.tourney.core.model.WalletActionResponse
 import com.tourney.core.model.WalletSummary
 import com.tourney.core.model.WithdrawRequest
 import com.tourney.core.model.WithdrawResponse
-import com.tourney.core.model.WithdrawalsResponse
 import retrofit2.http.Body
-import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
-import okhttp3.ResponseBody
-import retrofit2.http.Streaming
 
 /**
  * Retrofit contract — mirrors the Node/TS backend 1:1.
@@ -119,24 +70,11 @@ interface TourneyApi {
     suspend fun registerFcmToken(@Body request: FcmTokenRequest): ApiEnvelope<FcmTokenResponse>
 
     // ─── Staff / Sub-Admin management (ADMIN only) ───────────────────────
-    @GET("auth/admin/staff")
-    suspend fun staffList(): ApiEnvelope<StaffListResponse>
 
-    @POST("auth/admin/staff")
-    suspend fun createStaff(@Body request: CreateStaffRequest): ApiEnvelope<AuthResponse>
 
-    @PATCH("auth/admin/staff/{id}")
-    suspend fun updateStaff(
-        @Path("id") id: String,
-        @Body request: UpdateStaffRequest,
-    ): ApiEnvelope<StaffActionResponse>
 
-    @DELETE("auth/admin/staff/{id}")
-    suspend fun removeStaff(@Path("id") id: String): ApiEnvelope<StaffActionResponse>
 
     // ─── Tournaments ─────────────────────────────────────────────────────
-    @POST("tournaments")
-    suspend fun createTournament(@Body request: CreateTournamentRequest): ApiEnvelope<Tournament>
 
     @GET("tournaments")
     suspend fun listTournaments(
@@ -160,71 +98,28 @@ interface TourneyApi {
     ): ApiEnvelope<JoinResult>
 
     /** Phase 7: 1-Tap Tournament Clone (re-schedule proven match in seconds). */
-    @POST("tournaments/{id}/clone")
-    suspend fun cloneTournament(
-        @Path("id") id: String,
-        @Body request: CloneTournamentRequest,
-    ): ApiEnvelope<Tournament>
 
     /** Phase 8: admin tunes when the match appears in the player list. */
-    @PATCH("tournaments/{id}/visibility")
-    suspend fun updateTournamentVisibility(
-        @Path("id") id: String,
-        @Body request: UpdateVisibilityRequest,
-    ): ApiEnvelope<Tournament>
 
     // ─── Room (admin-controlled reveal) ──────────────────────────────────
     @GET("tournaments/{id}/room")
     suspend fun roomCredentials(@Path("id") id: String): ApiEnvelope<RoomCredentials>
 
-    @PATCH("tournaments/{id}/room")
-    suspend fun publishRoom(
-        @Path("id") id: String,
-        @Body request: PublishRoomRequest,
-    ): ApiEnvelope<RoomCredentials>
 
     /** Phase 9: choose WHEN players see the Room ID & Password (or reveal now). */
-    @PATCH("tournaments/{id}/room-reveal")
-    suspend fun updateRoomReveal(
-        @Path("id") id: String,
-        @Body request: RoomRevealRequest,
-    ): ApiEnvelope<RoomCredentials>
 
     // ─── Official spectator scoreboard + payout ──────────────────────────
     @GET("tournaments/{id}/results")
     suspend fun tournamentResults(@Path("id") id: String): ApiEnvelope<ScoreboardResponse>
 
-    @POST("tournaments/{id}/payout")
-    suspend fun payout(
-        @Path("id") id: String,
-        @Body request: PayoutRequest,
-    ): ApiEnvelope<PayoutResponse>
 
     /** Phase 12: admin ends the match and pays the winner by Free Fire UID. */
-    @POST("tournaments/{id}/finish")
-    suspend fun finishMatch(
-        @Path("id") id: String,
-        @Body request: FinishMatchRequest,
-    ): ApiEnvelope<FinishMatchResult>
 
     // ─── Phase 6: admin match operations (lifecycle ops) ────────────────
     /** Advance every match's lifecycle now (T-15 reveal -> LIVE). */
-    @POST("tournaments/sweep/states")
-    suspend fun sweepMatchStates(): ApiEnvelope<SweepResult>
 
-    /**
-     * Manual kickoff for one match — the organiser says "this is live now".
-     * Re-pins kickoff to now so the 2h auto-review window restarts too.
-     */
-    @PATCH("tournaments/{id}/go-live")
-    suspend fun forceMatchLive(@Path("id") id: String): ApiEnvelope<GoLiveResult>
 
     /** Cancel a match and atomically refund every booked seat. */
-    @POST("tournaments/{id}/cancel")
-    suspend fun cancelTournament(
-        @Path("id") id: String,
-        @Body request: CancelMatchRequest,
-    ): ApiEnvelope<CancelMatchResult>
 
     // ─── Phase 6: runtime tenant settings + player career stats ─────────
     /** Any user or guest: live UPI / payee / WhatsApp / min deposit / auth config. */
@@ -234,115 +129,41 @@ interface TourneyApi {
     ): ApiEnvelope<TenantSettings>
 
     /** Owner console read (same payload, ADMIN guarded). */
-    @GET("admin/tenant/settings")
-    suspend fun adminTenantSettings(): ApiEnvelope<TenantSettings>
 
     /** Owner-only runtime update — no APK rebuild needed. */
-    @PATCH("admin/tenant/settings")
-    suspend fun updateTenantSettings(
-        @Body request: UpdateTenantSettingsRequest,
-    ): ApiEnvelope<TenantSettings>
 
     /** Profile tab: matches joined/played, Booyahs, kills, total winnings. */
     @GET("players/me/stats")
     suspend fun playerStats(): ApiEnvelope<PlayerStats>
 
     // ─── Owner-only player management (search + ban/unban) ───────────────
-    @GET("admin/players")
-    suspend fun adminPlayers(
-        @Query("search") search: String? = null,
-        @Query("limit") limit: Int = 50,
-    ): ApiEnvelope<AdminPlayersResponse>
 
-    @PATCH("admin/players/{id}/ban")
-    suspend fun banPlayer(
-        @Path("id") id: String,
-        @Body request: BanPlayerRequest,
-    ): ApiEnvelope<BanPlayerResponse>
 
     /** Phase 12.3: one player in full — match history, rewards, cheat signals. */
-    @GET("admin/players/{id}")
-    suspend fun playerDetail(@Path("id") id: String): ApiEnvelope<PlayerDetailResponse>
 
     /** Phase 12.4: accounts worth investigating, ranked by suspicion score. */
-    @GET("admin/players/suspicious")
-    suspend fun suspiciousPlayers(
-        @Query("minScore") minScore: Int = 30,
-        @Query("limit") limit: Int = 20,
-    ): ApiEnvelope<SuspiciousPlayersResponse>
 
     /** Phase 12.5: devices with 2+ accounts, ranked by how they look. */
-    @GET("admin/players/devices")
-    suspend fun deviceGroups(
-        @Query("minAccounts") minAccounts: Int = 2,
-        @Query("limit") limit: Int = 60,
-    ): ApiEnvelope<DeviceGroupsResponse>
 
     /** Phase 12.5: every account on one device + the matches they met in. */
-    @GET("admin/players/devices/{deviceId}")
-    suspend fun deviceGroupDetail(
-        @Path("deviceId") deviceId: String,
-    ): ApiEnvelope<DeviceGroupDetail>
 
     /** Phase 12.6: device watchlist — early warning for returning cheaters. */
-    @GET("admin/players/watchlist")
-    suspend fun watchlist(): ApiEnvelope<WatchlistResponse>
 
-    @POST("admin/players/watchlist")
-    suspend fun watchDevice(
-        @Body request: WatchDeviceRequest,
-    ): ApiEnvelope<WatchedDevice>
 
-    @DELETE("admin/players/watchlist/{deviceId}")
-    suspend fun unwatchDevice(
-        @Path("deviceId") deviceId: String,
-    ): ApiEnvelope<WatchDeviceActionResponse>
 
-    @PATCH("admin/players/watchlist/{deviceId}/ack")
-    suspend fun acknowledgeWatchAlerts(
-        @Path("deviceId") deviceId: String,
-    ): ApiEnvelope<WatchDeviceActionResponse>
 
     /** Phase 12.6: export the whole device as CSV. */
-    @Streaming
-    @GET("admin/players/devices/{deviceId}/export.csv")
-    suspend fun exportDeviceCsv(@Path("deviceId") deviceId: String): ResponseBody
 
     /** Phase 12.5: ban/unban every account on a device in one action. */
-    @PATCH("admin/players/devices/{deviceId}/ban")
-    suspend fun banDeviceAccounts(
-        @Path("deviceId") deviceId: String,
-        @Body request: DeviceBanRequest,
-    ): ApiEnvelope<DeviceBanResponse>
 
     // ─── Phase 12: match roster (participants · rewards · cheat flags · ban) ──
     /** Everyone booked in this match + server-computed cheat flags. */
-    @GET("admin/matches/{id}/participants")
-    suspend fun matchRoster(
-        @Path("id") id: String,
-        @Query("search") search: String? = null,
-        @Query("flagsOnly") flagsOnly: String? = null,
-    ): ApiEnvelope<MatchRosterResponse>
 
     /** Pay one or more players of this match (rank + kills, optional completion). */
-    @POST("admin/matches/{id}/payout")
-    suspend fun payoutMatchAwards(
-        @Path("id") id: String,
-        @Body request: PayoutAwardsRequest,
-    ): ApiEnvelope<PayoutAwardsResponse>
 
     /** Ban from this match only, or across the whole account. */
     /** Ban from this match only, or across the whole account. */
-    @GET("admin/matches/{id}/participants/export.csv")
-    @Streaming
-    suspend fun exportMatchRosterCsv(@Path("id") id: String): ResponseBody
 
-    @PATCH("admin/matches/{id}/participants/{userId}/ban")
-    suspend fun banMatchParticipant(
-        @Path("id") id: String,
-        @Path("userId") userId: String,
-        @Body request: ParticipantBanRequest,
-    ): ApiEnvelope<ParticipantBanResponse>
 
     /** Profile tab: update player's Free Fire IGN and UID. */
     @PATCH("players/me/game-profile")
@@ -404,64 +225,16 @@ interface TourneyApi {
     ): ApiEnvelope<VerifyPaymentResponse>
 
     // ─── Admin wallet console (canManageWallet) ─────────────────────────
-    @GET("admin/wallet/withdrawals")
-    suspend fun adminWithdrawals(
-        @Query("status") status: String? = null,
-    ): ApiEnvelope<WithdrawalsResponse>
 
-    @POST("admin/wallet/withdrawals/{id}/approve")
-    suspend fun approveWithdrawal(
-        @Path("id") id: String,
-        @Body request: ApproveWithdrawalRequest,
-    ): ApiEnvelope<WalletActionResponse>
 
-    @POST("admin/wallet/withdrawals/{id}/reject")
-    suspend fun rejectWithdrawal(
-        @Path("id") id: String,
-        @Body request: RejectWithdrawalRequest,
-    ): ApiEnvelope<WalletActionResponse>
 
     // ─── Admin deposit verification (Add Cash queue) ────────────────────
-    @GET("admin/wallet/deposits")
-    suspend fun adminDeposits(
-        @Query("status") status: String? = null,
-    ): ApiEnvelope<AdminDepositsResponse>
 
     // ─── Admin online payments (Razorpay / mock top-ups) ─────────────────
-    @GET("admin/wallet/payments")
-    suspend fun adminPayments(
-        @Query("status") status: String? = null,
-        @Query("page") page: Int = 1,
-        @Query("limit") limit: Int = 30,
-    ): ApiEnvelope<AdminPaymentsResponse>
 
-    @POST("admin/wallet/payments/{id}/sync")
-    suspend fun adminSyncPayment(
-        @Path("id") id: String,
-        @Body request: AckRequest = AckRequest(),
-    ): ApiEnvelope<ReconcilePaymentResponse>
 
-    @POST("admin/wallet/deposits/{id}/approve")
-    suspend fun approveDeposit(
-        @Path("id") id: String,
-        @Body request: AckRequest = AckRequest(),
-    ): ApiEnvelope<DepositActionResponse>
 
-    @POST("admin/wallet/deposits/{id}/reject")
-    suspend fun rejectDeposit(
-        @Path("id") id: String,
-        @Body request: RejectWithdrawalRequest,
-    ): ApiEnvelope<DepositActionResponse>
 
     // ─── Phase 7: Daily settlement reports (ADMIN only) ──────────────────
-    @GET("admin/wallet/settlement")
-    suspend fun dailySettlement(
-        @Query("date") date: String? = null,
-    ): ApiEnvelope<DailySettlement>
 
-    @Streaming
-    @GET("admin/wallet/settlement/export.csv")
-    suspend fun exportSettlementCsv(
-        @Query("date") date: String? = null,
-    ): ResponseBody
 }

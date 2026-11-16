@@ -52,9 +52,9 @@ dist/alpha_esports/build-info.json
 3. Themes the launcher icon background with `primary_color` and installs the
    client logo as the adaptive-icon foreground (icon files are restored after
    the build, so the repo stays client-neutral).
-4. Runs `gradlew :app-player:assembleDebug :app-admin:assembleDebug`.
-5. Copies the APKs to `dist/<client>/Player.apk` + `Admin.apk` with SHA-256
-   hashes in `build-info.json`.
+4. Runs `gradlew :app-player:assembleDebug`.
+5. Copies the APK to `dist/<client>/Player.apk` with a SHA-256 hash in
+   `build-info.json`.
 
 Add `--release` for R8 release APKs (unsigned unless you configure signing in
 `android/app-player/build.gradle.kts`), `--no-build` to only validate + inject,

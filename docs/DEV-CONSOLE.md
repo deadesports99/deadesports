@@ -53,7 +53,7 @@ UPI app intents / real FCM push emulator par thoda alag behave karte hain.
 ## Panel me kya hai
 
 - **Player / Admin** — ek tap: `installDebug` (build + install), phir app auto launch.
-- **Watcher ON** — `android/app-player/src`, `android/app-admin/src`, `android/core/src`
+- **Watcher ON** — `android/app-player/src`, `android/core/src`
   par file save karte hi (1.2s debounce) khud build + install. Sirf edit karo,
   phone me app update ho jayegi.
   - `core` change kis app me jaye: dropdown se `core → player / admin / both`.
