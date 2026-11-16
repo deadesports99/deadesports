@@ -349,6 +349,21 @@ export async function finishMatchAndPayWinner(
   const killPrize = round2(kills * perKill);
   const totalPrize = round2(rankPrize + killPrize);
 
+  // Same ceilings as the bulk payout: one player cannot kill more people than
+  // the lobby holds, and kill money cannot exceed the collected pool.
+  const seats = await prisma.tournamentSlot.count({ where: { tournamentId } });
+  const maxKills = Math.max(0, seats - 1);
+  if (kills > maxKills) {
+    throw ApiError.badRequest(
+      `This match has ${seats} player(s), so at most ${maxKills} kill(s) can be recorded — ${kills} were entered.`,
+    );
+  }
+  if (perKill > 0 && totalPrize > pool + 0.001) {
+    throw ApiError.badRequest(
+      `${kills} kills x ${perKill} = ${totalPrize} exceeds the ${pool} prize pool.`,
+    );
+  }
+
   const paid = await prisma.$transaction(
     async (tx) => {
       // Lock the tournament row so two admins cannot double-pay.
@@ -550,6 +565,23 @@ export async function distributeTournamentPrizes(
 
   const perKill = Number(tournament.perKillPrize);
   const pool = Number(tournament.prizePool);
+
+  // The pool is 80% of the cash this match actually collected, so the kill
+  // bounties can never exceed it. Without this guard a spectator mis-typing
+  // kills (17 kills in a 5-seat lobby) pays out money the match never held.
+  const seats = await prisma.tournamentSlot.count({ where: { tournamentId } });
+  const maxKills = Math.max(0, seats - 1);
+  const killsClaimed = results.filter((r) => !r.isDisqualified).reduce((sum, r) => sum + r.verifiedKills, 0);
+  if (killsClaimed > maxKills) {
+    throw ApiError.badRequest(
+      `This match has ${seats} player(s), so at most ${maxKills} kill(s) can be recorded — ${killsClaimed} were entered.`,
+    );
+  }
+  if (perKill > 0 && round2(killsClaimed * perKill) > pool + 0.001) {
+    throw ApiError.badRequest(
+      `${killsClaimed} kills x ${perKill} = ${round2(killsClaimed * perKill)} exceeds the ${pool} prize pool. Lower the kill count or the per-kill rate.`,
+    );
+  }
 
   const summary = await prisma.$transaction(
     async (tx) => {
