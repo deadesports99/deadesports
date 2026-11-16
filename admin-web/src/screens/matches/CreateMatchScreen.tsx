@@ -29,7 +29,7 @@ const TYPES: MatchType[] = ['SOLO', 'DUO', 'SQUAD'];
  */
 const SLOT_LIMITS: Record<GameMode, { min: number; max: number; step: number }> = {
   BATTLE_ROYALE: { min: 20, max: 52, step: 1 },
-  CLASH_SQUAD: { min: 2, max: 52, step: 1 },
+  CLASH_SQUAD: { min: 2, max: 8, step: 1 },
 };
 const HOURS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
@@ -171,7 +171,7 @@ export function CreateMatchScreen() {
       <button
         type="button"
         onClick={() => navigate('/matches')}
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> All matches
       </button>
@@ -192,7 +192,7 @@ export function CreateMatchScreen() {
           {/* ── Format ─────────────────────────────────────────────── */}
           <GlassCard flat className="p-4 sm:p-5">
             <h3 className="mb-3 flex items-center gap-2 text-[13px] font-black">
-              <Sparkles className="h-4 w-4 text-amber-700 dark:text-amber-300" /> Match format
+              <Sparkles className="h-4 w-4 text-amber-800 dark:text-amber-300" /> Match format
             </h3>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -362,7 +362,7 @@ export function CreateMatchScreen() {
                           'h-11 px-2.5 text-[12.5px] font-black transition-colors sm:h-10',
                           schedule.meridiem === meridiem
                             ? 'bg-[#FFD000] text-slate-950'
-                            : 'bg-transparent text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                            : 'bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                         )}
                       >
                         {meridiem}
@@ -388,10 +388,10 @@ export function CreateMatchScreen() {
                 matchInFuture ? 'border-[#FFD000]/30 bg-[#FFD000]/[0.06]' : 'border-rose-400/40 bg-rose-500/10'
               )}
             >
-              <p className={cx('text-[12px] font-black', matchInFuture ? 'text-amber-700 dark:text-amber-300' : 'text-rose-600 dark:text-rose-300')}>
+              <p className={cx('text-[12px] font-black', matchInFuture ? 'text-amber-800 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300')}>
                 ⏰ Match starts: {draftPreview(schedule)} IST
               </p>
-              <p className={cx('mt-0.5 text-[12.5px]', matchInFuture ? 'text-slate-400' : 'text-rose-600 dark:text-rose-300')}>
+              <p className={cx('mt-0.5 text-[12.5px]', matchInFuture ? 'text-slate-600 dark:text-slate-400' : 'text-rose-700 dark:text-rose-300')}>
                 {matchInFuture
                   ? `Starts in about ${formatCountdown(matchIso)} (IST).`
                   : '❌ Match time must be in the future.'}
@@ -451,7 +451,7 @@ export function CreateMatchScreen() {
                     <p className="text-[12px] font-black text-cyan-800 dark:text-cyan-200">
                       👁 Players see this match from: {formatIST(visibleFromIso)}
                     </p>
-                    <p className="mt-0.5 text-[12.5px] text-slate-400">
+                    <p className="mt-0.5 text-[12.5px] text-slate-600 dark:text-slate-400">
                       {windowAlreadyOpen
                         ? 'This window has already opened — the match will be visible immediately.'
                         : `Hidden until then • ${formatCountdown(visibleFromIso)} from now (${parsedVisibilityHours} hours before kickoff).`}
@@ -460,7 +460,7 @@ export function CreateMatchScreen() {
                 )}
               </div>
             ) : (
-              <p className="mt-3 text-[12px] font-semibold text-amber-700 dark:text-amber-300">
+              <p className="mt-3 text-[12px] font-semibold text-amber-800 dark:text-amber-300">
                 👁 Players can see this match in their list right after it is created.
               </p>
             )}
@@ -494,7 +494,7 @@ export function CreateMatchScreen() {
         {/* ── Live preview ────────────────────────────────────────── */}
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <GlassCard flat className="p-4">
-            <p className="text-[11.5px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">Preview</p>
+            <p className="text-[11.5px] font-black uppercase tracking-[0.16em] text-amber-800 dark:text-amber-300">Preview</p>
             <p className="mt-1 text-[15px] font-black">{mapType.charAt(0) + mapType.slice(1).toLowerCase()} {matchType}</p>
             <p className="text-[12.5px] text-slate-600 dark:text-slate-400">Match number assigned on save</p>
 
@@ -505,7 +505,7 @@ export function CreateMatchScreen() {
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-600 dark:text-slate-400">Countdown</dt>
-                <dd className="font-bold text-amber-700 dark:text-amber-300">{matchInFuture ? formatCountdown(matchIso) : '—'}</dd>
+                <dd className="font-bold text-amber-800 dark:text-amber-300">{matchInFuture ? formatCountdown(matchIso) : '—'}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-600 dark:text-slate-400">Entry</dt>

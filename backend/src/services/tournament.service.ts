@@ -39,14 +39,14 @@ const TEAM_SIZE: Record<'SOLO' | 'DUO' | 'SQUAD', number> = { SOLO: 1, DUO: 2, S
  *
  * Garena limits (custom room):
  *   • Battle Royale  → 52 players max (we allow 20-52), 20 minimum to start.
- *   • Clash Squad    → 4v4 = 8 in ranked, but custom rooms are admin's call
- *                      (2-52) — the admin decides the slot count.
+ *   • Clash Squad    → 2-8 seats (4v4 room = 8 max) — the admin decides
+ *                      the slot count inside that window.
  *
- * Keep this table in sync with the admin slider/stepper on web + Android.
+ * Keep this table in sync with the admin slider/stepper on web.
  */
 export const SLOT_LIMITS = {
   BATTLE_ROYALE: { min: 20, max: 52, default: 52 },
-  CLASH_SQUAD: { min: 2, max: 52, default: 8 },
+  CLASH_SQUAD: { min: 2, max: 8, default: 8 },
 } as const;
 
 export type SlotLimits = (typeof SLOT_LIMITS)[keyof typeof SLOT_LIMITS];

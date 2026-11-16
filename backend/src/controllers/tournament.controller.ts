@@ -98,7 +98,7 @@ const visibilitySchema = z.object({
 export function getSlotLimits(_req: Request, res: Response): void {
   sendResponse(res, 200, 'Slot limits fetched', {
     modes: tournamentService.SLOT_LIMITS,
-    note: 'One seat = one paying player. Battle Royale 20-52, Clash Squad 2-52 (admin decides the slot count).',
+    note: 'One seat = one paying player. Battle Royale 20-52, Clash Squad 2-8 (admin decides the slot count).',
   });
 }
 
