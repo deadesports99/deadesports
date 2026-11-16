@@ -3,7 +3,7 @@ import { env } from './config/env.js';
 import { assertDevAuthConfig } from './services/firebase.service.js';
 import { assertPaymentConfig } from './config/payment.js';
 import { disconnectPrisma } from './config/prisma.js';
-import { disconnectRedis } from './config/redis.js';
+import { disconnectRedis, connectRedis } from './config/redis.js';
 import { startMatchSweepScheduler, stopMatchSweepScheduler } from './services/matchSweep.service.js';
 import { expireStalePaymentOrders, reconcileStalePaymentOrders } from './services/payment.settlement.js';
 import { realtimeService } from './services/realtime.service.js';
@@ -48,6 +48,12 @@ const server = app.listen(env.PORT, () => {
 // 🕒 Auto lifecycle sweep: UPCOMING/OPEN -> ROOM_REVEALED (T-15) -> LIVE.
 // Runs in-process every minute; safe to run alongside an external cron.
 realtimeService.init(server);
+
+// ⚡ Warm up the Redis client during boot. It is created with `lazyConnect: true`,
+// so without this the connection only starts on the first command — and that
+// command fails instantly while the handshake is in flight, making the first
+// health probe after every deploy report a false Redis outage.
+connectRedis();
 
 // 🔥 Firestore live mirror (Phase 1 — plan/firebase-migration).
 // OFF unless FIREBASE_LIVE_MIRROR=true. When ON, every websocket event is also

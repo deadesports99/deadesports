@@ -36,7 +36,7 @@ const CLEANUP = argv.includes('--cleanup');
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL!.split('?')[0],
-  ssl: /supabase|render|amazonaws/i.test(process.env.DATABASE_URL ?? '')
+  ssl: /neon\.tech|render|amazonaws|supabase/i.test(process.env.DATABASE_URL ?? '')
     ? { rejectUnauthorized: false }
     : undefined,
 });

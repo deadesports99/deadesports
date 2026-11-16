@@ -152,7 +152,7 @@ export function PlayerDetailPanel({
       <button
         type="button"
         onClick={onClose}
-        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> All players
       </button>
@@ -166,7 +166,7 @@ export function PlayerDetailPanel({
         action={
           <>
             {p.playerCode && (
-              <span className="rounded-lg border border-slate-200 px-2 py-1 font-mono text-[10px] font-black text-slate-500 dark:border-white/10">
+              <span className="rounded-lg border border-slate-200 px-2 py-1 font-mono text-[11.5px] font-black text-slate-600 dark:text-slate-400 dark:border-white/10">
                 {p.playerCode}
               </span>
             )}
@@ -208,9 +208,9 @@ export function PlayerDetailPanel({
           { label: 'Win rate', value: `${career.winRatePct}%`, icon: Trophy },
         ].map(({ label, value, icon: Icon }) => (
           <GlassCard key={label} flat className="p-3">
-            <div className="flex items-center gap-1.5 text-slate-500">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
               <Icon className="h-3 w-3" />
-              <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+              <span className="text-[11px] font-black uppercase tracking-wider">{label}</span>
             </div>
             <p className="mt-1 text-[14.5px] font-black leading-none">{value}</p>
           </GlassCard>
@@ -267,11 +267,11 @@ export function PlayerDetailPanel({
                     {m.isDisqualified && <StatusBadge status="REJECTED" label="DQ" />}
                     {m.bannedFromMatch && <StatusBadge status="REJECTED" label="Match ban" />}
                     {m.sharedDeviceInMatch && <StatusBadge status="UNDER_REVIEW" label="Shared device" />}
-                    <span className="ml-auto text-[10.5px] text-slate-500">
+                    <span className="ml-auto text-[12px] text-slate-600 dark:text-slate-400">
                       {formatIST(m.matchTime)}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-[10.5px] text-slate-500">
+                  <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
                     {m.inGameNameAtJoin ?? '—'} · UID {m.inGameUidAtJoin ?? '—'} · slot {m.slotNumber} ·{' '}
                     {m.rank ? `rank ${m.rank}` : 'no rank'} · {m.kills} kills ·{' '}
                     {m.isPaid ? (
@@ -292,7 +292,7 @@ export function PlayerDetailPanel({
         <div className="space-y-3">
           <GlassCard className="p-4">
             <SectionHeader title="Cheat signals" subtitle="Derived from slots, results and the ledger." />
-            <ul className="mt-2 space-y-1.5 text-[11px]">
+            <ul className="mt-2 space-y-1.5 text-[12.5px]">
               {[
                 { label: 'Avg kills', value: String(career.avgKills) },
                 { label: 'Disqualifications', value: String(career.disqualifications) },
@@ -301,15 +301,15 @@ export function PlayerDetailPanel({
                 { label: 'Suspicious id', value: p.inGameUid ?? '—' },
               ].map(({ label, value }) => (
                 <li key={label} className="flex items-center justify-between gap-2">
-                  <span className="text-slate-500">{label}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{label}</span>
                   <b>{value}</b>
                 </li>
               ))}
             </ul>
             {p.deviceId ? (
               <div className="mt-3 space-y-1.5">
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Device</p>
-                <p className="break-all font-mono text-[10px] text-slate-500">{p.deviceId}</p>
+                <p className="text-[11.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Device</p>
+                <p className="break-all font-mono text-[11.5px] text-slate-600 dark:text-slate-400">{p.deviceId}</p>
                 <AppButton
                   size="sm"
                   variant="secondary"
@@ -321,7 +321,7 @@ export function PlayerDetailPanel({
                 </AppButton>
               </div>
             ) : (
-              <p className="mt-3 text-[10.5px] text-slate-500">No device recorded.</p>
+              <p className="mt-3 text-[12px] text-slate-600 dark:text-slate-400">No device recorded.</p>
             )}
           </GlassCard>
 
@@ -331,12 +331,12 @@ export function PlayerDetailPanel({
               subtitle={`${detail.linkedAccounts.length} other account(s) shared this device`}
             />
             {detail.linkedAccounts.length === 0 ? (
-              <p className="mt-2 text-[11px] text-slate-500">No shared-device accounts found.</p>
+              <p className="mt-2 text-[12.5px] text-slate-600 dark:text-slate-400">No shared-device accounts found.</p>
             ) : (
               <ul className="mt-2 space-y-1.5">
                 {detail.linkedAccounts.map((account) => (
-                  <li key={account.userId} className="flex items-center gap-2 text-[11px]">
-                    <KeyRound className="h-3 w-3 shrink-0 text-slate-500" />
+                  <li key={account.userId} className="flex items-center gap-2 text-[12.5px]">
+                    <KeyRound className="h-3 w-3 shrink-0 text-slate-600 dark:text-slate-400" />
                     <button
                       type="button"
                       onClick={() => onOpenPlayer(account.userId)}
@@ -345,7 +345,7 @@ export function PlayerDetailPanel({
                       {account.inGameName || account.playerCode || account.userId.slice(0, 8)}
                     </button>
                     {account.isBanned && <StatusBadge status="REJECTED" label="Banned" />}
-                    <span className="ml-auto shrink-0 text-slate-500">{account.sharedMatches} match(es)</span>
+                    <span className="ml-auto shrink-0 text-slate-600 dark:text-slate-400">{account.sharedMatches} match(es)</span>
                   </li>
                 ))}
               </ul>
@@ -368,7 +368,7 @@ export function PlayerDetailPanel({
         onClose={() => !banning && setBanOpen(false)}
         onConfirm={() => void setBanned()}
       >
-        <p className="text-[11.5px] text-slate-500">
+        <p className="text-[13px] text-slate-600 dark:text-slate-400">
           Bans apply to the whole account, not one match. For a single tournament, use the roster's
           match-only ban instead.
         </p>

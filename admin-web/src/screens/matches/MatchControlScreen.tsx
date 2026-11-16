@@ -367,7 +367,7 @@ export function MatchControlScreen() {
         <button
           type="button"
           onClick={() => navigate('/matches')}
-          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> All matches
         </button>
@@ -382,7 +382,7 @@ export function MatchControlScreen() {
         <button
           type="button"
           onClick={() => navigate('/matches')}
-          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> All matches
         </button>
@@ -409,7 +409,7 @@ export function MatchControlScreen() {
       <button
         type="button"
         onClick={() => navigate('/matches')}
-        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> All matches
       </button>
@@ -451,7 +451,7 @@ export function MatchControlScreen() {
       )}
 
       {banner && (
-        <p className="flex items-start gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.07] px-3 py-2 text-[11.5px] font-bold text-emerald-700 dark:text-emerald-300">
+        <p className="flex items-start gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.07] px-3 py-2 text-[13px] font-bold text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           {banner}
         </p>
@@ -462,11 +462,11 @@ export function MatchControlScreen() {
       {room && (
         <GlassCard flat className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3">
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Room ID</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Room ID</span>
             <span className="font-mono text-[13px] font-black">{room.roomId}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Password</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Password</span>
             <span className="font-mono text-[13px] font-black">{room.roomPassword}</span>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -487,7 +487,7 @@ export function MatchControlScreen() {
               href={whatsappShareUrl(roomShareText({ ...roster.match, room }))}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/[0.03]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[12.5px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/[0.03]"
             >
               WhatsApp
             </a>
@@ -509,9 +509,9 @@ export function MatchControlScreen() {
           { label: 'Prize pool', value: money(pool), icon: ShieldAlert },
         ].map(({ label, value, icon: Icon }) => (
           <GlassCard key={label} flat className="p-3">
-            <div className="flex items-center gap-1.5 text-slate-500">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
               <Icon className="h-3 w-3" />
-              <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+              <span className="text-[11px] font-black uppercase tracking-wider">{label}</span>
             </div>
             <p className="mt-1 text-[15px] font-black leading-none">{value}</p>
           </GlassCard>
@@ -522,7 +522,7 @@ export function MatchControlScreen() {
       <GlassCard flat className="p-3">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
           <div className="relative lg:w-72">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600 dark:text-slate-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -597,32 +597,32 @@ export function MatchControlScreen() {
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-black text-slate-600 dark:text-slate-300">
+                        <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] px-1.5 py-0.5 text-[11.5px] font-black text-slate-600 dark:text-slate-300">
                           #{participant.slotNumber}
                         </span>
                         <p className="truncate text-[13px] font-black">{displayName(participant)}</p>
                         {paid && (
-                          <span className="rounded-md border border-emerald-400/30 bg-emerald-400/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                          <span className="rounded-md border border-emerald-400/30 bg-emerald-400/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                             Paid {money(paidAmount)}
                           </span>
                         )}
                         {participant.isBanned && (
-                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-300">
+                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-300">
                             Match ban
                           </span>
                         )}
                         {participant.accountBanned && (
-                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-300">
+                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-300">
                             Account ban
                           </span>
                         )}
                         {edit.dq && (
-                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
                             DQ
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-[10.5px] text-slate-400">
+                      <p className="mt-0.5 text-[12px] text-slate-400">
                         {participant.playerCode ?? '—'} • {participant.phoneNumber} • FF UID{' '}
                         <span className="font-mono text-slate-600 dark:text-slate-300">{participant.inGameUid ?? 'missing'}</span>
                       </p>
@@ -633,11 +633,11 @@ export function MatchControlScreen() {
                             <span
                               key={flag.code}
                               title={flag.detail}
-                              className={`rounded-md border px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wide ${
+                              className={`rounded-md border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${
                                 flag.code === 'SAME_DEVICE' || flag.code === 'SAME_DEVICE_CROSS' || flag.code === 'ACCOUNT_BANNED'
                                   ? 'border-rose-400/30 bg-rose-500/10 text-rose-600 dark:text-rose-300'
                                   : flag.code === 'NO_FF_UID' || flag.code === 'UID_MISMATCH'
-                                    ? 'border-amber-400/30 bg-amber-400/10 text-amber-600 dark:text-amber-300'
+                                    ? 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300'
                                     : 'border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] text-slate-400'
                               }`}
                             >
@@ -649,8 +649,8 @@ export function MatchControlScreen() {
                     </div>
 
                     <div className="text-right">
-                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Reward</p>
-                      <p className={`text-[14px] font-black ${banned ? 'text-slate-500 line-through' : paid ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Reward</p>
+                      <p className={`text-[14px] font-black ${banned ? 'text-slate-600 dark:text-slate-400 line-through' : paid ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
                         {paid ? money(paidAmount) : money(preview)}
                       </p>
                     </div>
@@ -659,7 +659,7 @@ export function MatchControlScreen() {
                   {/* Inputs */}
                   <div className="mt-2.5 flex flex-wrap items-end gap-2">
                     <div className="w-[74px]">
-                      <label className="mb-0.5 block text-[9px] font-black uppercase tracking-wider text-slate-500">Rank</label>
+                      <label className="mb-0.5 block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Rank</label>
                       <TextInput
                         type="number"
                         min={1}
@@ -677,7 +677,7 @@ export function MatchControlScreen() {
                       />
                     </div>
                     <div className="w-[74px]">
-                      <label className="mb-0.5 block text-[9px] font-black uppercase tracking-wider text-slate-500">Kills</label>
+                      <label className="mb-0.5 block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Kills</label>
                       <TextInput
                         type="number"
                         min={0}
@@ -706,7 +706,7 @@ export function MatchControlScreen() {
                     )}
 
                     <div className="ml-auto flex gap-1.5">
-                      {paid && <span className="text-[10px] font-bold text-emerald-400">Locked</span>}
+                      {paid && <span className="text-[11.5px] font-bold text-emerald-400">Locked</span>}
                       {canPrize && (
                         <AppButton
                           size="sm"
@@ -735,7 +735,7 @@ export function MatchControlScreen() {
                   )}
 
                   {banned && (
-                    <p className="mt-2 text-[10.5px] font-semibold text-rose-600 dark:text-rose-300">
+                    <p className="mt-2 text-[12px] font-semibold text-rose-600 dark:text-rose-300">
                       Excluded from payout — unban first if this player should be paid.
                     </p>
                   )}
@@ -751,20 +751,20 @@ export function MatchControlScreen() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[12px] font-black">
-              Payout preview: <span className={overBudget ? 'text-rose-600 dark:text-rose-300' : 'text-amber-600 dark:text-amber-300'}>{money(totalPreview)}</span>{' '}
-              <span className="font-bold text-slate-500">of {money(pool)} pool</span>
+              Payout preview: <span className={overBudget ? 'text-rose-600 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}>{money(totalPreview)}</span>{' '}
+              <span className="font-bold text-slate-600 dark:text-slate-400">of {money(pool)} pool</span>
             </p>
-            <p className="mt-0.5 text-[10.5px] text-slate-400">
+            <p className="mt-0.5 text-[12px] text-slate-400">
               {rankedCount} ranked • {unrankedCount} kills-only • {dqCount} DQ • {roster.summary.paid} already paid
               {roster.summary.banned > 0 ? ` • ${roster.summary.banned} banned (excluded)` : ''}
             </p>
             {overBudget && (
-              <p className="mt-1 text-[11px] font-bold text-rose-600 dark:text-rose-300">
+              <p className="mt-1 text-[12.5px] font-bold text-rose-600 dark:text-rose-300">
                 Preview is above the prize pool — lower ranks/kills before saving.
               </p>
             )}
             {!payoutOpen && (
-              <p className="mt-1 text-[11px] font-bold text-slate-400">
+              <p className="mt-1 text-[12.5px] font-bold text-slate-400">
                 Payout is closed for status {humanize(roster.match.status)}.
               </p>
             )}
@@ -819,25 +819,25 @@ export function MatchControlScreen() {
       >
         <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] p-3 text-[12px]">
           <p className="flex justify-between">
-            <span className="text-slate-500">Total to pay</span>
-            <span className="font-black text-amber-600 dark:text-amber-300">{money(totalPreview)}</span>
+            <span className="text-slate-600 dark:text-slate-400">Total to pay</span>
+            <span className="font-black text-amber-700 dark:text-amber-300">{money(totalPreview)}</span>
           </p>
           <p className="flex justify-between">
-            <span className="text-slate-500">Players</span>
+            <span className="text-slate-600 dark:text-slate-400">Players</span>
             <span className="font-bold">{awards.length}</span>
           </p>
           <p className="flex justify-between">
-            <span className="text-slate-500">Ranked / kills-only / DQ</span>
+            <span className="text-slate-600 dark:text-slate-400">Ranked / kills-only / DQ</span>
             <span className="font-bold">
               {rankedCount} / {unrankedCount} / {dqCount}
             </span>
           </p>
           <p className="flex justify-between">
-            <span className="text-slate-500">Already paid (skipped)</span>
+            <span className="text-slate-600 dark:text-slate-400">Already paid (skipped)</span>
             <span className="font-bold">{roster.summary.paid}</span>
           </p>
           {actionError && (
-            <p className="pt-1 text-[11px] font-bold text-rose-600 dark:text-rose-300">{actionError}</p>
+            <p className="pt-1 text-[12.5px] font-bold text-rose-600 dark:text-rose-300">{actionError}</p>
           )}
         </div>
       </ConfirmDialog>
@@ -865,12 +865,12 @@ export function MatchControlScreen() {
                 {payoutResult.breakdown.map((row) => {
                   const participant = roster.participants.find((item) => item.userId === row.userId);
                   return (
-                    <li key={row.userId} className="flex items-center justify-between gap-2 px-3 py-2 text-[11.5px]">
+                    <li key={row.userId} className="flex items-center justify-between gap-2 px-3 py-2 text-[13px]">
                       <span className="min-w-0 truncate font-bold">
                         {participant ? displayName(participant) : row.userId}
                         {row.isDisqualified && <span className="ml-1 text-rose-600 dark:text-rose-300">(DQ)</span>}
                       </span>
-                      <span className="shrink-0 font-black text-amber-600 dark:text-amber-300">{money(row.prizePaid)}</span>
+                      <span className="shrink-0 font-black text-amber-700 dark:text-amber-300">{money(row.prizePaid)}</span>
                     </li>
                   );
                 })}
@@ -878,7 +878,7 @@ export function MatchControlScreen() {
             )}
 
             {payoutResult.skipped.length > 0 && (
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[12.5px] text-slate-400">
                 Skipped: {payoutResult.skipped.length} (already paid — never paid twice).
               </p>
             )}

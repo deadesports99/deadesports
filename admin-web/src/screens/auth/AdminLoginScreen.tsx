@@ -197,26 +197,26 @@ export function AdminLoginScreen() {
     >
       <Ambient />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6 sm:px-6 lg:grid lg:grid-cols-[1.05fr_minmax(400px,440px)] lg:items-center lg:gap-12 lg:py-10">
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-4 py-6 sm:px-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(380px,420px)] lg:items-center lg:gap-16 lg:py-10 xl:gap-20">
         {/* ── Hero (desktop only) ─────────────────────────────────────── */}
         <section className="hidden lg:block">
           <div className="flex items-center gap-3">
             <Crest />
             <div>
               <p className="font-spartan text-2xl font-black tracking-tight">Spartan Arena</p>
-              <p className={cx('text-[11px] font-bold uppercase tracking-[0.24em]', isDark ? 'text-amber-300' : 'text-amber-600')}>
+              <p className={cx('text-[12.5px] font-bold uppercase tracking-[0.24em]', isDark ? 'text-amber-300' : 'text-amber-700')}>
                 Operations Console
               </p>
             </div>
           </div>
 
-          <h1 className="mt-8 max-w-lg font-display text-[34px] font-black leading-[1.1] tracking-tight">
-            Match night ka poora control,{" "}
-            <span className={isDark ? 'text-amber-300' : 'text-amber-600'}>ek browser tab</span> me.
+          <h1 className="mt-8 max-w-lg font-display text-[30px] font-black leading-[1.12] tracking-tight xl:text-[36px]">
+            Everything for match night,{" "}
+            <span className={isDark ? 'text-amber-300' : 'text-amber-700'}>in one browser tab</span>.
           </h1>
           <p className={cx('mt-3 max-w-md text-sm leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
-            Matches, room IDs, live scoring, wallet approvals aur staff permissions — sab kuch
-            wahi data, same design language jo player app me hai.
+            Matches, room IDs, live scoring, wallet approvals and staff permissions — the same
+            data and the same design language as the player app.
           </p>
 
           <ul className="mt-8 space-y-3">
@@ -231,14 +231,14 @@ export function AdminLoginScreen() {
                     'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border',
                     isDark
                       ? 'border-white/10 bg-white/[0.04] text-amber-300'
-                      : 'border-slate-200 bg-white text-amber-600'
+                      : 'border-slate-200 bg-white text-amber-700'
                   )}
                 >
                   <Icon className="h-4 w-4" />
                 </span>
                 <div>
                   <p className="text-[13px] font-black">{title}</p>
-                  <p className={cx('text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>{text}</p>
+                  <p className={cx('text-xs', isDark ? 'text-slate-400' : 'text-slate-600')}>{text}</p>
                 </div>
               </li>
             ))}
@@ -246,7 +246,7 @@ export function AdminLoginScreen() {
 
           <div
             className={cx(
-              'mt-8 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-semibold',
+              'mt-8 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[12.5px] font-semibold',
               isDark ? 'border-white/10 bg-white/[0.03] text-slate-400' : 'border-slate-200 bg-white text-slate-600'
             )}
           >
@@ -256,14 +256,14 @@ export function AdminLoginScreen() {
         </section>
 
         {/* ── Auth card ──────────────────────────────────────────────── */}
-        <section className="mx-auto w-full max-w-[440px] lg:mx-0">
+        <section className="mx-auto w-full max-w-[440px] sm:max-w-[480px] lg:mx-0 lg:max-w-none">
           {/* Mobile brand + theme */}
           <div className="mb-4 flex items-center justify-between lg:hidden">
             <div className="flex items-center gap-2.5">
               <Crest small />
               <div>
                 <p className="text-sm font-black leading-none tracking-tight">Spartan Arena</p>
-                <p className={cx('mt-1 text-[9px] font-bold uppercase tracking-[0.2em]', isDark ? 'text-amber-300' : 'text-amber-600')}>
+                <p className={cx('mt-1 text-[11px] font-bold uppercase tracking-[0.2em]', isDark ? 'text-amber-300' : 'text-amber-700')}>
                   Admin Console
                 </p>
               </div>
@@ -285,10 +285,10 @@ export function AdminLoginScreen() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h2 className="text-xl font-black tracking-tight sm:text-2xl">Admin sign in</h2>
-                      <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                      <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
                         {mode === 'owner'
-                          ? 'Owner email par 6-digit code aayega.'
-                          : 'Owner email + permission key se staff login.'}
+                          ? 'A 6-digit code will be sent to the owner email.'
+                          : 'Staff sign in with the owner email + permission key.'}
                       </p>
                     </div>
                     <div className="hidden lg:block">
@@ -322,18 +322,18 @@ export function AdminLoginScreen() {
                           setError('');
                         }}
                         className={cx(
-                          'rounded-lg px-2 py-2 text-[11px] font-black transition-all',
+                          'rounded-lg px-2 py-2 text-[12.5px] font-black transition-all',
                           mode === tab.id
                             ? isDark
                               ? 'bg-white/[0.09] text-white shadow-sm'
                               : 'bg-white text-slate-950 shadow-sm'
                             : isDark
                               ? 'text-slate-400 hover:text-slate-200'
-                              : 'text-slate-500 hover:text-slate-800'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
                         )}
                       >
                         {tab.label}
-                        <span className={cx('ml-1 hidden font-medium sm:inline', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                        <span className={cx('ml-1 hidden font-medium sm:inline', 'text-slate-400')}>
                           · {tab.hint}
                         </span>
                       </button>
@@ -347,7 +347,7 @@ export function AdminLoginScreen() {
                         htmlFor="admin-email"
                         className={cx('mb-1.5 flex items-center gap-1.5 text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
                       >
-                        <Mail className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                        <Mail className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-600')} />
                         {mode === 'owner' ? 'Owner email' : 'Owner email (admin)'}
                       </label>
                       <input
@@ -380,9 +380,9 @@ export function AdminLoginScreen() {
                           htmlFor="admin-key"
                           className={cx('mb-1.5 flex items-center gap-1.5 text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
                         >
-                          <KeyRound className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                          <KeyRound className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-600')} />
                           Permission key
-                          <span className={cx('font-medium', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                          <span className={cx('font-medium', 'text-slate-400')}>
                             (24 characters)
                           </span>
                         </label>
@@ -416,19 +416,19 @@ export function AdminLoginScreen() {
                             type="button"
                             onClick={() => setShowKey((value) => !value)}
                             aria-label={showKey ? 'Hide permission key' : 'Show permission key'}
-                            className={cx('flex h-9 w-9 shrink-0 items-center justify-center', isDark ? 'text-slate-400' : 'text-slate-500')}
+                            className={cx('flex h-9 w-9 shrink-0 items-center justify-center', isDark ? 'text-slate-400' : 'text-slate-600')}
                           >
                             {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        <p className={cx('mt-1.5 text-[10px] leading-relaxed', isDark ? 'text-slate-500' : 'text-slate-500')}>
-                          Key owner deta hai. OTP phir bhi owner ke email par jaata hai.
+                        <p className={cx('mt-1.5 text-[11.5px] leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                          The owner issues this key. The OTP still goes to the owner email.
                         </p>
                       </div>
                     )}
 
                     {error && (
-                      <p className="flex items-start gap-1.5 text-[11px] font-semibold leading-relaxed text-rose-400">
+                      <p className="flex items-start gap-1.5 text-[12.5px] font-semibold leading-relaxed text-rose-400">
                         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         {error}
                       </p>
@@ -446,8 +446,8 @@ export function AdminLoginScreen() {
 
                   <div
                     className={cx(
-                      'mt-5 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[10px] leading-relaxed',
-                      isDark ? 'border-white/[0.06] bg-white/[0.02] text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-500'
+                      'mt-5 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[11.5px] leading-relaxed',
+                      isDark ? 'border-white/[0.06] bg-white/[0.02] text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
                     )}
                   >
                     <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -465,7 +465,7 @@ export function AdminLoginScreen() {
                     disabled={busy}
                     className={cx(
                       'group inline-flex items-center gap-2 text-xs font-bold transition-all',
-                      isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-950'
+                      isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
                     )}
                   >
                     <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
@@ -474,8 +474,8 @@ export function AdminLoginScreen() {
 
                   <div className="mt-4">
                     <h2 className="text-xl font-black tracking-tight sm:text-2xl">Enter OTP</h2>
-                    <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                      6-digit code owner ke email par bheja gaya hai.
+                    <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                      A 6-digit code has been sent to the owner email.
                     </p>
                   </div>
 
@@ -487,7 +487,7 @@ export function AdminLoginScreen() {
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <Mail className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                      <Mail className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-400' : 'text-slate-600')} />
                       <div className="min-w-0">
                         <p className={cx('truncate text-[12px] font-black', isDark ? 'text-white' : 'text-slate-950')}>
                           {email.trim()}
@@ -500,7 +500,7 @@ export function AdminLoginScreen() {
                                 : ({ role: 'SUB_ADMIN' } as never)
                             }
                           />
-                          <span className={cx('text-[9px]', isDark ? 'text-slate-500' : 'text-slate-500')}>
+                          <span className={cx('text-[11px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
                             {mode === 'staff' ? 'key verified on submit' : 'owner inbox'}
                           </span>
                         </div>
@@ -511,7 +511,7 @@ export function AdminLoginScreen() {
                       onClick={resetToCredentials}
                       disabled={busy}
                       className={cx(
-                        'shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95',
+                        'shrink-0 rounded-lg border px-2.5 py-1 text-[12.5px] font-bold transition-all active:scale-95',
                         isDark
                           ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:text-white'
                           : 'border-slate-300 bg-white text-slate-800'
@@ -528,7 +528,7 @@ export function AdminLoginScreen() {
                         className={cx('mb-2 flex items-center justify-between text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
                       >
                         <span>6-digit code</span>
-                        <span className={cx('text-[10px] font-medium', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                        <span className={cx('text-[11.5px] font-medium', 'text-slate-400')}>
                           10 min expiry
                         </span>
                       </label>
@@ -572,7 +572,7 @@ export function AdminLoginScreen() {
                       </div>
 
                       {error && (
-                        <p className="mt-2.5 flex items-start gap-1.5 text-[11px] font-semibold text-rose-400">
+                        <p className="mt-2.5 flex items-start gap-1.5 text-[12.5px] font-semibold text-rose-400">
                           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                           <span>
                             {error}
@@ -589,7 +589,7 @@ export function AdminLoginScreen() {
                           isDark ? 'border-amber-400/30 bg-amber-400/[0.06]' : 'border-amber-300 bg-amber-50'
                         )}
                       >
-                        <span className={cx('text-[10px] font-bold', isDark ? 'text-amber-300' : 'text-amber-700')}>
+                        <span className={cx('text-[11.5px] font-bold', isDark ? 'text-amber-300' : 'text-amber-700')}>
                           DEV — backend log code:{' '}
                           <code className="font-mono text-[12px]">{debugOtp}</code>
                         </span>
@@ -597,7 +597,7 @@ export function AdminLoginScreen() {
                           type="button"
                           onClick={fillDebugOtp}
                           className={cx(
-                            'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-black',
+                            'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11.5px] font-black',
                             isDark ? 'border-amber-400/30 text-amber-200' : 'border-amber-300 text-amber-700'
                           )}
                         >
@@ -613,7 +613,7 @@ export function AdminLoginScreen() {
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        <Clock3 className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-500')} />
+                        <Clock3 className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-600')} />
                         {resendLeft > 0 ? (
                           <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
                             Resend in{' '}
@@ -631,7 +631,7 @@ export function AdminLoginScreen() {
                         disabled={busy || resendLeft > 0}
                         onClick={() => void requestOtp()}
                         className={cx(
-                          'inline-flex items-center gap-1.5 text-[11px] font-black underline transition-opacity disabled:opacity-40',
+                          'inline-flex items-center gap-1.5 text-[12.5px] font-black underline transition-opacity disabled:opacity-40',
                           isDark ? 'text-white' : 'text-slate-950'
                         )}
                       >
@@ -651,19 +651,19 @@ export function AdminLoginScreen() {
 
                   <div
                     className={cx(
-                      'mt-4 flex items-center justify-center gap-1.5 border-t pt-3 text-[10px]',
-                      isDark ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-500'
+                      'mt-4 flex items-center justify-center gap-1.5 border-t pt-3 text-[11.5px]',
+                      isDark ? 'text-slate-400' : 'text-slate-600'
                     )}
                   >
                     <KeyRound className="h-3.5 w-3.5" />
-                    Staff? Owner se code lo, phir permission key ke saath verify karo.
+                    Staff? Get the code from the owner, then verify with your permission key.
                   </div>
                 </>
               )}
             </div>
           </div>
 
-          <p className={cx('mt-4 text-center text-[10px]', isDark ? 'text-slate-600' : 'text-slate-400')}>
+          <p className={cx('mt-4 text-center text-[11.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
             Spartan Arena · Admin access only · All actions are audited
           </p>
         </section>

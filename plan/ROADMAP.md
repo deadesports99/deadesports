@@ -48,8 +48,8 @@ flowchart TD
     end
 
     subgraph DataStore["Data & Media Storage"]
-        DB[(PostgreSQL / Supabase<br>Multi-Tenant Partitioned)]
-        S3["Cloud Storage (S3 / R2 / Supabase)<br>Match Result Screenshots"]
+        DB[(PostgreSQL / Neon<br>Multi-Tenant Partitioned)]
+        S3["Cloud Storage (S3 / R2 / Firebase Storage)<br>Match Result Screenshots"]
     end
 
     UA --> API
@@ -80,11 +80,11 @@ flowchart TD
    - **UI Library:** **shadcn/ui** (Radix UI primitives) + **Tailwind CSS** + **Lucide Icons** + **Tremor Charts**.
    - **State & Tables:** `@tanstack/react-query` + `@tanstack/react-table`.
 
-3. **Backend & Cloud Architecture: Smart Hybrid Model (Firebase + Supabase)**:
+3. **Backend & Cloud Architecture: Smart Hybrid Model (Neon + Firebase)**: 
    - **The Smart Hybrid Approach (Recommended):**
      * **Firebase Auth & FCM:** Free Fire players ke fast Mobile Number + OTP Login ke liye Firebase Authentication, aur Match start hone se 15 min pehle Room ID/Password ka high-priority device notification bhejne ke liye **Firebase Cloud Messaging (FCM)**.
-     * **Supabase (Managed PostgreSQL):** Core relational database, multi-tenant isolation, Prisma ORM connectivity, double-entry wallet ledger, aur screenshot image storage ke liye **Supabase Storage**.
-     * **Realtime Layer:** Supabase Realtime / Socket.io for instant live slot updates and in-app room revealing.
+     * **Neon (Managed PostgreSQL):** Core relational database, multi-tenant isolation, Prisma ORM connectivity, double-entry wallet ledger. Screenshot storage ke liye **Firebase Storage**.
+     * **Realtime Layer:** Firestore live feed (mirror) for instant live slot updates and in-app room revealing.
      * **In-Memory Cache & Mutex:** **Redis (Upstash / Redis)** slot booking me high concurrency race condition prevent karne ke liye.
    - **Alternative (Pure Firebase):**
      * Agar boss strictly 100% Firebase chahte hain: **Cloud Firestore + Firebase Auth + Firebase Storage + Cloud Functions (Node.js)**. (Note: Firestore me slot booking ke waqt concurrency limit ka dhyan rakhna padega).
@@ -150,12 +150,12 @@ graph TD
 FreeFireTourneyApp/
 ├── :app-player      # Player APK (Gamer UI, Slot Picker, Room ID, Wallet)
 ├── :app-admin       # Admin & Staff APK (Role == "admin" vs "sub_admin" dynamic Compose screens)
-└── :core            # Shared Kotlin Data Classes (Tournament.kt, User.kt, Permissions.kt) & Supabase/Firebase Repositories
+└── :core            # Shared Kotlin Data Classes (Tournament.kt, User.kt, Permissions.kt) & Neon/Firebase Repositories
 ```
 
 ### ⏱️ 10-Minute Client Handover Model:
 Har naye client ke aane par sirf ye 4 steps karne honge:
-1. Client ke Supabase/Firebase credentials project me connect karna.
+1. Client ke Neon/Firebase credentials project me connect karna.
 2. `build.gradle.kts` me Client ka App Name, Package Name (`com.client.player`), aur Theme Colors update karna.
 3. Client ka Logo mipmap me daalna.
 4. Android Studio se 2 signed APK generate karna (`Player.apk` aur `Admin.apk`) aur client ko de dena!
@@ -344,7 +344,7 @@ CREATE TABLE wallet_transactions (
 ### 📍 Phase 8: Production Cloud Deployment & Custom Domain (Active)
 - [x] Multi-stage production `Dockerfile` (non-root user) plus `.dockerignore` and Prisma generate at build time.
 - [ ] Cloud deployment to Render / Railway / VPS / Cloud Run.
-- [ ] Connect production Upstash Serverless Redis & Supabase pooler (Port 6543).
+- [ ] Connect production Upstash Serverless Redis & Neon Postgres (`?sslmode=require`).
 - [ ] Custom domain DNS mapping (`api.yourbrand.com`) with automated SSL/TLS certificates.
 - [ ] Android apps (`:app-player` & `:app-admin`) switch from `localhost:5000` to live HTTPS domain.
 - [ ] Refer to comprehensive plan: `plan/PRODUCTION_CLOUD_DEPLOYMENT_PLAN.md`.
@@ -410,7 +410,7 @@ kisko kitna dena hai, aur ban ka option bhi mile. Card bada na ho."
 - [x] **Admin app**: compact match card (no 6-button wall — actions move to `⋮`) with
       match number / `👥 Players (N)` opening a full-screen roster + search + filter chips.
 - [x] **Reward sheet** per player: rank + kills → auto ₹ preview (same formula as server) → Pay.
-- [x] **Cheat signals live**: Supabase audit found **7 accounts on one device**
+- [x] **Cheat signals live**: DB audit found **7 accounts on one device**
       (`1d24b2b7de7dafdb`) and **4 players with no FF UID** — both surface as 🚨 badges.
 
 ---
@@ -709,12 +709,12 @@ Aap backend developer hain, toh backend development ko in **5 specific steps** m
   npx tsc --init
   ```
 
-### Step 2: Supabase Project & Prisma Schema Connection
-- [supabase.com](https://supabase.com) par free project banana.
-- Supabase se PostgreSQL connection string copy karke `.env` me daalna:
+### Step 2: Neon Project & Prisma Schema Connection
+- [neon.com](https://neon.com) par free project banana (card nahi, expire nahi hota).
+- Neon se PostgreSQL connection string copy karke `.env` me daalna (`?sslmode=require` ke saath):
   `DATABASE_URL="postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres"`
 - `npx prisma init` run karke hamara Multi-Tenant schema (`Tenants`, `Users`, `Tournaments`, `TournamentSlots`, `WalletLedger`) `prisma/schema.prisma` me paste karna.
-- `npx prisma db push` chalakar Supabase me tables ready karna.
+- `npx prisma db push` chalakar Neon me tables ready karna.
 
 ### Step 3: Firebase Admin SDK Integration (Auth & FCM)
 - Firebase console se service account JSON download karna (`firebase-admin` setup).
@@ -729,7 +729,7 @@ Aap backend developer hain, toh backend development ko in **5 specific steps** m
 ### Step 5: Timed Room ID & Result Submission Workflow
 - Room Credentials release API with 15-minute countdown lock:
   `GET /api/tournaments/:id/room-credentials`
-- Match result & screenshot upload endpoint linking to Supabase Storage.
+- Match result & screenshot upload endpoint linking to Firebase Storage.
 
 
 
@@ -771,7 +771,7 @@ Boss ke core business objective: **"Ye sirf ek bande ko sell karne ke liye nahi 
 
 ## ⚡ 11. Turnkey Standalone Delivery Engine (Zero Data Liability Model)
 
-> **Boss & Jay Core Philosophy:** "Hum client ko app denge, fir uske data se hamara koi lena dena nahi hai. Client ka apna Supabase aur apna Firebase 2 second me connect hoga, aur har client ka App Name, Logo, Button Colors aur Play Store build 100% alag banegi."
+> **Boss & Jay Core Philosophy:** "Hum client ko app denge, fir uske data se hamara koi lena dena nahi hai. Client ka apna Neon aur apna Firebase 2 second me connect hoga, aur har client ka App Name, Logo, Button Colors aur Play Store build 100% alag banegi."
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -780,12 +780,12 @@ Boss ke core business objective: **"Ye sirf ek bande ko sell karne ke liye nahi 
 │ 1. Zero Data Liability:                                                     │
 │    • Jay aur Boss kisi client ka user data, passwords ya match money apne   │
 │      server par store nahi karenge.                                         │
-│    • Har client ka apna free/paid Supabase database aur Firebase project     │
+│    • Har client ka apna free/paid Neon database aur Firebase project        │
 │      hoga. Client apne database aur paison ka 100% khud maalik hoga.        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 2. 2-Second Backend Connection:                                             │
 │    • Client ka `google-services.json` daalo.                                │
-│    • Client ka `SUPABASE_URL` aur `SUPABASE_ANON_KEY` daalo.                │
+│    • Client ka `DATABASE_URL` aur Firebase config daalo.                    │
 │    • App turant client ke database se baat karna shuru kar degi!            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 3. 10-Minute Dynamic Re-Branding Engine (Jetpack Compose):                  │
@@ -820,8 +820,8 @@ Boss ke core business objective: **"Ye sirf ek bande ko sell karne ke liye nahi 
     "card_style": "ROUNDED_16"
   },
   "backend_keys": {
-    "supabase_url": "https://client-project.supabase.co",
-    "supabase_anon_key": "eyJhbGciOi...",
+    "database_url": "<client ka Neon DATABASE_URL>",
+    "firebase_project_id": "<client ka Firebase project id>",
     "support_whatsapp": "+919876543210"
   }
 }

@@ -12,7 +12,7 @@ export function RoleBadge({ user, compact = false }: { user: AdminUser | null; c
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider',
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider',
         owner
           ? isDark
             ? 'border-amber-400/30 bg-amber-400/10 text-amber-300'

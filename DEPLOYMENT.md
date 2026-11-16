@@ -9,7 +9,7 @@ The repository now contains both supported deployment paths:
 
 Create `backend/.env.production` from `backend/.env.production.example` and set:
 
-1. `DATABASE_URL` to the Supabase pooler on port `6543` with
+1. `DATABASE_URL` to the Neon Postgres URL with
    `pgbouncer=true&connection_limit=10`.
 2. `JWT_SECRET` to a random value with at least 32 characters.
 3. `REDIS_URL` to `redis://redis:6379` for the VPS stack, or a managed

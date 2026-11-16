@@ -20,14 +20,14 @@ export function EmptyState({ icon: Icon, title, description, action, className }
       <span
         className={cx(
           'flex h-12 w-12 items-center justify-center rounded-2xl border',
-          isDark ? 'border-white/10 bg-white/[0.04] text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500'
+          isDark ? 'border-white/10 bg-white/[0.04] text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
         )}
       >
         <Icon className="h-5 w-5" />
       </span>
       <p className={cx('mt-3 text-sm font-black', isDark ? 'text-white' : 'text-slate-950')}>{title}</p>
       {description && (
-        <p className={cx('mt-1 max-w-sm text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
+        <p className={cx('mt-1 max-w-sm text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
           {description}
         </p>
       )}

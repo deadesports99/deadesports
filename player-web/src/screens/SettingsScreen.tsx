@@ -827,7 +827,7 @@ export function SettingsScreen({
               <LegalCard
                 title="Where it is stored"
                 titleClass="text-emerald-400"
-                body="In the organiser's own secure database (Supabase). Card details and UPI PINs never reach us — online payments are handled by the payment gateway."
+                body="In the organiser's own secure database. Card details and UPI PINs never reach us — online payments are handled by the payment gateway."
                 isDark={isDark}
               />
               <LegalCard

@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Slot-progress bar with an esports glow. When the match is near full
- * (>= 40/48 seats), the bar pulses warm-red to signal urgency.
+ * (>= 40/52 seats), the bar pulses warm-red to signal urgency.
  */
 @Composable
 fun GlowProgressBar(

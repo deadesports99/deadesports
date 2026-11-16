@@ -6,8 +6,14 @@ import { ApiError } from '../utils/ApiError.js';
 // Phase 7 — the owner's "daily profit & loss" report. Every figure is built
 // on the immutable double-entry WalletLedger (single source of truth), except
 // deposits/withdrawals which are read from their approval queues so "approved
-// on the date" is respected exactly. Match revenue is grouped by the match's
-// scheduled calendar date, rather than only by when a join ledger row posted.
+// on the date" is respected exactly.
+//
+// Every figure is CASH BASIS: it answers "what actually moved through the
+// wallet on this calendar day". Entry fees therefore follow the JOIN_FEE
+// ledger row (the moment the seat was paid for), not the match's scheduled
+// date — otherwise a match sold today but played next week would report
+// revenue on a day when no money moved, and the summary would disagree with
+// the ledger rows printed underneath it.
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
@@ -31,8 +37,9 @@ export interface SettlementSummary {
   /** Approved UPI withdrawals settled on the date (₹) & count. */
   totalWithdrawals: number;
   withdrawalCount: number;
-  /** Entry fees actually collected (JOIN_FEE ledger) on the date (₹). */
+  /** Entry fees actually collected (JOIN_FEE ledger rows posted) on the date (₹). */
   totalMatchRevenue: number;
+  /** Distinct matches whose seats were paid for on the date. */
   matchCount: number;
   /** Prize money credited to winners (WINNING_PRIZE ledger) on the date (₹). */
   totalPrizesPaid: number;
@@ -73,12 +80,6 @@ export async function getDailySettlement(
 ): Promise<DailySettlement> {
   const { start, end } = dayRange(dateStr);
 
-  const scheduledMatches = await prisma.tournament.findMany({
-    where: { tenantId, matchTime: { gte: start, lt: end } },
-    select: { id: true },
-  });
-  const scheduledMatchIds = scheduledMatches.map((match) => match.id);
-
   const [deposits, withdrawals, revenueAgg, prizesAgg, matchRefs, txRows] = await Promise.all([
     // 1) Approved deposits on the date (approval time is the money movement).
     prisma.depositRequest.aggregate({
@@ -92,13 +93,13 @@ export async function getDailySettlement(
       _sum: { amount: true },
       _count: true,
     }),
-    // 3) Entry fees collected for matches scheduled on the selected date.
+    // 3) Entry fees actually collected on the date (cash basis).
     prisma.walletLedger.aggregate({
       where: {
         tenantId,
         category: 'JOIN_FEE',
         type: 'DEBIT',
-        referenceId: { in: scheduledMatchIds },
+        createdAt: { gte: start, lt: end },
       },
       _sum: { amount: true },
       _count: true,
@@ -115,7 +116,7 @@ export async function getDailySettlement(
         tenantId,
         category: 'JOIN_FEE',
         type: 'DEBIT',
-        referenceId: { in: scheduledMatchIds },
+        createdAt: { gte: start, lt: end },
       },
       select: { referenceId: true },
       distinct: ['referenceId'],

@@ -180,7 +180,7 @@ export function SettingsScreen() {
               </Field>
 
               <div>
-                <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-500">
+                <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
                   Login methods (at least one)
                 </p>
                 <div className="space-y-1.5">
@@ -209,13 +209,13 @@ export function SettingsScreen() {
 
           <GlassCard flat className="p-4 lg:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <div className="flex items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-400">
                 <Settings2 className="h-3.5 w-3.5" />
                 Brand <b className="text-slate-700 dark:text-slate-200">{settings.brandName}</b> · tenant{' '}
-                <span className="font-mono text-[10px]">{api.tenantId.slice(0, 8)}…</span>
+                <span className="font-mono text-[11.5px]">{api.tenantId.slice(0, 8)}…</span>
               </div>
               <div className="flex items-center gap-2">
-                {dirty && <span className="text-[10.5px] font-bold text-amber-600 dark:text-amber-300">Unsaved changes</span>}
+                {dirty && <span className="text-[12px] font-bold text-amber-700 dark:text-amber-300">Unsaved changes</span>}
                 <AppButton
                   icon={<Save className="h-4 w-4" />}
                   loading={saving}
@@ -231,7 +231,7 @@ export function SettingsScreen() {
                 <InlineError>{formError}</InlineError>
               </div>
             )}
-            <p className="mt-3 flex items-start gap-2 text-[11px] text-slate-500">
+            <p className="mt-3 flex items-start gap-2 text-[12.5px] text-slate-600 dark:text-slate-400">
               <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Saving writes to the tenant row the Player app reads on next launch — UPI QR, payee
               and minimum deposit update without shipping a new APK.

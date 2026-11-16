@@ -39,10 +39,10 @@ npm run dev            # http://localhost:5174
 
 > `backend/.env` currently points at the **local** Postgres
 > (`postgresql://postgres:postgres@localhost:5433/freefire_tournament`).
-> The previous hosted-Supabase env is preserved at `backend/.env.supabase.bak` —
+> The previous hosted env was removed (2026-11-16).
 > copy it back over `.env` and restart the backend to use the hosted DB.
 > The frontend tenant id differs per DB, so update `VITE_TENANT_ID` too:
-> local `53a09545-e6e2-4cf5-a5c2-7ef18b276a52`, Supabase
+> local `53a09545-e6e2-4cf5-a5c2-7ef18b276a52`, production
 > `a3c11cd0-324e-4886-b27c-9667fd7f59dc`.
 
 The dev server **must** stay on port `5174`: the backend CSRF gate allows
@@ -128,7 +128,6 @@ admin-web/
     lib/                    api.ts, realtime.ts, permissions.ts, format.ts, theme.ts
     screens/auth/           AdminLoginScreen (email → key → OTP)
     screens/dashboard/      DashboardScreen (KPIs + modules + match day)
-    screens/                PlaceholderScreen (Phase 4–5 copy)
     types/                  API-shaped types
   public/assets/            crest logos + background artwork
 ```

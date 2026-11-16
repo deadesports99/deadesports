@@ -26,6 +26,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,7 +39,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -73,7 +76,7 @@ private const val MIN_VISIBILITY_HOURS = 1
 private const val MAX_VISIBILITY_HOURS = 336
 
 /**
- * Create a match (canCreateMatch) — 48-slot tournament form.
+ * Create a match (canCreateMatch) — player slot count is admin's choice.
  *
  * Schedule is ALWAYS Indian Standard Time (IST) with a 12-hour AM/PM picker,
  * independent of the phone's time zone. The admin can also decide how late the
@@ -92,6 +95,31 @@ fun CreateTournamentScreen(
     var entryFee by remember { mutableStateOf("") }
     var prizePool by remember { mutableStateOf("") }
     var perKillPrize by remember { mutableStateOf("") }
+
+    // ── Players / slots ───────────────────────────────────────────────────
+    // One seat = one paying player. Free Fire caps a BR room at 48 and Clash
+    // Squad is fixed 4v4 (8). Changing the game mode snaps the count into range.
+    var totalSlotsText by remember { mutableStateOf("52") }
+    var totalSlots by remember { mutableStateOf(52) }
+    val slotMin = if (gameMode == GameMode.CLASH_SQUAD) 2 else 20
+    val slotMax = 52
+    val slotsFixed = slotMin == slotMax
+
+    /** Clamp the seat count only; the typed box keeps whatever the user is mid-typing. */
+    fun applySlots(raw: Int) {
+        totalSlots = raw.coerceIn(slotMin, slotMax)
+    }
+
+    /** Push the committed value back into the box (blur, mode switch, slider). */
+    fun syncSlotsText() {
+        totalSlotsText = totalSlots.toString()
+    }
+
+    // Mode switch may shrink the window (48 -> 8 for CS): clamp immediately.
+    LaunchedEffect(gameMode) {
+        if (totalSlots !in slotMin..slotMax) applySlots(totalSlots)
+        syncSlotsText()
+    }
 
     // ── IST schedule (server-authoritative clock, Asia/Kolkata zone) ──────
     val defaultStart = remember {
@@ -164,6 +192,64 @@ fun CreateTournamentScreen(
             DropdownField("Game Mode", gameMode.name, GameMode.entries.map { it.name }) { gameMode = GameMode.valueOf(it) }
             DropdownField("Match Type", matchType.name, MatchType.entries.map { it.name }) { matchType = MatchType.valueOf(it) }
             DropdownField("Map", mapType.name, MapType.entries.map { it.name }) { mapType = MapType.valueOf(it) }
+
+            // ── Players / slots: slider + typed box (one slot = one paying player)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        if (slotsFixed) "Players (fixed ${slotMax})" else "Players ($slotMin-$slotMax)",
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    OutlinedTextField(
+                        value = totalSlotsText,
+                        onValueChange = { text ->
+                            val digits = text.filter { it.isDigit() }.take(3)
+                            totalSlotsText = digits
+                            val typed = digits.toIntOrNull()
+                            // Below the minimum we keep the digits so "3" -> "36" works.
+                            // Above the maximum there is no such ambiguity: clamp now.
+                            if (typed != null && typed > slotMax) {
+                                applySlots(typed)
+                                syncSlotsText()
+                            } else if (typed != null) {
+                                applySlots(typed)
+                            }
+                        },
+                        // Repair the box only when the user leaves it, so typing
+                        // "36" is not clamped to "2" after the first digit.
+                        modifier = Modifier
+                            .width(110.dp)
+                            .onFocusChanged { focus ->
+                                if (!focus.isFocused) syncSlotsText()
+                            },
+                        enabled = !slotsFixed,
+                        singleLine = true,
+                        label = { Text("Slots") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
+                Slider(
+                    value = totalSlots.toFloat(),
+                    onValueChange = { applySlots(it.toInt()); syncSlotsText() },
+                    enabled = !slotsFixed,
+                    valueRange = slotMin.toFloat()..slotMax.toFloat(),
+                    steps = if (slotsFixed) 0 else (slotMax - slotMin - 1).coerceAtLeast(0),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    if (slotsFixed) {
+                        "This mode is fixed at $slotMax players."
+                    } else {
+                        "One slot = one paying player. Range: $slotMin-$slotMax."
+                    },
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             OutlinedTextField(
                 value = entryFee,
@@ -398,7 +484,7 @@ fun CreateTournamentScreen(
                             prizePool = pool,
                             perKillPrize = kill,
                             matchTime = matchTimeIso,
-                            totalSlots = 48,
+                            totalSlots = totalSlots,
                             visibilityHours = if (visibilityMode == VisibilityMode.ALWAYS) {
                                 null
                             } else {

@@ -17,6 +17,7 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { EmptyState } from '../../components/common/EmptyState';
 import { LoadingState } from '../../components/common/LoadingState';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { ScrollRegion } from '../../components/common/ScrollRegion';
 import { formatINR, humanize } from '../../lib/format';
 import { InlineError } from '../matches/MatchFormBits';
 import type { DeviceGroupDetail } from '../../types';
@@ -106,7 +107,7 @@ export function DeviceDetailPanel({
       <button
         type="button"
         onClick={onClose}
-        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> All devices
       </button>
@@ -187,7 +188,7 @@ export function DeviceDetailPanel({
               { label: 'Winnings', value: formatINR(detail.totals.totalWinnings, 2) },
             ].map(({ label, value }) => (
               <GlassCard key={label} flat className="p-3">
-                <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</p>
+                <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">{label}</p>
                 <p className="mt-1 text-[15px] font-black leading-none">{value}</p>
               </GlassCard>
             ))}
@@ -195,10 +196,10 @@ export function DeviceDetailPanel({
 
           <GlassCard className="p-3 sm:p-4">
             <SectionHeader title="Accounts on this device" subtitle="Balances come from the ledger." />
-            <div className="mt-2 overflow-x-auto">
+            <ScrollRegion className="mt-2 rounded-xl">
               <table className="w-full min-w-[560px] text-left">
                 <thead>
-                  <tr className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                  <tr className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
                     <th className="pb-2">Player</th>
                     <th className="pb-2">Phone</th>
                     <th className="pb-2 text-right">Matches</th>
@@ -211,17 +212,17 @@ export function DeviceDetailPanel({
                 <tbody className="divide-y divide-slate-200 dark:divide-white/[0.06]">
                   {detail.accounts.map((account) => (
                     <tr key={account.userId}>
-                      <td className="py-2 text-[11.5px] font-bold">
+                      <td className="py-2 text-[13px] font-bold">
                         {account.inGameName || account.playerCode || account.userId.slice(0, 8)}
-                        <span className="block text-[9.5px] font-normal text-slate-500">
+                        <span className="block text-[11.5px] font-normal text-slate-600 dark:text-slate-400">
                           {account.name ?? '—'}
                         </span>
                       </td>
-                      <td className="py-2 text-[10.5px] text-slate-500">{account.phoneNumber}</td>
-                      <td className="py-2 text-right text-[11px]">{account.matchesJoined}</td>
-                      <td className="py-2 text-right text-[11px]">{account.collidedMatches}</td>
-                      <td className="py-2 text-right text-[11px]">{formatINR(account.totalWinnings, 2)}</td>
-                      <td className="py-2 text-right text-[11px]">{formatINR(account.netOut, 2)}</td>
+                      <td className="py-2 text-[12px] text-slate-600 dark:text-slate-400">{account.phoneNumber}</td>
+                      <td className="py-2 text-right text-[12.5px]">{account.matchesJoined}</td>
+                      <td className="py-2 text-right text-[12.5px]">{account.collidedMatches}</td>
+                      <td className="py-2 text-right text-[12.5px]">{formatINR(account.totalWinnings, 2)}</td>
+                      <td className="py-2 text-right text-[12.5px]">{formatINR(account.netOut, 2)}</td>
                       <td className="py-2">
                         <StatusBadge status={account.isBanned ? 'REJECTED' : 'APPROVED'} label={account.isBanned ? 'Banned' : 'Active'} />
                       </td>
@@ -229,7 +230,7 @@ export function DeviceDetailPanel({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollRegion>
           </GlassCard>
 
           <GlassCard className="p-3 sm:p-4">
@@ -247,7 +248,7 @@ export function DeviceDetailPanel({
                       #{match.matchNumber ?? '—'} {humanize(match.mapType)} • {humanize(match.matchType)}
                     </p>
                     <StatusBadge status={match.status} />
-                    <p className="text-[10.5px] text-slate-500">{match.accountCodes.join(', ')}</p>
+                    <p className="text-[12px] text-slate-600 dark:text-slate-400">{match.accountCodes.join(', ')}</p>
                   </li>
                 ))}
               </ul>
@@ -270,7 +271,7 @@ export function DeviceDetailPanel({
         onClose={() => !busy && setConfirmBan(false)}
         onConfirm={() => void banAll()}
       >
-        <p className="text-[11.5px] text-slate-500">
+        <p className="text-[13px] text-slate-600 dark:text-slate-400">
           Use this for device farms where multiple accounts are farming prizes. Single-account bans
           live on the player profile.
         </p>

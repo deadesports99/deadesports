@@ -55,7 +55,7 @@ Aapke boss demand ke hisaab se: **har client apne Play Console account me apna b
 - **AnDarwin** (IEEE TMC 2015): semantic clone detection — code ko *Program Dependence Graphs* me tod kar embeddings banata hai; **library code automatically remove karta hai** (matlab: Firebase/Facebook SDKs similarity score me count nahi hote — sirf YOUR app code matter karta hai). 265k apps par evaluate: cloned apps + rebranded apps detect kiye.
 - **Retriever / account attribution** (ACM CCS 2020): developer-account linking — same owner ke multiple accounts identify karne ka academic framework (94% operations me undiscovered accounts mirror se milte hain). Google ka internal "associated accounts" detection isi direction me hai: **common payment card, bank account, tax/ID documents, IP, device fingerprints, certificate chains, support email, console phone number** — yeh sab account-linking signals hain.
 
-**Practical conclusion for architecture:** Jaise hi 2 apps ek hi support email / same Play billing card / same bank account se aayi hain — LinkedIn ho jata hai. Isliye: **har client ko apna email, apna billing, apna support, apna keystore, apna Firebase/Supabase project, apna codebase checkout (ya at least flavor-conflict-free build)** dena hi sahi approach hai.
+**Practical conclusion for architecture:** Jaise hi 2 apps ek hi support email / same Play billing card / same bank account se aayi hain — LinkedIn ho jata hai. Isliye: **har client ko apna email, apna billing, apna support, apna keystore, apna Firebase project + Neon DB, apna codebase checkout (ya at least flavor-conflict-free build)** dena hi sahi approach hai.
 
 ### 1.4 Kaise architect karein (bot + human review dono se bachne ke liye)
 
@@ -67,7 +67,7 @@ Aapke boss demand ke hisaab se: **har client apne Play Console account me apna b
 | Email domain | ✅ Client ka domain (nahi to support@yourcompany.com use KARNA HI NAHI) |
 | Package/applicationId | ✅ `com.thunderesports.app`, `com.rajasthanff.club` etc. |
 | Keystore + signature | ✅ Har client ka alag `release.jks` + alag password; konsi bhi 2 apps ka SHA-1 shared na ho |
-| Firebase/Supabase project | ✅ Alag project, alag config file, alag DB instance |
+| Firebase project + Neon DB | ✅ Alag project, alag config file, alag DB instance |
 | Client config | ✅ alag `clients/<client>/config.json`, resources, fonts, logo |
 
 **Layer 2 — Code/build differentiation (RAISES effort to clone; not a magic shield):**
@@ -439,7 +439,7 @@ jobs:
 
 ## ✅ RECOMMENDED ACTION PLAN
 
-1. **Identity isolation:** har client = alag Play Console account + alag email/domain/billing + alag keystore + alag Firebase/Supabase project — Google ka official decentralized model (backend already multi-tenant hai ✅).
+1. **Identity isolation:** har client = alag Play Console account + alag email/domain/billing + alag keystore + alag Firebase project + Neon DB — Google ka official decentralized model (backend already multi-tenant hai ✅).
 2. **Design system:** Android/Kotlin phase me ComponentStyle (Sharp/Glass/Pill) + layout variants (Carousel/Grid/List) — Pillar 2 ka pattern ready rakhna.
 3. **Listing kit:** title pattern `Thunder eSports – Battle Royale Tournaments`, disclaimer template, custom artwork guidelines — client aate hi 10-min listing.
 4. **🚨 Legal gate:** India me entry-fee + cash-prize tournaments abhi banned (Online Gaming Act 2025, force 1 May 2026). Backend wallet/ledger architecture future-proof hai; launch abhi free-to-play + points par karo, SC ruling track karo, Indian gaming counsel se e-sport registration path verify karwao.

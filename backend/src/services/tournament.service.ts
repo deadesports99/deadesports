@@ -30,6 +30,32 @@ import { autoMatchTitle, nextMatchNumber } from './identity.service.js';
 /** Players per team for each match type (SOLO = 1 seat per team). */
 const TEAM_SIZE: Record<'SOLO' | 'DUO' | 'SQUAD', number> = { SOLO: 1, DUO: 2, SQUAD: 4 };
 
+/**
+ * Free Fire custom-room seat limits — ONE seat = ONE paying player.
+ *
+ * Every player pays their own entry fee, so the seat count is per player, not
+ * per team. A SQUAD of 48 players therefore needs 48 seats (not 12).
+ * (Room cap is 52, so a SQUAD can book at most 13 team-leaders = 52 players.)
+ *
+ * Garena limits (custom room):
+ *   • Battle Royale  → 52 players max (we allow 20-52), 20 minimum to start.
+ *   • Clash Squad    → 4v4 = 8 in ranked, but custom rooms are admin's call
+ *                      (2-52) — the admin decides the slot count.
+ *
+ * Keep this table in sync with the admin slider/stepper on web + Android.
+ */
+export const SLOT_LIMITS = {
+  BATTLE_ROYALE: { min: 20, max: 52, default: 52 },
+  CLASH_SQUAD: { min: 2, max: 52, default: 8 },
+} as const;
+
+export type SlotLimits = (typeof SLOT_LIMITS)[keyof typeof SLOT_LIMITS];
+
+/** Resolve the seat window for a game mode (unknown mode falls back to BR). */
+export function slotLimitsFor(gameMode: string): SlotLimits {
+  return gameMode === 'CLASH_SQUAD' ? SLOT_LIMITS.CLASH_SQUAD : SLOT_LIMITS.BATTLE_ROYALE;
+}
+
 /** Joinable tournament statuses. */
 const JOINABLE_STATUSES = ['UPCOMING', 'OPEN'] as const;
 
@@ -182,9 +208,14 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
     throw ApiError.badRequest('entryFee, prizePool and perKillPrize cannot be negative');
   }
 
-  const totalSlots = 48; // SOLO 48 / DUO 24 teams / SQUAD 12 teams — all 48 seats
-  if (data.totalSlots !== undefined && data.totalSlots !== totalSlots) {
-    throw ApiError.badRequest('Free Fire tournaments use exactly 48 slots');
+  // Seat count is per PLAYER (every player pays their own entry fee).
+  // Admin may move it inside the Free Fire custom-room window for this mode.
+  const limits = slotLimitsFor(data.gameMode);
+  const totalSlots = data.totalSlots ?? limits.default;
+  if (!Number.isInteger(totalSlots) || totalSlots < limits.min || totalSlots > limits.max) {
+    throw ApiError.badRequest(
+      `totalSlots must be between ${limits.min} and ${limits.max} for ${data.gameMode}`,
+    );
   }
 
   // Admin's player-feed visibility window ("listed only in the last N hours").
@@ -540,6 +571,8 @@ interface JoinMatch {
   roomId: string | null;
   roomRevealedAt: Date | null;
   matchType: string;
+  /** Room rules the seat guard needs (BR 48 / CS 8). */
+  gameMode: string;
   /** Seats already taken (read in the same round-trip). */
   bookedCount: number;
   /** Lowest free seat number, or null when the match is full. */
@@ -618,6 +651,7 @@ async function loadJoinContext(
            t."roomId",
            t."roomRevealedAt",
            t."matchType",
+           t."gameMode",
            (SELECT count(*)::int FROM "TournamentSlot" s
              WHERE s."tournamentId" = t.id) AS "bookedCount",
            ${freeSlot} AS "freeSlot"
@@ -767,7 +801,14 @@ const MAX_JOIN_ATTEMPTS = 8;
   async function joinOnce(randomSeat: boolean): Promise<JoinTournamentResult> {
     const tournament = matchRow;
     const teamSize = getTeamSize(tournament.matchType);
-    const maxSlots = tournament.totalSlots;
+    /**
+     * totalSlots counts SEATS (= paying players). Free Fire still caps the room
+     * at 48 humans, so a seat can never be sold if it would push
+     * (seats × teamSize) past the room limit. This is the guard that stops a
+     * SQUAD match from booking 48 team-leaders = 192 players into a 48-room.
+     */
+    const roomLimit = slotLimitsFor(tournament.gameMode).max;
+    const maxSlots = Math.min(tournament.totalSlots, Math.max(1, Math.floor(roomLimit / teamSize)));
 
     // An explicit seat tap wins; otherwise the transaction itself picks the
     // lowest free seat (fresh inside the tx) — no extra round-trip needed here.

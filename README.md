@@ -10,7 +10,7 @@ double-entry wallet, so money can never be created or lost silently.
 | `android/app-player` | Player app — sign in, wallet, join a match, room ID, live scoreboard |
 | `android/app-admin` | Admin app — create matches, publish rooms, run the scorer, pay winners, manage staff |
 | `android/core` | Shared Kotlin module (design system, auth screens, networking, models) |
-| `backend` | REST API + Postgres (Supabase) + Prisma + realtime WebSocket + FCM |
+| `backend` | REST API + Postgres (local Docker / Neon) + Prisma + realtime WebSocket + FCM |
 | `player-web` | React preview of the player screens (design reference / marketing) |
 
 ---
@@ -176,7 +176,7 @@ How it holds up:
 | Tool | Version used |
 |---|---|
 | Node.js | 20+ (tsx, node:test) |
-| PostgreSQL | Supabase project (Postgres 15) or local Postgres |
+| PostgreSQL | Neon project (managed Postgres) or local Docker Postgres |
 | Android Studio / SDK | compileSdk 35, JDK 17, minSdk 24 |
 | Redis (optional) | only for the distributed slot-lock path, not needed locally |
 
@@ -258,7 +258,7 @@ The file is git-ignored — real keys never enter the repo.
 | `PORT` | `5000` | API port |
 | `NODE_ENV` | `development` | `production` enforces the safety checks below |
 | `TRUST_PROXY` | `false` | set `true` behind nginx / load balancer |
-| **`DATABASE_URL`** | — | **required** — Supabase/Postgres URL. Keep `?sslmode=require`. On the Supabase **session pooler** add `&connection_limit=15&pool_timeout=60` (the pooler caps at 15 clients) |
+| **`DATABASE_URL`** | — | **required** — Postgres URL. Neon ke liye `?sslmode=require` zaroori. Pool bounded rakho: `&connection_limit=15&pool_timeout=60` |
 | `DB_POOL_MAX` / `DB_POOL_IDLE_TIMEOUT_MS` / `DB_POOL_CONNECTION_TIMEOUT_MS` | `10` / `10000` / `5000` | optional pool tuning |
 | `REDIS_URL` | `redis://localhost:6379` | optional; only for the Redis slot-lock path |
 | **`JWT_SECRET`** | — | **required** — 32+ random chars |
@@ -382,7 +382,7 @@ Going back to real OTP: `PHONE_OTP_BYPASS=false`, `PHONE_OTP_ENABLED=true`,
 
 ## 13. Known limitations / next up
 
-1. **Database region** — the current Supabase project sits in `eu-west-2` (London), so a
+1. **Database region** — the current hosted Postgres sits in `eu-west-2` (London), so a
    join costs ~1.4 s from India, almost all of it network round-trips. Moving to
    `ap-south-1` (Mumbai) should bring a join to ~150-250 ms with no code change.
 2. **Payment gateway** — runs on `PAYMENT_PROVIDER=mock`; real Razorpay keys and a

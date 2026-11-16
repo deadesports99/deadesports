@@ -32,6 +32,12 @@
         "-y",
         "firebase-mcp-server"
       ]
+    },
+    "hermes": {
+      "command": "C:\\Users\\Jay Kumar\\AppData\\Local\\hermes\\bin\\hermes.exe",
+      "args": [
+        "mcp-serve"
+      ]
     }
   }
 }

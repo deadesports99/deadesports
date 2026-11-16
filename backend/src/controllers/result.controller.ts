@@ -37,13 +37,13 @@ const payoutSchema = z.object({
         verifiedKills: z.coerce.number().int().min(0).max(99),
         // null = the spectator never ranked this player (died early / quiet match).
         // A null rank means kills-only credit and no rank prize share.
-        rank: z.coerce.number().int().min(1, 'rank must be >= 1').max(48).nullable().optional(),
+        rank: z.coerce.number().int().min(1, 'rank must be >= 1').max(52).nullable().optional(),
         isDisqualified: z.boolean().optional(),
         disqualifyReason: z.string().trim().max(255).optional(),
       }),
     )
     .min(1, 'At least one verified result is required')
-    .max(48, 'Max 48 results per payout'),
+    .max(52, 'Max 52 results per payout'),
 });
 
 /** Admin one-click finish: winner is identified by their Free Fire UID. */

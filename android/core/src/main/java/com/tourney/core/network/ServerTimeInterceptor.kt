@@ -7,7 +7,7 @@ import okhttp3.Response
 /**
  * 🕒 SERVER TIME INTERCEPTOR
  * Intercepts every response from the backend and reads the authoritative
- * `X-Server-Time` timestamp header generated from Supabase / server atomic clock.
+ * `X-Server-Time` timestamp header generated from the PostgreSQL server atomic clock.
  */
 class ServerTimeInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {

@@ -555,7 +555,7 @@ export interface TenantSettings {
   allowEmailAuth: boolean;
 }
 
-/** Everything the "Aaj ka kaam" strip needs, loaded in parallel. */
+/** Everything the "Today's work" strip needs, loaded in parallel. */
 export interface DashboardSnapshot {
   liveMatches: number;
   upcomingMatches: number;

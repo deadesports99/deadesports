@@ -26,7 +26,7 @@ Now we are building the Native Android client applications adhering to our Turnk
    - A centralized `client_config.json` and Kotlin `ClientThemeConfig` that dynamically configures:
      * App Name & Application ID (`com.clientname.player` / `com.clientname.admin`)
      * Primary Color, Button Color, Accent Color, and Corner Radius (Sharp 4dp, Rounded 12dp, Pill 999dp)
-     * Supabase URL & Anon Key
+     * Database URL & Firebase config
      * Firebase `google-services.json`
    - Play Store compliant naming (e.g. "Thunder eSports - Battle Royale Tournaments").
 

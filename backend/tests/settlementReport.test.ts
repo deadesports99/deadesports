@@ -1,7 +1,12 @@
 /**
  * The owner's daily P&L ("aaj kitna kamaya"): deposits in, withdrawals out,
- * entry-fee revenue per scheduled match, prize money out, platform commission —
- * and the same numbers as a spreadsheet-ready CSV.
+ * entry-fee revenue, prize money out, platform commission — and the same
+ * numbers as a spreadsheet-ready CSV.
+ *
+ * Cash basis: every total follows the WalletLedger row that posted on the day,
+ * so the summary always agrees with the ledger rows printed below it. Entry
+ * fees are therefore counted when the seat was paid for, never on the match's
+ * scheduled date.
  */
 import assert from 'node:assert/strict';
 import { before, beforeEach, describe, it, mock } from 'node:test';
@@ -39,6 +44,9 @@ function seed(over: { commissionRate?: number } = {}) {
       { id: 'tour-1', tenantId, title: 'Solo #1', status: 'COMPLETED', matchTime: at(18), entryFee: 25, prizePool: 400, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
       { id: 'tour-2', tenantId, title: 'Solo #2', status: 'COMPLETED', matchTime: at(20), entryFee: 25, prizePool: 400, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
       { id: 'tour-yesterday', tenantId, title: 'Old', status: 'COMPLETED', matchTime: otherDay, entryFee: 25, prizePool: 0, perKillPrize: 0, totalSlots: 48, matchType: 'SOLO' },
+      // Sold today, kicks off tomorrow: seats are cash-in TODAY, so the
+      // scheduled date must not move that money to another day's report.
+      { id: 'tour-tomorrow', tenantId, title: 'Solo #3', status: 'OPEN', matchTime: new Date('2026-03-16T18:00:00.000Z'), entryFee: 25, prizePool: 400, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
     ],
     depositRequests: [
       { id: 'd1', tenantId, userId: 'p1', amount: 500, status: 'APPROVED', reviewedAt: at(10) },
@@ -57,6 +65,7 @@ function seed(over: { commissionRate?: number } = {}) {
       { id: 'l4', tenantId, userId: 'p1', amount: 240, type: 'CREDIT', category: 'WINNING_PRIZE', balanceType: 'WINNING', balanceAfter: 240, referenceId: 'tour-1', createdAt: at(19) },
       { id: 'l5', tenantId, userId: 'p1', amount: 500, type: 'CREDIT', category: 'DEPOSIT', balanceType: 'DEPOSIT', balanceAfter: 975, referenceId: 'd1', createdAt: at(10) },
       { id: 'l6', tenantId, userId: 'p1', amount: 25, type: 'DEBIT', category: 'JOIN_FEE', balanceType: 'DEPOSIT', balanceAfter: 950, referenceId: 'tour-yesterday', createdAt: otherDay },
+      { id: 'l7', tenantId, userId: 'p2', amount: 25, type: 'DEBIT', category: 'JOIN_FEE', balanceType: 'DEPOSIT', balanceAfter: 175, referenceId: 'tour-tomorrow', createdAt: at(9, 7) },
     ],
     emailOtps: [],
   });
@@ -73,26 +82,35 @@ describe('getDailySettlement', () => {
     assert.equal(summary.depositCount, 2, 'yesterday + pending ignored');
     assert.equal(summary.totalWithdrawals, 300);
     assert.equal(summary.withdrawalCount, 1, 'rejected withdrawal is not money out');
-    assert.equal(summary.totalMatchRevenue, 75, '3 x ₹25 entry fees for today`s matches');
-    assert.equal(summary.matchCount, 2, 'two distinct matches');
+    assert.equal(summary.totalMatchRevenue, 100, '4 x ₹25 JOIN_FEE rows posted today');
+    assert.equal(summary.matchCount, 3, 'three distinct matches sold today');
     assert.equal(summary.totalPrizesPaid, 240);
     assert.equal(summary.prizeCount, 1);
-    assert.equal(summary.netOrganizerProfit, -165, '₹75 in - ₹240 out');
+    assert.equal(summary.netOrganizerProfit, -140, '₹100 in - ₹240 out');
     assert.equal(summary.commissionRate, 10);
-    assert.equal(summary.platformCut, -16.5, '10% of the margin');
+    assert.equal(summary.platformCut, -14, '10% of the margin');
   });
 
   it('uses the tenant commission rate', async () => {
     seed({ commissionRate: 20 });
     const { summary } = await api.getDailySettlement(tenantId, DAY);
     assert.equal(summary.commissionRate, 20);
-    assert.equal(summary.platformCut, -33);
+    assert.equal(summary.platformCut, -28);
+  });
+
+  it('counts entry fees on the day the seat was paid, not the scheduled date', async () => {
+    const today = await api.getDailySettlement(tenantId, DAY);
+    assert.equal(today.summary.totalMatchRevenue, 100, 'includes the match that kicks off tomorrow');
+
+    const tomorrow = await api.getDailySettlement(tenantId, '2026-03-16');
+    assert.equal(tomorrow.summary.totalMatchRevenue, 0, 'seats already paid today are not billed twice');
+    assert.equal(tomorrow.summary.matchCount, 0);
   });
 
   it('lists the day ledger with the player attached, oldest first', async () => {
     const { transactions } = await api.getDailySettlement(tenantId, DAY);
 
-    assert.deepEqual(transactions.map((t) => t.id), ['l1', 'l2', 'l3', 'l5', 'l4'], 'clock order');
+    assert.deepEqual(transactions.map((t) => t.id), ['l1', 'l2', 'l3', 'l7', 'l5', 'l4'], 'clock order');
     assert.equal(transactions[0].player.phoneNumber, '9999900001');
     assert.equal(transactions[0].player.inGameName, 'FF|Ravi');
     assert.equal(transactions[0].amount, 25);
@@ -121,5 +139,6 @@ describe('getDailySettlement', () => {
     assert.ok(csv.includes('750'), 'deposit total appears in the summary block');
     assert.ok(csv.includes('FF|Ravi'));
     assert.equal(csv.includes('tour-yesterday'), false, 'other days never leak into the export');
+    assert.ok(csv.includes('Total Entry Fees Collected,100.00'), 'summary matches the ledger rows below it');
   });
 });

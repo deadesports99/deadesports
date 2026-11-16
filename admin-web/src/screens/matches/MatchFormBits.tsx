@@ -27,7 +27,7 @@ export function Chip({
       disabled={disabled}
       aria-pressed={active}
       className={cx(
-        'inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-bold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px] font-bold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50',
         active
           ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-500'
           : isDark
@@ -61,17 +61,17 @@ export function Field({
     <label className={cx('block', className)}>
       <span
         className={cx(
-          'mb-1 block text-[10px] font-black uppercase tracking-[0.14em]',
-          isDark ? 'text-slate-500' : 'text-slate-500'
+          'mb-1 block text-[11.5px] font-black uppercase tracking-[0.14em]',
+          isDark ? 'text-slate-400' : 'text-slate-600'
         )}
       >
         {label}
       </span>
       {children}
       {error ? (
-        <span className="mt-1 block text-[11px] font-semibold text-rose-400">{error}</span>
+        <span className="mt-1 block text-[12.5px] font-semibold text-rose-400">{error}</span>
       ) : hint ? (
-        <span className={cx('mt-1 block text-[11px]', isDark ? 'text-slate-500' : 'text-slate-500')}>{hint}</span>
+        <span className={cx('mt-1 block text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>{hint}</span>
       ) : null}
     </label>
   );
@@ -146,7 +146,7 @@ export function Toggle({
       <span className="min-w-0">
         <span className={cx('block text-[12px] font-bold', isDark ? 'text-slate-100' : 'text-slate-900')}>{label}</span>
         {hint && (
-          <span className={cx('mt-0.5 block text-[11px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          <span className={cx('mt-0.5 block text-[12.5px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-600')}>
             {hint}
           </span>
         )}
@@ -175,7 +175,7 @@ export function InfoNote({ children }: { children: ReactNode }) {
   return (
     <p
       className={cx(
-        'rounded-xl border px-3 py-2 text-[11px] leading-relaxed',
+        'rounded-xl border px-3 py-2 text-[12.5px] leading-relaxed',
         isDark ? 'border-cyan-400/25 bg-cyan-400/[0.06] text-cyan-200' : 'border-cyan-200 bg-cyan-50 text-cyan-800'
       )}
     >

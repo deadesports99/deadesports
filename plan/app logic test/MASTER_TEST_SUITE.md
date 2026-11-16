@@ -3,7 +3,7 @@
 > **Target Directory:** `C:\Free Fire turnament\plan\app logic test\`  
 > **Philosophy:** **"Pehle Feature & Speed 100% Solid, Fir Production Security Lock"**  
 > **Strategy:** Sabse pehle poore app ke har ek feature aur screen ko order-wise test karenge, speed optimize karenge (fast & snappy UI/API), aur bugs ko live fix karenge. Jab 100% feature pass ho jayenge, tab hum final security aur cloud deploy karenge.  
-> **Target Devices:** Physical Realme P3 5G (`6103d5c2`) + Backend Node.js Port 5000 + Supabase PostgreSQL.
+> **Target Devices:** Physical Realme P3 5G (`6103d5c2`) + Backend Node.js Port 5000 + PostgreSQL.
 
 ---
 

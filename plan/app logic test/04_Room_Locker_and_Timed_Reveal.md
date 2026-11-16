@@ -9,10 +9,10 @@
 ### 📋 Checklist & Acceptance Criteria
 
 - [x] **4.1 T-15 Countdown Security Lock & Authoritative Server Time:**
-  - Before T-15 minutes (e.g. >15 min before match): Even if Admin enters Room ID early, credentials stay strictly locked on Supabase server.
+  - Before T-15 minutes (e.g. >15 min before match): Even if Admin enters Room ID early, credentials stay strictly locked on the backend server.
   - Player sees dynamic card button: `✅ Joined • Room at T-15m`.
   - Tapping button opens dialog: *"🎟️ Match Entry Confirmed - Room ID & Password will be revealed 15 minutes before match starts"*.
-  - Anti-Clock-Spoofing: Hardware monotonic time syncs with Supabase authoritative server time on every request and WebSocket heartbeat. Changing device clock has 0 impact.
+  - Anti-Clock-Spoofing: Hardware monotonic time syncs with authoritative server time on every request and WebSocket heartbeat. Changing device clock has 0 impact.
   - Non-participants / unjoined users never see credentials (`HTTP 403 Forbidden`).
 
 - [x] **4.2 Dropping Soon State (T-15 reached, credentials not yet set):**

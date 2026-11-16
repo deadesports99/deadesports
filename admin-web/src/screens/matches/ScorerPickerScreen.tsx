@@ -102,31 +102,31 @@ export function ScorerPickerScreen() {
             <button
               type="button"
               onClick={() => setTab('LIVE')}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-black transition-colors ${
+              className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-black transition-colors ${
                 tab === 'LIVE'
                   ? 'border-rose-400/50 bg-rose-500/15 text-rose-600 dark:text-rose-300'
                   : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <Zap className="h-3.5 w-3.5" /> Live
-              <span className="rounded-md bg-slate-200 dark:bg-black/25 px-1 text-[9px] font-black">{live.length}</span>
+              <span className="rounded-md bg-slate-200 dark:bg-black/25 px-1 text-[11px] font-black">{live.length}</span>
             </button>
             <button
               type="button"
               onClick={() => setTab('REVIEW')}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-black transition-colors ${
+              className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-black transition-colors ${
                 tab === 'REVIEW'
-                  ? 'border-amber-400/50 bg-amber-400/15 text-amber-600 dark:text-amber-300'
+                  ? 'border-amber-400/50 bg-amber-400/15 text-amber-700 dark:text-amber-300'
                   : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <History className="h-3.5 w-3.5" /> Unscored backlog
-              <span className="rounded-md bg-slate-200 dark:bg-black/25 px-1 text-[9px] font-black">{review.length}</span>
+              <span className="rounded-md bg-slate-200 dark:bg-black/25 px-1 text-[11px] font-black">{review.length}</span>
             </button>
           </div>
 
           <div className="relative sm:w-64">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600 dark:text-slate-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -169,16 +169,16 @@ export function ScorerPickerScreen() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-black">{matchHeadline(match)}</p>
-                    <p className="mt-0.5 text-[10.5px] text-slate-400">{formatIST(match.matchTime)}</p>
+                    <p className="mt-0.5 text-[12px] text-slate-400">{formatIST(match.matchTime)}</p>
                   </div>
                   <StatusBadge status={match.status} />
                 </div>
 
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold">
+                <div className="mt-2 flex flex-wrap gap-1.5 text-[11.5px] font-bold">
                   <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] px-1.5 py-0.5 text-slate-600 dark:text-slate-300">
                     {seatsLabel(match)}
                   </span>
-                  <span className="rounded-md border border-amber-400/25 bg-amber-400/[0.07] px-1.5 py-0.5 text-amber-600 dark:text-amber-300">
+                  <span className="rounded-md border border-amber-400/25 bg-amber-400/[0.07] px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
                     {money(Number(match.prizePool))} pool
                   </span>
                   <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] px-1.5 py-0.5 text-slate-400">
@@ -204,7 +204,7 @@ export function ScorerPickerScreen() {
       )}
 
       <GlassCard flat className="p-4">
-        <p className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-400">
+        <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-slate-400">
           <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-300" />
           One canonical payout flow: the match roster. Ranks 1–3 share the pool (50/30/20%), kills pay the
           per-kill rate, and already-paid players are never paid twice.

@@ -90,7 +90,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         >
           {title}
         </h1>
-        <p className={cx('hidden text-[10px] font-medium sm:block', isDark ? 'text-slate-500' : 'text-slate-500')}>
+        <p className={cx('hidden text-[11.5px] font-medium sm:block', isDark ? 'text-slate-400' : 'text-slate-600')}>
           {clock}
         </p>
       </div>
@@ -116,7 +116,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       <div className="flex shrink-0 items-center gap-2">
         <span
           className={cx(
-            'hidden rounded-lg border px-2 py-1 font-mono text-[10px] font-bold xl:block',
+            'hidden rounded-lg border px-2 py-1 font-mono text-[11.5px] font-bold xl:block',
             isDark ? 'border-white/10 bg-white/[0.03] text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
           )}
         >

@@ -35,7 +35,7 @@ object TimeAuthority {
     fun isSynced(): Boolean = isSynchronized.get()
 
     /**
-     * Synchronize with authoritative server time from Supabase / Backend.
+     * Synchronize with authoritative server time from the backend.
      */
     fun sync(serverEpochMs: Long, source: String = "API") {
         if (serverEpochMs <= 0) return

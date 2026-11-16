@@ -209,9 +209,9 @@ export function StaffScreen() {
           },
         ].map(({ label, value, icon: Icon }) => (
           <GlassCard key={label} flat className="p-3">
-            <div className="flex items-center gap-1.5 text-slate-500">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
               <Icon className="h-3 w-3" />
-              <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+              <span className="text-[11px] font-black uppercase tracking-wider">{label}</span>
             </div>
             <p className="mt-1 text-[17px] font-black leading-none">{value}</p>
           </GlassCard>
@@ -249,7 +249,7 @@ export function StaffScreen() {
                       <StatusBadge status={key.role === 'ADMIN' ? 'APPROVED' : key.status} label={key.role === 'ADMIN' ? 'OWNER' : humanize(key.status)} />
                       {key.isBanned && <StatusBadge status="REJECTED" label="Banned" />}
                     </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
+                    <p className="mt-0.5 text-[12.5px] text-slate-600 dark:text-slate-400">
                       {key.email ?? '—'} · {key.phoneNumber ?? '—'} · key{' '}
                       <b className="font-mono">{key.keyHint}</b>
                     </p>
@@ -257,18 +257,18 @@ export function StaffScreen() {
                       {PERMISSION_KEYS.filter((p) => key.permissions[p]).map((p) => (
                         <span
                           key={p}
-                          className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"
+                          className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"
                         >
                           {PERMISSION_LABELS[p].label}
                         </span>
                       ))}
                       {PERMISSION_KEYS.every((p) => !key.permissions[p]) && (
-                        <span className="text-[10px] text-slate-500">No permissions</span>
+                        <span className="text-[11.5px] text-slate-600 dark:text-slate-400">No permissions</span>
                       )}
                     </div>
                   </div>
 
-                  <div className="text-right text-[10.5px] text-slate-500">
+                  <div className="text-right text-[12px] text-slate-600 dark:text-slate-400">
                     <p>Created {formatIST(key.createdAt)}</p>
                     <p>Last login {key.lastUsedAt ? formatIST(key.lastUsedAt) : 'never'}</p>
                     {key.expiresAt && <p>Expires {formatIST(key.expiresAt)}</p>}
@@ -353,7 +353,7 @@ export function StaffScreen() {
           </div>
 
           <div>
-            <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-500">
+            <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
               Permissions
             </p>
             <div className="space-y-1.5">
@@ -395,14 +395,14 @@ export function StaffScreen() {
       >
         <div className="space-y-3">
           <div className="rounded-xl border border-[#FFD000]/50 bg-[#FFD000]/10 p-3">
-            <p className="text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-300">
+            <p className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
               Permission key
             </p>
             <p className="mt-1 break-all font-mono text-[15px] font-black tracking-wider">
               {issued?.accessKey}
             </p>
             {issued?.expiresAt && (
-              <p className="mt-1 text-[10.5px] text-slate-500">Expires {formatIST(issued.expiresAt)}</p>
+              <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-400">Expires {formatIST(issued.expiresAt)}</p>
             )}
           </div>
           <InfoNote>
@@ -418,7 +418,7 @@ export function StaffScreen() {
                 href={whatsappKeyUrl(issuedFor.name, issuedFor.email, issued.accessKey)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/[0.03]"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[12.5px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/[0.03]"
               >
                 <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
               </a>

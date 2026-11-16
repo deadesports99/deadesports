@@ -15,7 +15,7 @@
 ## 📍 Current Checkpoint — Resume Kahan Se Hoga
 
 ### ✅ Ho gaya (Phase 1–2)
-- Supabase me naye tables: `StaffAccessKey`, `AdminAuditLog`; `EmailOtp` me
+- Postgres me naye tables: `StaffAccessKey`, `AdminAuditLog`; `EmailOtp` me
   `codeHash/attempts/usedAt`; `User` me `lastLoginAt/lastLoginIp`.
 - 24-char permission key generator (HMAC + `ACCESS_KEY_PEPPER`).
 - Owner seeded: **deadesports99@gmail.com** (tenant `apex-ff`, role ADMIN).
@@ -53,7 +53,7 @@
 ## ✅ Confirmed Decisions (Boss)
 
 1. Admin panel **browser me** chalega (Vite SPA), backend ke existing `/api/v1/admin/*`
-   endpoints hi use karega. DB wahi Supabase/Postgres.
+   endpoints hi use karega. DB wahi Postgres (local ya Neon).
 2. **Login = email + OTP.** Sirf wahi email login kar sakta hai jo DB me
    `User.email` ke saath `role = ADMIN | SUB_ADMIN` hai (allowlist).
 3. **Owner (ADMIN):** apna email daalega → OTP usi email pe → login. Code ki zaroorat nahi.
@@ -71,7 +71,7 @@
 7. **Design:** player app ka demo dark esports look — crest, map art, glass cards,
    IST time, Hinglish labels. Mobile = bottom nav, desktop = left sidebar.
 8. **Hosting (Nov 2026):** admin web **Vercel Hobby (free)**; backend **long-running host**
-   (Render free / VPS) kyunki realtime WS + Prisma pool stateful hai; DB = Supabase free;
+   (Render free / VPS) kyunki realtime WS + Prisma pool stateful hai; DB = Neon free;
    email = **Brevo** free (300/din). Koi paid VPS zaroori nahi. Detail:
    `6_Email_Access_and_Deploy/PLAN.md` → HOSTING DECISION.
 
@@ -131,7 +131,7 @@ backend/
   src/routes/adminAccess.routes.ts
 ```
 
-- **DB:** same Postgres (Supabase). Koi alag DB nahi.
+- **DB:** same Postgres (local ya Neon). Koi alag DB nahi.
 - **Session:** `admin_session` **httpOnly cookie** (12h, SameSite=Strict, Secure in prod).
   Android apps ka Bearer JWT flow **bilkul untouched** rahega.
 - **CSRF:** non-GET requests pe `Origin`/`Referer` strict check + SameSite=Strict.
@@ -179,7 +179,7 @@ backend/
 - **Phase 1 ✅ (done):** `StaffAccessKey` + `AdminAuditLog` models, 24-char permission
   key generator (HMAC + pepper), OTP hashing (`codeHash`/`attempts`), owner seeded as
   `deadesports99@gmail.com` on tenant `apex-ff`. Backend build clean, **326/326 tests**,
-  Supabase schema synced.
+  Postgres schema synced.
 - **Phase 2 ✅ (done):** owner email+OTP login, sub-admin owner-email+key+OTP login,
   httpOnly `admin_session` cookie (12h), CSRF origin gate, revocation kills the session,
   OTP/key rate limits, audit rows, owner-only `/admin/access` (issue/list/revoke/
@@ -234,7 +234,7 @@ cd backend && npm run dev
 # 2. Admin web (:5174) — port fix, CSRF gate isi origin par hai
 cd admin-web && npm run dev   # open http://localhost:5174
 
-# 3. Database (sirf local DB chahiye to — production Supabase already connected)
+# 3. Database (sirf local DB chahiye to — production Neon already connected)
 cd backend && docker compose -f docker-compose.dev.yml up -d
 ```
 
@@ -249,13 +249,13 @@ npm run seed:owner
 ```
 - Root me `start-local.bat` / `stop-local.bat` — ek click me poori local stack.
 - Local tenant id: `53a09545-e6e2-4cf5-a5c2-7ef18b276a52` (seed data: 2 demo matches).
-- Hosted Supabase wapas chahiye: `backend/.env.supabase.bak` → `.env`, restart backend,
-  aur `admin-web/.env` ka `VITE_TENANT_ID` Supabase tenant par set karo
+- Hosted DB wapas chahiye: `DATABASE_URL` ko Neon URL par set karo, restart backend,
+  aur `admin-web/.env` ka `VITE_TENANT_ID` us tenant par set karo
   (`a3c11cd0-...`). Local Docker volume delete nahi hota.
 - `src/config/prisma.ts` ab SSL sirf remote host par lagata hai, isliye local
   Postgres (no TLS) seed/runtime dono par chalta hai.
 - **Tenant id mismatch fix (Nov 12):** `android/app-player` client config purane
-  Supabase tenant par tha isliye local backend "Tenant not found" deta tha — ab
+  hosted tenant par tha isliye local backend "Tenant not found" deta tha — ab
   `53a09545-...` set hai aur dono APKs rebuild/install ho chuke hain. Detail:
   root `LOCAL_DEV.md`.
 

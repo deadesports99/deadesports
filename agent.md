@@ -10,7 +10,7 @@
 
 1. **Turnkey Standalone Model (Zero Data Liability):**
    - Hum (Jay & Boss) client ka data ya players ka paisa apne paas nahi rakhte.
-   - Har client (Tournament Owner) apna **Supabase PostgreSQL** database aur **Firebase project** connect karta hai.
+   - Har client (Tournament Owner) apna **Neon PostgreSQL** database aur **Firebase project** connect karta hai.
    - Client backend aur app handover hone ke baad unka data unke cloud par rehta hai.
 
 2. **⚡ 10-Minute Rebranding Engine (Play Store Compliant):**
@@ -120,7 +120,7 @@ C:\Free Fire turnament\
     every 60s (plus manual `POST /tournaments/sweep/states`). Cancel endpoint now guarded by `canCreateMatch`
     and refunds every booked slot in one serializable transaction (verified).
   - Fixed: pg v9 treats `sslmode=require` as `verify-full` and ignored the pool's `ssl` options → the runtime
-    Prisma client could not reach Supabase. `config/prisma.ts` now strips only the URL flag (TLS stays on).
+    Prisma client could not reach the database. `config/prisma.ts` now strips only the URL flag (TLS stays on).
   - Android: official FF map/mode artwork in `:core/res/drawable` (files are WebP — correct `.webp` extension),
     `TournamentArt.kt` mapping, map banners + mode badges on `TournamentCard`, diamond/gold-coin icons in
     `WalletScreen`, `DepositModal.kt` (quick chips, dynamic `upi://pay` QR via zxing, GPay/PhonePe intent,
@@ -158,7 +158,7 @@ Manual: [HANDOVER_MANUAL.md](file:///C:/Free%20Fire%20turnament/HANDOVER_MANUAL.
 4. **1-click payout** — verified atomic: rank1 ₹50 + 3 kills ₹15 = ₹65 → `WINNING_PRIZE` ledger → `COMPLETED`.
 5. **10-minute white-label handover** — `clients/_template` + `clients/sample_client`, `package_client.bat` →
    `tools/package_client.mjs` (config validation, branded config/colors/icon injection, APK build + `dist/<slug>/`
-   + `build-info.json` SHA-256, auto-restore), `HANDOVER_MANUAL.md` (Supabase/Firebase, Play compliance,
+   + `build-info.json` SHA-256, auto-restore), `HANDOVER_MANUAL.md` (Neon/Firebase, Play compliance,
    Garena disclaimer, zero-liability model).
 6. **Push auto-enable** — both app modules apply `com.google.gms.google-services` only when `google-services.json`
    exists; `android/gradle/verification-metadata.xml` extended for the plugin **and** for the 26 lint/annotation artifacts
@@ -387,7 +387,7 @@ Plan file: [PLAN.md](file:///C:/Free%20Fire%20turnament/plan/android/11_Match_Li
    (banned JWT dies on the next request). Admin dashboard has a Player Management card and a
    full search/ban/unban screen.
 7. **Verification** — backend `npm run build` clean, Android `:core + :app-admin + :app-player`
-   compile clean, backend unit suite **40/40**. Live Supabase E2E (temporary rows removed after):
+   compile clean, backend unit suite **40/40**. Live DB E2E (temporary rows removed after):
    auto code `APE-0215`, auto match `#12 Bermuda Solo #12`, player search, ban/unban, finish with
    UID paid **₹70** (₹50 rank + 2×₹10 kills), ledger + result written, second finish rejected.
 8. **Physical-device walkthrough (RMX5070, Phase 12)** — `adb reverse tcp:5000 tcp:5000`, both debug

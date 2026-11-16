@@ -29,6 +29,9 @@ tournamentRouter.post(
 
 tournamentRouter.get('/', authenticate, tournamentController.listTournaments);
 
+/** Seat windows for the admin slot slider (must stay above the `/:id` route). */
+tournamentRouter.get('/slot-limits', authenticate, tournamentController.getSlotLimits);
+
 tournamentRouter.get('/:id', authenticate, tournamentController.getTournamentDetails);
 
 tournamentRouter.get('/:id/slots', authenticate, tournamentController.getTournamentSlots);

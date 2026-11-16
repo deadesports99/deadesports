@@ -20,7 +20,7 @@
   - `dotenv`: Secure environment variable management.
   - `zod`: Request body & query parameter schema validation.
   - `ioredis`: Redis client for slot locking & caching.
-  - `@prisma/client` & `@prisma/adapter-pg`: Database ORM client for PostgreSQL / Supabase.
+  - `@prisma/client` & `@prisma/adapter-pg`: Database ORM client for PostgreSQL.
 - [x] **1.5 Developer Dependencies Installation:**
   - `typescript`, `@types/node`, `@types/express`, `@types/cors`
   - `tsx`: Ultra-fast TypeScript execution engine for dev hot-reloading.
@@ -31,7 +31,7 @@
 
 ### 🔹 Stage 2: Clean Architecture Folder Structure
 - [x] **2.1 Source Directory Tree (`backend/src/`):**
-  - `src/config/`: Environment variables parsing (`env.ts`), Supabase Prisma client (`prisma.ts`), Redis connection instance (`redis.ts`).
+  - `src/config/`: Environment variables parsing (`env.ts`), Postgres Prisma client (`prisma.ts`), Redis connection instance (`redis.ts`).
   - `src/controllers/`: HTTP route handlers.
   - `src/services/`: Business logic.
   - `src/routes/`: Express modular route definitions (`health.routes.ts`).

@@ -177,9 +177,9 @@ export function PublishRoomScreen() {
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-white/[0.07] px-3.5 py-3">
             <div>
               <p className="text-[12px] font-black">Publishable matches</p>
-              <p className="text-[10px] text-slate-500">Upcoming/open + 1h grace after kickoff</p>
+              <p className="text-[11.5px] text-slate-600 dark:text-slate-400">Upcoming/open + 1h grace after kickoff</p>
             </div>
-            <span className="rounded-md border border-slate-200 dark:border-white/10 px-1.5 py-0.5 text-[10px] font-black text-slate-400">
+            <span className="rounded-md border border-slate-200 dark:border-white/10 px-1.5 py-0.5 text-[11.5px] font-black text-slate-400">
               {matches.length}
             </span>
           </div>
@@ -215,23 +215,23 @@ export function PublishRoomScreen() {
                         </p>
                         <StatusBadge status={match.status} />
                       </div>
-                      <p className="mt-0.5 text-[10.5px] text-slate-400">{formatIST(match.matchTime)}</p>
+                      <p className="mt-0.5 text-[12px] text-slate-400">{formatIST(match.matchTime)}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-md border border-slate-200 dark:border-white/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                        <span className="rounded-md border border-slate-200 dark:border-white/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-slate-400">
                           {match.slotsBooked}/{match.totalSlots} seats
                         </span>
                         <span
-                          className={`rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                          className={`rounded-md border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${
                             published
                               ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-700 dark:text-emerald-300'
                               : match.hasRoomCredentials
-                                ? 'border-amber-400/30 bg-amber-400/10 text-amber-600 dark:text-amber-300'
+                                ? 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300'
                                 : 'border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] text-slate-400'
                           }`}
                         >
                           {published ? 'Room live' : match.hasRoomCredentials ? 'Room hidden' : 'No room'}
                         </span>
-                        <span className="text-[9px] font-bold text-slate-500">
+                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
                           {formatCountdown(match.matchTime)} to go
                         </span>
                       </div>
@@ -253,7 +253,7 @@ export function PublishRoomScreen() {
                     {selected.matchNumber != null ? `#${selected.matchNumber} ` : ''}
                     {humanize(selected.mapType)} • {humanize(selected.matchType)}
                   </p>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[12.5px] text-slate-400">
                     {formatIST(selected.matchTime)} • {selected.slotsBooked}/{selected.totalSlots} seats •{' '}
                     ₹{Number(selected.entryFee)} entry
                   </p>
@@ -263,19 +263,19 @@ export function PublishRoomScreen() {
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.02] px-3 py-2">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Room state</p>
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Room state</p>
                   <p className="mt-0.5 text-[12px] font-bold">
                     {selected.hasRoomCredentials && selected.roomUnlocked ? (
                       <span className="text-emerald-700 dark:text-emerald-300">Published — players can see it</span>
                     ) : selected.hasRoomCredentials ? (
-                      <span className="text-amber-600 dark:text-amber-300">Credentials set — not revealed</span>
+                      <span className="text-amber-700 dark:text-amber-300">Credentials set — not revealed</span>
                     ) : (
                       <span className="text-slate-400">Room not published</span>
                     )}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.02] px-3 py-2">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Revealed at</p>
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Revealed at</p>
                   <p className="mt-0.5 text-[12px] font-bold">
                     {selected.roomRevealedAt ? formatIST(selected.roomRevealedAt) : 'Not yet'}
                   </p>
@@ -286,7 +286,7 @@ export function PublishRoomScreen() {
             {selected.hasRoomCredentials && (
               <GlassCard flat className="p-4 sm:p-5">
                 <h3 className="mb-2 flex items-center gap-2 text-[13px] font-black">
-                  <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-300" /> Current credentials
+                  <KeyRound className="h-4 w-4 text-amber-700 dark:text-amber-300" /> Current credentials
                 </h3>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <CopyField label="Room ID" value={selected.room?.roomId ?? '—'} />
@@ -324,7 +324,7 @@ export function PublishRoomScreen() {
                 <Radio className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
                 {selected.hasRoomCredentials ? 'Update room credentials' : 'Publish room credentials'}
               </h3>
-              <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
+              <p className="mb-3 text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-400">
                 Players receive the Room ID & Password the moment you publish — every seated player's app
                 unlocks and a push notification goes out. Saving again updates the players instantly.
               </p>
@@ -355,7 +355,7 @@ export function PublishRoomScreen() {
               )}
 
               {seatedWarning && (
-                <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] font-semibold text-amber-200">
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[12.5px] font-semibold text-amber-200">
                   <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{seatedWarning}</span>
                 </div>
@@ -424,15 +424,15 @@ export function PublishRoomScreen() {
           <div className="space-y-2 rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] p-3 text-[12px]">
             <p className="flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-slate-500">Room ID</span>
+              <span className="text-slate-600 dark:text-slate-400">Room ID</span>
               <span className="ml-auto font-mono font-bold">{roomId || '—'}</span>
             </p>
             <p className="flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-slate-500">Password</span>
+              <span className="text-slate-600 dark:text-slate-400">Password</span>
               <span className="ml-auto font-mono font-bold">{roomPassword ? '•'.repeat(8) : '—'}</span>
             </p>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[12.5px] text-slate-600 dark:text-slate-400">
               {selected.slotsBooked} confirmed {selected.slotsBooked === 1 ? 'player' : 'players'} will see it.
             </p>
           </div>

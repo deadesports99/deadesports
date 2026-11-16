@@ -1,6 +1,6 @@
 # Room-ID work + local server notes (12 Nov 2026)
 
-Temporary handover note while the Supabase → Firebase DB move is in progress.
+Temporary handover note while the DB → Firebase delivery move was in progress.
 Delete this file once the migration is done and everything is re-verified.
 
 ## Local setup that was working
@@ -116,7 +116,7 @@ currently has exactly one tenant:
 53a09545-e6e2-4cf5-a5c2-7ef18b276a52   apex-ff   "Apex Free Fire Club"
 ```
 
-The previous DB (Supabase) used `a3c11cd0-324e-4886-b27c-9667fd7f59dc`. Clients ship the tenant
+The previous hosted DB used `a3c11cd0-324e-4886-b27c-9667fd7f59dc`. Clients ship the tenant
 id, so old builds now fail with **"Tenant not found"**. Already updated to the new id:
 
 - `android/app-player/src/main/assets/client_config.json`

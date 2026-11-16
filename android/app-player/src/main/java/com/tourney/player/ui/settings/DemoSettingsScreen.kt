@@ -902,7 +902,7 @@ private fun PrivacyModal(
             RuleCard(
                 title = "Where it is stored",
                 titleColor = Color(0xFF34D399),
-                body = "In the organiser's own secure database (Supabase). Card details and UPI " +
+                body = "In the organiser's own secure database. Card details and UPI " +
                     "PINs never reach us — online payments are handled by the payment gateway.",
             )
             RuleCard(

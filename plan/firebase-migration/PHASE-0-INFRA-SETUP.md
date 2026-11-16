@@ -172,7 +172,7 @@ Then re-run `cd firebase && firebase deploy --only storage` and expect
 
 **A. API + money (`scripts/e2eMatchFlow.ts`, patched for local):** the script was hard-wired to the
 old hosted tenant (`a3c11cd0…`) and forced SSL. Now `E2E_TENANT` (default local `53a09545…`) and
-SSL only for `supabase|render|amazonaws` hosts; it also tops the auto-created bots to ₹200 before
+SSL only for `neon.tech|render|amazonaws` hosts; it also tops the auto-created bots to ₹200 before
 joining (the join/payout money path itself is untouched).
 
 ```

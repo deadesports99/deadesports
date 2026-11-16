@@ -75,7 +75,7 @@
 
 **Backend**
 - `npm run build` → 0 TypeScript errors.
-- `npx prisma db push` → `DepositRequest` table + `DepositStatus` enum live in Supabase.
+- `npx prisma db push` → `DepositRequest` table + `DepositStatus` enum live in the DB.
 - Live API smoke test (19/19 passed): submit deposit → PENDING, 12-char UTR validation,
   min ₹10 guard, duplicate-UTR 409, player blocked from admin queue (403), admin approve
   credits `depositBalance` + writes `ADD_MONEY / CREDIT / DEPOSIT` ledger row, double-approve

@@ -20,7 +20,7 @@ Target Plan File: `plan/PRODUCTION_CLOUD_DEPLOYMENT_PLAN.md`
 ### 🧠 ASTRA 6 DEEP THINKING DIRECTIVES:
 Pehle deeply think aur analyze karo:
 1. Container & Node v22 Environment (multi-stage Alpine Dockerfile, Prisma generate, non-root user).
-2. Cloud Database (Supabase London AWS, PgBouncer pooler port 6543, withoutSslMode CA handling).
+2. Cloud Database (Neon Postgres, `?sslmode=require`).
 3. Atomic Slot Redis in Cloud (Upstash Serverless Redis vs Railway/Docker Redis, graceful fallback).
 4. Cold-Start & Cron Scheduler (in-process 60s match lifecycle sweep, keep-alive ping on free tiers).
 5. Android 9+ Network Security & HTTPS (ClientConfig.kt asset config, cleartext vs TLS enforcement).

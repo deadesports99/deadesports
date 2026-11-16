@@ -60,7 +60,7 @@ export function AppShell() {
       <div className="relative z-10 md:pl-20 lg:pl-[264px]">
         <TopBar onMenu={() => setDrawerOpen(true)} />
 
-        <main className="mx-auto w-full max-w-[1500px] px-3 pb-24 pt-4 sm:px-5 sm:pb-10 sm:pt-5 lg:px-7">
+        <main className="mx-auto w-full max-w-[1500px] px-3 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:pb-10 sm:pt-5 lg:px-7">
           <Outlet />
         </main>
       </div>

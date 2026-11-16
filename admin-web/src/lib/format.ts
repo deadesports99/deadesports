@@ -118,7 +118,7 @@ export function formatCountdown(value: string | Date): string {
   return `${Math.max(1, minutes)}m`;
 }
 
-/** Today's date key in IST (`2026-11-05`) — used for "aaj" comparisons. */
+/** Today's date key in IST (`2026-11-05`) — used for "today" comparisons. */
 export function istDateKey(value: string | Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: IST,

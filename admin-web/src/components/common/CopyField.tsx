@@ -37,7 +37,7 @@ export function CopyField({ value, label, masked = false, className }: CopyField
   return (
     <div className={className}>
       {label && (
-        <p className={cx('mb-1 text-[10px] font-black uppercase tracking-wider', isDark ? 'text-slate-500' : 'text-slate-500')}>
+        <p className={cx('mb-1 text-[11.5px] font-black uppercase tracking-wider', isDark ? 'text-slate-400' : 'text-slate-600')}>
           {label}
         </p>
       )}
@@ -60,7 +60,7 @@ export function CopyField({ value, label, masked = false, className }: CopyField
           <button
             type="button"
             onClick={() => setRevealed((state) => !state)}
-            className={cx('text-[11px] font-bold underline', isDark ? 'text-slate-400' : 'text-slate-600')}
+            className={cx('text-[12.5px] font-bold underline', isDark ? 'text-slate-400' : 'text-slate-600')}
           >
             {revealed ? 'Hide' : 'Show'}
           </button>

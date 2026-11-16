@@ -62,7 +62,7 @@
 - [x] `.env` / `.env.example`: `ACCESS_KEY_PEPPER`, `ADMIN_SESSION_TTL_HOURS`,
       `ADMIN_WEB_ORIGIN`, `EMAIL_PROVIDER`, `EMAIL_FROM`; dev CORS adds `:5174`
 - [x] backend build 0 errors; full suite **343/343**
-- [x] **live smoke (real Supabase + :5000):**
+- [x] **live smoke (real DB + :5000):**
       owner OTP → verify (ADMIN) → `/auth/me` 200 → logout ·
       owner issues key → sub-admin login (SUB_ADMIN + permissions) →
       revoke → sub-admin `/auth/me` **401** · test staff rows cleaned up

@@ -10,9 +10,9 @@
 
 ---
 
-## 0. Aaj ka sach (code + live Supabase audit — 7 Nov)
+## 0. Aaj ka sach (code + live DB audit — 7 Nov)
 
-Audit live DB pe kiya gaya (`aws-0-eu-west-2.pooler.supabase.com`):
+Audit live DB pe kiya gaya:
 
 | Cheez | Aaj |
 |---|---|
@@ -48,7 +48,7 @@ bachega. Ye phase in teeno gaps ko band karta hai.
 
 ---
 
-## 2. Data model changes (Supabase / Prisma)
+## 2. Data model changes (Postgres / Prisma)
 
 `backend/prisma/schema.prisma` — `TournamentSlot` me 3 snapshot columns:
 
@@ -463,7 +463,7 @@ Android: `⬇ CSV` beside `🔭 Watch` on the device detail screen; writes
 
 ### B. Watchlist (early warning)
 New model `DeviceWatch` (`tenantId`, `deviceId`, `note`, `alertCount`, `lastSeenAt`, `isActive`),
-unique per `(tenantId, deviceId)`, pushed to Supabase + Prisma client regenerated.
+unique per `(tenantId, deviceId)`, pushed to the DB + Prisma client regenerated.
 
 | Endpoint | Purpose |
 |---|---|

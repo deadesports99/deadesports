@@ -191,7 +191,7 @@ fun SlotPickerScreen(
             AppTopBar(title = "Select Your Seat", onBack = onBack)
 
             when (state) {
-                UiState.Idle, UiState.Loading -> LoadingState("Loading 48 seats…")
+                UiState.Idle, UiState.Loading -> LoadingState("Loading seats…")
                 is UiState.Error -> ErrorState(state.message) { viewModel.loadSlots(tournamentId) }
                 is UiState.Success -> {
                     val bookedCount = state.data.booked

@@ -17,6 +17,7 @@ import { SectionHeader } from '../../components/common/SectionHeader';
 import { AppButton } from '../../components/common/AppButton';
 import { EmptyState } from '../../components/common/EmptyState';
 import { LoadingState } from '../../components/common/LoadingState';
+import { ScrollRegion } from '../../components/common/ScrollRegion';
 import { InlineError, Chip } from '../matches/MatchFormBits';
 import { formatINR, formatISTDate, formatISTTime, humanize } from '../../lib/format';
 import { dateInputValue, istPartsOf } from '../../lib/istTime';
@@ -117,7 +118,7 @@ export function SettlementScreen() {
 
       <GlassCard flat className="flex flex-wrap items-end gap-3 p-3">
         <label className="min-w-[150px]">
-          <span className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
             Report date (IST)
           </span>
           <input
@@ -154,7 +155,7 @@ export function SettlementScreen() {
             </Chip>
           ))}
         </div>
-        <p className="pb-1 text-[10.5px] text-slate-500">
+        <p className="pb-1 text-[12px] text-slate-600 dark:text-slate-400">
           Matches, deposits and withdrawals are counted in IST for this calendar day.
         </p>
       </GlassCard>
@@ -179,7 +180,7 @@ export function SettlementScreen() {
             {[
               { label: 'Deposits in', value: formatINR(s.totalDeposits), note: `${s.depositCount} approved`, icon: ArrowDownToLine },
               { label: 'Withdrawals out', value: formatINR(s.totalWithdrawals), note: `${s.withdrawalCount} paid`, icon: ArrowUpFromLine },
-              { label: 'Entry fees', value: formatINR(s.totalMatchRevenue), note: `${s.matchCount} matches`, icon: Swords },
+              { label: 'Entry fees', value: formatINR(s.totalMatchRevenue), note: `${s.matchCount} ${s.matchCount === 1 ? 'match' : 'matches'}`, icon: Swords },
               { label: 'Prizes paid', value: formatINR(s.totalPrizesPaid), note: `${s.prizeCount} payouts`, icon: Trophy },
               {
                 label: 'Net margin',
@@ -195,9 +196,9 @@ export function SettlementScreen() {
               },
             ].map(({ label, value, note, icon: Icon }) => (
               <GlassCard key={label} flat className="p-3">
-                <div className="flex items-center gap-1.5 text-slate-500">
+                <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
                   <Icon className="h-3 w-3" />
-                  <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider">{label}</span>
                 </div>
                 <p
                   className={
@@ -209,7 +210,7 @@ export function SettlementScreen() {
                 >
                   {value}
                 </p>
-                <p className="mt-1 text-[10px] text-slate-500">{note}</p>
+                <p className="mt-1 text-[11.5px] text-slate-600 dark:text-slate-400">{note}</p>
               </GlassCard>
             ))}
           </div>
@@ -222,7 +223,7 @@ export function SettlementScreen() {
                 </Chip>
               ))}
             </div>
-            <p className="text-[10.5px] text-slate-500">
+            <p className="text-[12px] text-slate-600 dark:text-slate-400">
               {formatISTDate(`${date}T00:00:00+05:30`)} · ledger rows in IST
             </p>
           </div>
@@ -235,10 +236,10 @@ export function SettlementScreen() {
                 description="Nothing matches this filter on the selected day."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <ScrollRegion className="rounded-xl">
                 <table className="w-full min-w-[640px] text-left">
                   <thead>
-                    <tr className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                    <tr className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
                       <th className="pb-2">Time (IST)</th>
                       <th className="pb-2">Player</th>
                       <th className="pb-2">Head</th>
@@ -250,15 +251,15 @@ export function SettlementScreen() {
                   <tbody className="divide-y divide-slate-200 dark:divide-white/[0.06]">
                     {rows.map((tx) => (
                       <tr key={tx.id} className="align-top">
-                        <td className="py-2 text-[11px] font-semibold text-slate-500">
+                        <td className="py-2 text-[12.5px] font-semibold text-slate-600 dark:text-slate-400">
                           {formatISTTime(tx.createdAt)}
                         </td>
                         <td className="py-2 text-[12px] font-bold">
                           {tx.player.inGameName || tx.player.phoneNumber}
                         </td>
-                        <td className="py-2 text-[11px] text-slate-500">
+                        <td className="py-2 text-[12.5px] text-slate-600 dark:text-slate-400">
                           {CATEGORY_LABEL[tx.category] ?? humanize(tx.category)}
-                          <span className="ml-1 text-[9.5px] uppercase">({tx.balanceType.toLowerCase()})</span>
+                          <span className="ml-1 text-[11.5px] uppercase">({tx.balanceType.toLowerCase()})</span>
                         </td>
                         <td
                           className={
@@ -271,17 +272,17 @@ export function SettlementScreen() {
                           {tx.type === 'CREDIT' ? '+' : '−'}
                           {formatINR(tx.amount, 2)}
                         </td>
-                        <td className="py-2 text-right text-[11px] font-semibold text-slate-500">
+                        <td className="py-2 text-right text-[12.5px] font-semibold text-slate-600 dark:text-slate-400">
                           {formatINR(tx.balanceAfter, 2)}
                         </td>
-                        <td className="max-w-[220px] py-2 text-[10.5px] text-slate-500">
+                        <td className="max-w-[220px] py-2 text-[12px] text-slate-600 dark:text-slate-400">
                           {tx.notes || '—'}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollRegion>
             )}
           </GlassCard>
         </>

@@ -45,6 +45,12 @@
         "--static-oauth-client-metadata",
         "{\"token_endpoint_auth_method\":\"client_secret_basic\"}"
       ]
+    },
+    "hermes": {
+      "command": "C:\\Users\\Jay Kumar\\AppData\\Local\\hermes\\bin\\hermes.exe",
+      "args": [
+        "mcp-serve"
+      ]
     }
   }
 }

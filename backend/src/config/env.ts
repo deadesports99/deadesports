@@ -16,7 +16,7 @@ const envSchema = z.object({
   /** Runtime environment. */
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
-  /** PostgreSQL connection string (local Docker, Supabase, or any managed Postgres). */
+  /** PostgreSQL connection string (local Docker or any managed Postgres, e.g. Neon). */
   DATABASE_URL: z.string().url(),
 
   /** Redis connection string (local or Upstash). */

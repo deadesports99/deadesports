@@ -25,7 +25,7 @@ const TONE: Record<Tone, { dark: string; light: string }> = {
 };
 
 /**
- * "Aaj ka kaam" tile. Whole tile is the hit area (>= 44px) and shows a chevron
+ * "Today's work" tile. Whole tile is the hit area (>= 44px) and shows a chevron
  * when it leads somewhere.
  */
 export function StatPill({
@@ -56,7 +56,7 @@ export function StatPill({
           <ChevronRight
             className={cx(
               'h-4 w-4 transition-transform group-hover:translate-x-0.5',
-              isDark ? 'text-slate-500' : 'text-slate-400'
+              'text-slate-400'
             )}
           />
         )}
@@ -82,14 +82,14 @@ export function StatPill({
         )}
         <p
           className={cx(
-            'mt-1.5 text-[11px] font-bold leading-tight',
-            isDark ? 'text-slate-400' : 'text-slate-500'
+            'mt-1.5 text-[12.5px] font-bold leading-tight',
+            isDark ? 'text-slate-400' : 'text-slate-600'
           )}
         >
           {label}
         </p>
         {hint && (
-          <p className={cx('mt-0.5 text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>{hint}</p>
+          <p className={cx('mt-0.5 text-[11.5px]', 'text-slate-400')}>{hint}</p>
         )}
       </div>
     </>

@@ -276,7 +276,7 @@ export function PlayersScreen() {
             className={
               'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[12px] font-black transition-colors ' +
               (view === id
-                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-600 dark:text-amber-300'
+                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-700 dark:text-amber-300'
                 : 'border-slate-200 bg-white text-slate-600 hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400 dark:hover:text-white')
             }
           >
@@ -294,7 +294,7 @@ export function PlayersScreen() {
         <>
           <GlassCard flat className="p-3">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600 dark:text-slate-400" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -302,7 +302,7 @@ export function PlayersScreen() {
                 className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-8 pr-3 text-[12px] font-semibold text-slate-950 outline-none placeholder:text-slate-400 focus:border-[#FFD000]/70 dark:border-white/10 dark:bg-[#060B14] dark:text-white dark:placeholder:text-slate-600"
               />
             </div>
-            <p className="mt-1.5 text-[10.5px] text-slate-500">
+            <p className="mt-1.5 text-[12px] text-slate-600 dark:text-slate-400">
               {playerTotal} player(s) in this tenant · showing the newest {players.length}
             </p>
           </GlassCard>
@@ -330,21 +330,21 @@ export function PlayersScreen() {
                     <p className="text-[13px] font-black">
                       {player.inGameName || player.name || player.phoneNumber}
                       {player.playerCode && (
-                        <span className="ml-2 rounded-md border border-slate-200 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-slate-500 dark:border-white/10">
+                        <span className="ml-2 rounded-md border border-slate-200 px-1.5 py-0.5 font-mono text-[11.5px] font-bold text-slate-600 dark:text-slate-400 dark:border-white/10">
                           {player.playerCode}
                         </span>
                       )}
                     </p>
-                    <p className="text-[10.5px] text-slate-500">
+                    <p className="text-[12px] text-slate-600 dark:text-slate-400">
                       {player.phoneNumber} · UID {player.inGameUid ?? '—'} · joined {formatIST(player.createdAt)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[11.5px] font-black">
+                    <p className="text-[13px] font-black">
                       {formatINR(Number(player.winningBalance), 2)}
-                      <span className="ml-1 text-[9px] font-bold text-slate-500">winnings</span>
+                      <span className="ml-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">winnings</span>
                     </p>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[11.5px] text-slate-600 dark:text-slate-400">
                       {formatINR(Number(player.depositBalance), 2)} deposit · {player.matchesJoined} matches
                     </p>
                   </div>
@@ -360,7 +360,7 @@ export function PlayersScreen() {
       {view === 'suspicious' && (
         <>
           <GlassCard flat className="flex flex-wrap items-center gap-2 p-3">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+            <span className="text-[11.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
               Min score
             </span>
             {SCORE_THRESHOLDS.map((score) => (
@@ -368,7 +368,7 @@ export function PlayersScreen() {
                 {score}+
               </Chip>
             ))}
-            <span className="ml-auto text-[10.5px] text-slate-500">
+            <span className="ml-auto text-[12px] text-slate-600 dark:text-slate-400">
               {suspiciousCount} account(s) at or above {threshold}
             </span>
           </GlassCard>
@@ -392,13 +392,13 @@ export function PlayersScreen() {
                       <p className="text-[13px] font-black">
                         {row.inGameName || row.name || row.phoneNumber}
                         {row.playerCode && (
-                          <span className="ml-2 rounded-md border border-slate-200 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-slate-500 dark:border-white/10">
+                          <span className="ml-2 rounded-md border border-slate-200 px-1.5 py-0.5 font-mono text-[11.5px] font-bold text-slate-600 dark:text-slate-400 dark:border-white/10">
                             {row.playerCode}
                           </span>
                         )}
                         {row.isBanned && <span className="ml-2"><StatusBadge status="REJECTED" label="Banned" /></span>}
                       </p>
-                      <p className="mt-0.5 text-[10.5px] text-slate-500">
+                      <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
                         {row.phoneNumber} · {row.stats.matchesJoined} matches · {row.stats.completedMatches} completed ·{' '}
                         {row.stats.accountsOnDevice} account(s) on device · net out{' '}
                         {formatINR(row.stats.netOut, 2)}
@@ -408,7 +408,7 @@ export function PlayersScreen() {
                           <span
                             key={signal.code}
                             title={signal.detail}
-                            className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
+                            className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
                           >
                             {signal.label} +{signal.weight}
                           </span>
@@ -419,8 +419,8 @@ export function PlayersScreen() {
                       <p className="text-[20px] font-black leading-none text-rose-600 dark:text-rose-300">
                         {row.score}
                       </p>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">risk score</p>
-                      <p className="mt-1 text-[10px] text-slate-500">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">risk score</p>
+                      <p className="mt-1 text-[11.5px] text-slate-600 dark:text-slate-400">
                         avg {row.stats.avgKills} · recent {row.stats.recentAvgKills} · win {row.stats.winRatePct}%
                       </p>
                     </div>
@@ -458,14 +458,14 @@ export function PlayersScreen() {
                 <GlassCard key={group.deviceId} className="p-3">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-mono text-[11.5px] font-black">
+                      <p className="font-mono text-[13px] font-black">
                         {group.deviceId.length > 28 ? `${group.deviceId.slice(0, 28)}…` : group.deviceId}
                       </p>
-                      <p className="mt-0.5 text-[10.5px] text-slate-500">
+                      <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
                         {group.accountCount} accounts · {group.collidedMatchCount} shared matches ·{' '}
                         {group.bannedCount} banned · net out {formatINR(group.netOut, 2)}
                       </p>
-                      <p className="mt-1 truncate text-[10px] text-slate-500">
+                      <p className="mt-1 truncate text-[11.5px] text-slate-600 dark:text-slate-400">
                         {group.accounts
                           .map((account) => account.inGameName || account.playerCode || account.userId.slice(0, 6))
                           .join(' · ')}
@@ -473,7 +473,7 @@ export function PlayersScreen() {
                     </div>
                     <div className="text-right">
                       <p className="text-[13px] font-black">{formatINR(group.totalWinnings, 2)}</p>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">winnings</p>
+                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">winnings</p>
                     </div>
                     <div className="flex gap-1.5">
                       <AppButton
@@ -539,15 +539,15 @@ export function PlayersScreen() {
                 <GlassCard key={device.id} className="p-3">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-mono text-[11.5px] font-black">
+                      <p className="font-mono text-[13px] font-black">
                         {device.deviceId.length > 28 ? `${device.deviceId.slice(0, 28)}…` : device.deviceId}
                       </p>
-                      <p className="mt-0.5 text-[10.5px] text-slate-500">
+                      <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
                         {device.accountCount} accounts · {device.newAccountCount} new ·{' '}
                         {device.collidedMatchCount} shared matches · {device.bannedCount} banned
                         {device.note ? ` · ${device.note}` : ''}
                       </p>
-                      <p className="text-[10px] text-slate-500">
+                      <p className="text-[11.5px] text-slate-600 dark:text-slate-400">
                         Watching since {formatIST(device.createdAt)}
                         {device.lastSeenAt ? ` · last signal ${formatIST(device.lastSeenAt)}` : ''}
                       </p>
@@ -561,7 +561,7 @@ export function PlayersScreen() {
                       >
                         {device.alertCount}
                       </p>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">alerts</p>
+                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">alerts</p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       <AppButton
@@ -607,7 +607,7 @@ export function PlayersScreen() {
 
 function InformationStrip({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-[11px] text-cyan-800 dark:border-cyan-400/25 dark:bg-cyan-400/[0.06] dark:text-cyan-200">
+    <p className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-[12.5px] text-cyan-800 dark:border-cyan-400/25 dark:bg-cyan-400/[0.06] dark:text-cyan-200">
       {children}
     </p>
   );

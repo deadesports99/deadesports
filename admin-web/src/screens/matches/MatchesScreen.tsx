@@ -292,7 +292,7 @@ export function MatchesScreen() {
       />
 
       {sweepNote && (
-        <p className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.06] px-3 py-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+        <p className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.06] px-3 py-2 text-[12.5px] font-bold text-emerald-700 dark:text-emerald-300">
           {sweepNote}
         </p>
       )}
@@ -307,15 +307,15 @@ export function MatchesScreen() {
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-black transition-colors ${
+                className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-black transition-colors ${
                   tab === id
-                    ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-600 dark:text-amber-300'
+                    ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-700 dark:text-amber-300'
                     : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {label}
-                <span className="rounded-md bg-slate-200 dark:bg-black/25 px-1 text-[9px] font-black">
+                <span className="rounded-md bg-slate-200 dark:bg-black/25 px-1 text-[11px] font-black">
                   {counts[id]}
                 </span>
               </button>
@@ -323,7 +323,7 @@ export function MatchesScreen() {
           </div>
 
           <div className="relative sm:w-72">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600 dark:text-slate-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -385,27 +385,27 @@ export function MatchesScreen() {
                         <p className="text-[13.5px] font-black">{matchHeadline(match)}</p>
                         <StatusBadge status={match.status} />
                         {match.status === 'UNDER_REVIEW' && (
-                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
                             Results pending
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-[11px] text-slate-400">
+                      <p className="mt-1 text-[12.5px] text-slate-400">
                         {formatIST(match.matchTime)} • {formatCountdown(match.matchTime)}
                       </p>
                     </div>
 
                     <div className="text-right">
                       <p className="text-[12px] font-black">
-                        ₹{Number(match.prizePool)} <span className="text-[10px] font-bold text-slate-500">pool</span>
+                        ₹{Number(match.prizePool)} <span className="text-[11.5px] font-bold text-slate-600 dark:text-slate-400">pool</span>
                       </p>
-                      <p className="text-[10.5px] text-slate-400">
+                      <p className="text-[12px] text-slate-400">
                         ₹{Number(match.entryFee)} entry • ₹{Number(match.perKillPrize ?? 0)}/kill
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11.5px] font-bold">
                     <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] px-1.5 py-0.5 text-slate-600 dark:text-slate-300">
                       {seatsLabel(match)}
                     </span>
@@ -424,7 +424,7 @@ export function MatchesScreen() {
                         room === 'live'
                           ? 'border-emerald-400/25 bg-emerald-400/[0.07] text-emerald-700 dark:text-emerald-300'
                           : room === 'hidden'
-                            ? 'border-amber-400/25 bg-amber-400/[0.07] text-amber-600 dark:text-amber-300'
+                            ? 'border-amber-400/25 bg-amber-400/[0.07] text-amber-700 dark:text-amber-300'
                             : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400'
                       }`}
                     >
@@ -437,7 +437,7 @@ export function MatchesScreen() {
                     )}
                   </div>
 
-                  <p className="mt-1.5 text-[10.5px] text-slate-500">{roomStateLabel(match)}</p>
+                  <p className="mt-1.5 text-[12px] text-slate-600 dark:text-slate-400">{roomStateLabel(match)}</p>
 
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {payoutReady && (
@@ -491,7 +491,7 @@ export function MatchesScreen() {
                       </AppButton>
                     )}
                     {match.status === 'COMPLETED' && (
-                      <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                      <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] px-2 py-1 text-[11.5px] font-bold text-emerald-700 dark:text-emerald-300">
                         <Swords className="h-3 w-3" /> Done — paid via roster
                       </span>
                     )}
@@ -555,7 +555,7 @@ export function MatchesScreen() {
                 ))}
               </div>
               {visibilityTarget && Number(visibilityHours) >= 1 && Number(visibilityHours) <= 336 && (
-                <p className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-[11px] text-cyan-800 dark:border-cyan-400/25 dark:bg-cyan-400/[0.06] dark:text-cyan-200">
+                <p className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-[12.5px] text-cyan-800 dark:border-cyan-400/25 dark:bg-cyan-400/[0.06] dark:text-cyan-200">
                   Players see it from{' '}
                   <b>
                     {formatIST(
@@ -651,7 +651,7 @@ export function MatchesScreen() {
                       key={meridiem}
                       type="button"
                       onClick={() => setCloneSchedule((draft) => ({ ...draft, meridiem }))}
-                      className={`h-11 px-2 text-[11px] font-black sm:h-10 ${
+                      className={`h-11 px-2 text-[12.5px] font-black sm:h-10 ${
                         cloneSchedule.meridiem === meridiem
                           ? 'bg-[#FFD000] text-slate-950'
                           : 'text-slate-400 hover:text-slate-950 dark:hover:text-white'
@@ -665,7 +665,7 @@ export function MatchesScreen() {
             </Field>
           </div>
 
-          <p className="rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] px-3 py-2 text-[11px] text-slate-400">
+          <p className="rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] px-3 py-2 text-[12.5px] text-slate-400">
             New kickoff: <b className="text-slate-950 dark:text-white">{draftPreview(cloneSchedule)} IST</b> •{' '}
             {isDraftInFuture(cloneSchedule) ? `starts in ${formatCountdown(scheduleToIso(cloneSchedule))}` : 'must be in the future'}
           </p>
@@ -698,7 +698,7 @@ export function MatchesScreen() {
             />
           </Field>
           {actionError && <InlineError>{actionError}</InlineError>}
-          <p className="flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-300">
+          <p className="flex items-start gap-1.5 text-[12.5px] text-amber-700 dark:text-amber-300">
             <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {cancelTarget ? `${cancelTarget.slotsBooked} player(s) will be refunded and notified.` : ''}
           </p>

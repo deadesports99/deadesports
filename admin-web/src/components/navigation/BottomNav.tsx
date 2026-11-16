@@ -46,21 +46,21 @@ export function BottomNav({ onMore }: BottomNavProps) {
                         : 'border border-slate-900/10 bg-slate-900/10 text-slate-950'
                       : isDark
                         ? 'text-slate-400 group-hover:text-slate-200'
-                        : 'text-slate-500 group-hover:text-slate-800'
+                        : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-800'
                   )}
                 >
                   <Icon className={cx('h-5 w-5', isActive ? 'stroke-[2.3]' : 'stroke-[1.8]')} />
                 </span>
                 <span
                   className={cx(
-                    'text-[10px] tracking-tight',
+                    'text-[11.5px] tracking-tight',
                     isActive
                       ? isDark
                         ? 'font-black text-white'
                         : 'font-black text-slate-950'
                       : isDark
                         ? 'font-medium text-slate-400'
-                        : 'font-medium text-slate-500'
+                        : 'font-medium text-slate-600 dark:text-slate-400'
                   )}
                 >
                   {shortLabel ?? label}
@@ -78,12 +78,12 @@ export function BottomNav({ onMore }: BottomNavProps) {
           <span
             className={cx(
               'flex h-8 w-14 items-center justify-center rounded-full',
-              isDark ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-500 group-hover:text-slate-800'
+              isDark ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-600 group-hover:text-slate-800'
             )}
           >
             <LayoutGrid className="h-5 w-5 stroke-[1.8]" />
           </span>
-          <span className={cx('text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          <span className={cx('text-[11.5px] font-medium', isDark ? 'text-slate-400' : 'text-slate-600')}>
             More
           </span>
         </button>

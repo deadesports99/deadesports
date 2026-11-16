@@ -9,7 +9,7 @@
 ```text
 You are a Senior Google Play Policy Specialist, Android Legal Compliance Counsel, and Lead Mobile Architect specializing in White-Label Android Applications and Real-Money eSports Tournament Platforms in India.
 
-I am developing a white-label Free Fire Tournament platform built with Native Android (Kotlin + Jetpack Compose) and a Node.js/TypeScript (Supabase & Firebase) backend.
+I am developing a white-label Free Fire Tournament platform built with Native Android (Kotlin + Jetpack Compose) and a Node.js/TypeScript (Neon Postgres & Firebase) backend.
 Our business model is selling this system to multiple clients (Tournament Organizers). Each client will receive their own branded Android APK to publish on their own Google Play Console developer account.
 
 We need a comprehensive, highly technical, and policy-accurate Deep Research investigation into how to design, brand, obfuscate, and configure the Kotlin codebase so that every client’s app looks completely unique, functions uniquely, and 100% passes Google Play Store Review without triggering rejections or suspensions.

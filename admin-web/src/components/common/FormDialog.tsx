@@ -71,7 +71,7 @@ export function FormDialog({
               {title}
             </h3>
             {description && (
-              <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
                 {description}
               </p>
             )}
@@ -82,7 +82,7 @@ export function FormDialog({
             aria-label="Close"
             className={cx(
               'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-              isDark ? 'text-slate-400 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'
+              isDark ? 'text-slate-400 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100'
             )}
           >
             <X className="h-4 w-4" />

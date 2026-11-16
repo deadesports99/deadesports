@@ -15,7 +15,7 @@ The environment, dependencies, and folder structure have ALREADY been initialize
 - Runtime: Node.js (TypeScript with tsx)
 - Framework: Express.js (v4.x)
 - Security & Middleware: cors, helmet, dotenv, zod
-- Database & ORM: PostgreSQL (Supabase) with @prisma/client & prisma
+- Database & ORM: PostgreSQL (Neon / local Docker) with @prisma/client & prisma
 - In-Memory Cache & Mutex: ioredis
 - Target Module System: CommonJS / NodeNext (ES2022)
 

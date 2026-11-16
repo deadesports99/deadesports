@@ -56,7 +56,7 @@ export function StatusBadge({ status, label, className }: StatusBadgeProps) {
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider',
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11.5px] font-black uppercase tracking-wider',
         isDark ? darkTones[tone] : lightTones[tone],
         className
       )}

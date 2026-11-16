@@ -30,7 +30,7 @@ export function LoadingState({ label = 'Loading…', rows = 4, className }: Load
           <div className={cx('h-7 w-16 rounded-lg', isDark ? 'bg-white/[0.07]' : 'bg-slate-100')} />
         </div>
       ))}
-      <p className={cx('flex items-center justify-center gap-1.5 pt-1 text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>
+      <p className={cx('flex items-center justify-center gap-1.5 pt-1 text-[12.5px]', 'text-slate-400')}>
         <Loader2 className="h-3 w-3 animate-spin" /> {label}
       </p>
     </div>

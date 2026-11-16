@@ -2,7 +2,7 @@ import { Router } from 'express';
 import os from 'node:os';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
-import { redis } from '../config/redis.js';
+import { redis, waitForRedisReady } from '../config/redis.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendResponse } from '../utils/ApiResponse.js';
 
@@ -95,6 +95,9 @@ healthRouter.get('/health/db', async (_req, res, next) => {
 healthRouter.get('/health/redis', async (_req, res) => {
   const start = Date.now();
   try {
+    // A probe can arrive while the boot handshake is still running; wait for it
+    // instead of reporting a false outage, then ping for real.
+    await waitForRedisReady(1_500);
     const pong: string = await withTimeout(redis.ping(), 3000, 'redis check');
     if (pong !== 'PONG') {
       throw new Error(`Unexpected Redis reply: ${pong}`);

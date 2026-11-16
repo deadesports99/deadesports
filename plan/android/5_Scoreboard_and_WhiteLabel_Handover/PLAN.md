@@ -51,7 +51,7 @@
   - Standardize `client_config.json` schema supporting:
     - `client_name`, `app_name`, `application_id`, `version_name`, `version_code`
     - `theme`: `primary_color`, `button_color`, `accent_color`, `corner_radius_dp`
-    - `backend`: `api_base_url`, `supabase_url`, `supabase_anon_key`, `tenant_id`
+    - `backend`: `api_base_url`, `tenant_id`
     - `payments`: `upi_id`, `upi_name`, `min_deposit`, `support_whatsapp`
 - [x] **3.2 Automated White-Label CLI / Batch Script (`package_client.bat`):**
   - One-click script that takes a client configuration folder (e.g. `clients/alpha_esports/`):
@@ -61,7 +61,7 @@
     4. Outputs clean APKs into `dist/{client_name}/`.
 - [x] **3.3 Turnkey Handover Manual (`HANDOVER_MANUAL.md`):**
   - Complete, step-by-step documentation for Boss:
-    - 2-Minute Supabase & Firebase setup guide (Zero Data Liability Model).
+    - 2-Minute Neon & Firebase setup guide (Zero Data Liability Model).
     - 10-Minute automated branding and APK generation.
     - Google Play Store compliance guidelines (avoiding repetitive content spam policy, decentralized account model, mandatory Free Fire trademark disclaimers).
 
@@ -94,7 +94,7 @@
 - `clients/_template/` (nested schema v2 + field reference) and `clients/sample_client/` (Thunder eSports + 512² icon).
 - `package_client.bat` → `tools/package_client.mjs`: validates config → backs up + injects `client_config.json`, themed `colors.xml`, brand icon (all mipmap densities + adaptive icon) → optionally builds → copies `dist/<slug>/Player.apk` + `Admin.apk` + `build-info.json` (SHA-256) → restores the repo unless `--keep`.
 - Verified end-to-end: `node tools/package_client.mjs sample_client` → Player 28.34 MB / Admin 28.29 MB, repo restored clean; `package_client.bat sample_client --no-build` → config validated, injection tested, restored.
-- `HANDOVER_MANUAL.md` at repo root: Supabase/Firebase setup, 10-minute branding, Play Store compliance + Garena trademark disclaimer, zero-liability rules, troubleshooting, handover checklist.
+- `HANDOVER_MANUAL.md` at repo root: Neon/Firebase setup, 10-minute branding, Play Store compliance + Garena trademark disclaimer, zero-liability rules, troubleshooting, handover checklist.
 - Release builds needed 26 lint/annotation artifacts (`lint-31.10.1`, `intellij-core`, `uast`, `groovy-3.0.22`, …) added to
   `android/gradle/verification-metadata.xml` (dependency verification was previously debug-only, so `extractReleaseAnnotations` failed).
   The file now verifies clean for both `assembleDebug` and `assembleRelease`.

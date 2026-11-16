@@ -12,7 +12,7 @@ and Phase 9 are complete.
 Use this path for the first launch:
 
 ```text
-Render Web Service + Upstash Redis + Supabase PostgreSQL + Cloudflare DNS
+Render Web Service + Upstash Redis + Neon PostgreSQL + Cloudflare DNS
 ```
 
 The repository also contains a VPS path in `backend/docker-compose.prod.yml`,
@@ -30,7 +30,7 @@ Already prepared:
 - `render.yaml`
 - `DEPLOYMENT.md`
 - `/health`, `/health/ready`, `/health/db`, `/health/redis`
-- Supabase pool sizing and Redis timeout/fallback handling
+- Neon connection pool sizing and Redis timeout/fallback handling
 - Android HTTPS API configuration and `-PapiBaseUrl` override
 - Real-money top-ups: Razorpay + mock provider, webhook, idempotent settlement (`docs/PAYMENT_GATEWAY.md`)
 - Admin online-payments tab in the Wallet Console (collected today, per-order Sync)
@@ -46,7 +46,7 @@ The security and database blockers below must be completed before deployment.
 
 - [ ] Choose the real API hostname, for example `api.alphaesports.in`.
 - [ ] Choose Render or VPS. This plan assumes Render.
-- [ ] Confirm the Supabase project and region.
+- [ ] Confirm the Neon project and region (https://neon.com, free tier).
 - [ ] Confirm the production tenant UUID and owner phone number.
 - [ ] Confirm Android package IDs and client brand.
 
@@ -54,7 +54,7 @@ The security and database blockers below must be completed before deployment.
 
 ```text
 API_DOMAIN=api.<your-domain>
-DATABASE_URL=<Supabase pooler URL>
+DATABASE_URL=<Neon URL with ?sslmode=require>
 REDIS_URL=<Upstash rediss URL>
 JWT_SECRET=<random 64+ character value>
 FCM_CREDENTIALS_JSON=<optional one-line Firebase service account JSON>
@@ -184,7 +184,7 @@ npx prisma validate
 npx prisma generate
 ```
 
-- [ ] Back up the production Supabase database.
+- [ ] Back up the production Neon database.
 - [ ] Review new `Tenant` columns and the device constraint.
 - [ ] Create a named Prisma migration.
 - [ ] Review generated SQL manually.
@@ -242,10 +242,10 @@ graceful shutdown all pass.
 
 ---
 
-## Phase 4 — Prepare Supabase production data
+## Phase 4 — Prepare Neon production data
 
-- [ ] Confirm the production Supabase project.
-- [ ] Use the Session/PgBouncer pooler URL on port `6543` for the app.
+- [ ] Confirm the production Neon project.
+- [ ] Use the Neon direct (or `-pooler`) connection URL. `?sslmode=require` is mandatory.
 - [ ] Include `pgbouncer=true&connection_limit=10`.
 - [ ] Apply the migration from Phase 2.
 - [ ] Create/verify the production tenant and owner `ADMIN` user.
@@ -302,7 +302,7 @@ Set these in the Render dashboard:
 NODE_ENV=production
 PORT=10000
 TRUST_PROXY=1
-DATABASE_URL=<Supabase pooler URL on 6543>
+DATABASE_URL=<Neon URL with ?sslmode=require>
 REDIS_URL=<Upstash TLS URL>
 JWT_SECRET=<random 64+ character secret>
 JWT_EXPIRES_IN=7d
@@ -422,7 +422,7 @@ Use small test amounts and record IDs for cleanup/refund.
 
 - [ ] Save Render health/log URLs.
 - [ ] Monitor `/health` and `/health/ready`.
-- [ ] Keep Supabase backups enabled.
+- [ ] Keep Neon backups / PITR enabled.
 - [ ] Keep a release log with APK version, API revision, migration, domain,
       and test date.
 - [ ] Assign a rollback owner.
@@ -603,11 +603,11 @@ security back. Work top to bottom — the first four are the real ones.
 |---|------------|-------|-----------------|---------------|
 | 1 | `PHONE_OTP_BYPASS=true` | `backend/.env` | Any 10-digit phone + **any** 6-digit OTP logs in as that player (no SMS, account auto-created). | Set `PHONE_OTP_BYPASS=false`, restart API. `grep PHONE_OTP_BYPASS backend/.env` must show `false`. |
 | 2 | `PHONE_OTP_ENABLED=false` | `backend/.env` | Firebase phone auth is killed, so real SMS OTP cannot be used at all. | Set `PHONE_OTP_ENABLED=true` (requires working Firebase phone provider + Blaze plan). |
-| 3 | `allowPhoneAuth=false` (tenant row) | Admin app → Settings, or `Tenant` table in Supabase | Player phone signup/login is disabled tenant-wide. | Admin → Settings → turn **Phone Auth** on (`update "Tenant" set "allowPhoneAuth"=true`). |
+| 3 | `allowPhoneAuth=false` (tenant row) | Admin app → Settings, or `Tenant` table in the DB | Player phone signup/login is disabled tenant-wide. | Admin → Settings → turn **Phone Auth** on (`update "Tenant" set "allowPhoneAuth"=true`). |
 | 4 | `DEV_FAKE_FIREBASE=true` | `backend/.env` | Accepts `dev_otp_<phone>` as a valid Firebase token — a full auth bypass if it ever reaches production. Server refuses to boot in production with it set (`assertDevAuthConfig`), keep it that way. | Remove the line entirely (do not just set `false`) and restart. |
 | 5 | `RATE_LIMIT_ALLOW_IPS=127.0.0.1,::1` | `backend/.env` | Every rate limiter (auth 5/min, deposit 3/min, join) is skipped for those IPs — brute-force protection off for the dev machine. Ignored when `NODE_ENV=production`; boot logs a warning while it is set. | Set `RATE_LIMIT_ALLOW_IPS=` (empty) and restart. Boot log must no longer print the `RATE_LIMIT_ALLOW_IPS` warning. |
 | 6 | `x-stress-test: apex-ff-internal` header | `backend/src/middlewares/rateLimiter.ts` | Requests carrying this header skip **all** rate limits. Now gated to non-production only. | Delete the whole `x-stress-test` branch in `rateLimiter.ts` (see Phase 1.2). |
-| 7 | 100 seeded test players (`TEST BOT 001…100`, phones `9000000001…9000000100`, ₹200 each) | Supabase `User` / `WalletLedger` | Fake players pollute the roster, the settlement report and the leaderboard; seeded ₹20,000 shows up in wallet totals. | `cd backend && npx tsx scripts/seedTestAccounts.ts delete` (only touches `TEST BOT%` rows). Verify: `npx tsx scripts/seedTestAccounts.ts list` → `total: 0`. |
+| 7 | 100 seeded test players (`TEST BOT 001…100`, phones `9000000001…9000000100`, ₹200 each) | DB `User` / `WalletLedger` | Fake players pollute the roster, the settlement report and the leaderboard; seeded ₹20,000 shows up in wallet totals. | `cd backend && npx tsx scripts/seedTestAccounts.ts delete` (only touches `TEST BOT%` rows). Verify: `npx tsx scripts/seedTestAccounts.ts list` → `total: 0`. |
 | 8 | `PAYMENT_PROVIDER=mock` | `backend/.env` | Add-money succeeds without a real gateway payment. `assertPaymentConfig` blocks production unless real keys exist — keep it that way. | Set `PAYMENT_PROVIDER=razorpay` + `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`. |
 | 9 | "Auto-fill demo" button (code `482916`) | `android/core/.../ui/auth/AuthOtpScreen.kt` | Ships a one-tap OTP into the store build — anyone can log in as any number. | Delete the `TextButton` block that fills `482916` and rebuild + re-sign both apps. |
 | 10 | API base URL `http://localhost:5000/api/v1` | `android/**/assets/client_config.json` | Release APK cannot reach production and exposes the dev host. | Point it at the HTTPS domain (Phase 8) and rebuild. |
@@ -637,7 +637,7 @@ npx tsx scripts/seedTestAccounts.ts list | tail -1 # must print total: 0
 
 ### V3.1 Join latency — what it is now and the one real fix
 
-Measured on this dev machine (Supabase in `eu-west-2` London, player in India):
+Measured on this dev machine (hosted Postgres in `eu-west-2` London, player in India):
 
 | Step | Time |
 |---|---|
@@ -655,14 +655,14 @@ Before launch, host the database in **`ap-south-1` (Mumbai)** to cut the
 round-trip to ~10-30 ms; the same join then lands around **150-250 ms** with no
 code change.
 
-- [ ] Production Supabase project created in `ap-south-1` (or the closest region to the players).
+- [ ] Production Neon project created in the closest region to the players.
 - [ ] Re-ran `npx tsx scripts/measureJoin.ts --count 6` against it and recorded the new average.
 
 ## V3.2 Burst behaviour on the last seats (100-200 players at once)
 
 The scenario that matters most: a match is **1-2 seats short of full** and everybody
 taps *join* in the same second. Measured with the real backend + real Postgres
-(Supabase `eu-west-2`, sessions through the API, 100 `TEST BOT` accounts):
+(hosted Postgres, sessions through the API, 100 `TEST BOT` accounts):
 
 | Burst | Free seats | Winners | Rejections | 5xx | Wall time |
 |---|---|---|---|---|---|
@@ -677,10 +677,10 @@ still healthy afterwards (0 uncaught exceptions, no restart).
 
 ### What actually broke under load (and the fixes)
 
-1. **Supabase session pooler caps the connection count.** With
+1. **The hosted Postgres connection pooler caps the connection count.** With
    `connection_limit=25` the pooler answered
    `EMAXCONNSESSION: max clients reached in session mode - max clients are limited to pool_size: 15`.
-   Keep `connection_limit ≤ 15` while on the **session** pooler (port 5432).
+   Keep `connection_limit` ≤ the plan's limit (Neon free tier is small).
 2. **Prisma pool timeouts leaked as `500 Database operation failed`.** 216 taps on a
    15-connection pool overflow the pool; Prisma throws
    `timeout exceeded when trying to connect` (`P2024`), which used to hit the generic
@@ -707,8 +707,8 @@ right now — please tap join again"* as inline text — no spinner lock, no cra
 ### Tuning before launch
 
 - [ ] Keep `JOIN_MAX_INFLIGHT` ≤ `connection_limit` (defaults 12 / 15).
-- [ ] On a bigger plan, switch to the **transaction pooler** (port 6543,
-      `?pgbouncer=true`) and raise `connection_limit` to 40-60 for head-room.
+- [ ] On a bigger Neon plan, use the **`-pooler` hosted URL** and raise
+      `connection_limit` to 40-60 for head-room.
 - [ ] Re-run the proof after any DB/pool change:
       `cd backend && npx tsx scripts/raceJoinTest.ts --fill 46 --race 100 --slots 48 --dup 4`
       (expect 2 winners, 214 clean 409s, 0 five-hundreds).

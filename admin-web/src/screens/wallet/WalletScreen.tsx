@@ -278,12 +278,12 @@ export function WalletScreen() {
           },
         ].map(({ label, value, note, icon: Icon }) => (
           <GlassCard key={label} flat className="p-3">
-            <div className="flex items-center gap-1.5 text-slate-500">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
               <Icon className="h-3 w-3" />
-              <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+              <span className="text-[11px] font-black uppercase tracking-wider">{label}</span>
             </div>
             <p className="mt-1 text-[17px] font-black leading-none">{value}</p>
-            <p className="mt-1 text-[10.5px] text-slate-500">{note}</p>
+            <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-400">{note}</p>
           </GlassCard>
         ))}
       </div>
@@ -314,13 +314,13 @@ export function WalletScreen() {
             className={
               'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[12px] font-black transition-colors ' +
               (tab === id
-                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-600 dark:text-amber-300'
+                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-700 dark:text-amber-300'
                 : 'border-slate-200 bg-white text-slate-600 hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400 dark:hover:text-white')
             }
           >
             <Icon className="h-3.5 w-3.5" />
             {label}
-            <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] dark:bg-black/25">{count}</span>
+            <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[11.5px] dark:bg-black/25">{count}</span>
           </button>
         ))}
       </div>
@@ -358,13 +358,13 @@ export function WalletScreen() {
                 <li key={w.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-black">{playerLabel(w.player)}</p>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[12.5px] text-slate-600 dark:text-slate-400">
                       {w.player.phoneNumber} · UPI <b className="font-mono">{w.upiId}</b>
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-[14px] font-black">{formatINR(Number(w.amount), 2)}</p>
-                    <p className="text-[10.5px] text-slate-500">{formatIST(w.createdAt)}</p>
+                    <p className="text-[12px] text-slate-600 dark:text-slate-400">{formatIST(w.createdAt)}</p>
                   </div>
                   <StatusBadge status={w.status} />
                   {w.status === 'PENDING' ? (
@@ -394,7 +394,7 @@ export function WalletScreen() {
                       </AppButton>
                     </div>
                   ) : (
-                    <p className="w-full text-[10.5px] text-slate-500 sm:w-auto">
+                    <p className="w-full text-[12px] text-slate-600 dark:text-slate-400 sm:w-auto">
                       {w.utrNumber ? `UTR ${w.utrNumber}` : w.rejectionNote || '—'}
                     </p>
                   )}
@@ -418,13 +418,13 @@ export function WalletScreen() {
                 <li key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-black">{playerLabel(d.player)}</p>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[12.5px] text-slate-600 dark:text-slate-400">
                       {d.player.phoneNumber} · UTR <b className="font-mono">{d.utrNumber}</b>
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-[14px] font-black">{formatINR(Number(d.amount), 2)}</p>
-                    <p className="text-[10.5px] text-slate-500">{formatIST(d.createdAt)}</p>
+                    <p className="text-[12px] text-slate-600 dark:text-slate-400">{formatIST(d.createdAt)}</p>
                   </div>
                   <StatusBadge status={d.status} />
                   {d.status === 'PENDING' ? (
@@ -453,7 +453,7 @@ export function WalletScreen() {
                       </AppButton>
                     </div>
                   ) : (
-                    <p className="w-full text-[10.5px] text-slate-500 sm:w-auto">
+                    <p className="w-full text-[12px] text-slate-600 dark:text-slate-400 sm:w-auto">
                       {d.rejectionNote || 'Credited'}
                     </p>
                   )}
@@ -498,13 +498,13 @@ export function WalletScreen() {
                       <p className="text-[13px] font-black">
                         {p.player.inGameName || p.player.phoneNumber}
                       </p>
-                      <p className="truncate text-[10.5px] text-slate-500">
+                      <p className="truncate text-[12px] text-slate-600 dark:text-slate-400">
                         {p.provider} · {p.providerOrderId ?? p.id}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-[14px] font-black">{formatINR(p.amountRupees, 2)}</p>
-                      <p className="text-[10.5px] text-slate-500">{formatIST(p.createdAt)}</p>
+                      <p className="text-[12px] text-slate-600 dark:text-slate-400">{formatIST(p.createdAt)}</p>
                     </div>
                     <StatusBadge status={p.status} />
                     <AppButton
@@ -518,14 +518,14 @@ export function WalletScreen() {
                       Sync
                     </AppButton>
                     {p.failureReason && (
-                      <p className="w-full text-[10.5px] text-rose-600 dark:text-rose-300">{p.failureReason}</p>
+                      <p className="w-full text-[12px] text-rose-600 dark:text-rose-300">{p.failureReason}</p>
                     )}
                   </li>
                 ))}
               </ul>
             )}
             {(payments?.pagination.totalPages ?? 1) > 1 && (
-              <p className="mt-2 text-[10.5px] text-slate-500">
+              <p className="mt-2 text-[12px] text-slate-600 dark:text-slate-400">
                 Showing {payments?.payments.length ?? 0} of {payments?.pagination.total ?? 0} orders.
               </p>
             )}
@@ -618,7 +618,7 @@ export function WalletScreen() {
         onClose={() => !busyId && closeAll()}
         onConfirm={() => void approveDeposit()}
       >
-        <p className="flex items-start gap-2 text-[11.5px] text-slate-500">
+        <p className="flex items-start gap-2 text-[13px] text-slate-600 dark:text-slate-400">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           Confirm the UTR matches the bank statement. This credits the deposit balance and writes an
           ADD_MONEY ledger row — a double tap cannot credit twice.

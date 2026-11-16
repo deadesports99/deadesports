@@ -88,7 +88,7 @@ Then verify **both** money-safety properties:
 | Abandoned checkout expires | open checkout, close it, wait 15 min | order `EXPIRED`, no money moved |
 | Failed payment | use Razorpay's test card/UPI failure | order `FAILED`, no credit, nothing in the wallet |
 
-Database spot-check (Supabase SQL editor):
+Database spot-check (Neon SQL editor or `psql`):
 
 ```sql
 select o.id, o.status, o."amountPaise", o."providerPaymentId", l.amount, l."referenceId"

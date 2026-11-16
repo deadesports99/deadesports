@@ -76,7 +76,7 @@ const MODULE_META: Record<
 };
 
 /**
- * Dashboard — "aaj ka kaam" first, modules second.
+ * Dashboard — today's work first, modules second.
  *
  * The KPI strip loads only what the signed-in role may see: staff without
  * `canManageWallet` never call the wallet endpoints, so the console does not
@@ -205,7 +205,7 @@ export function DashboardScreen() {
       {/* ── Greeting ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className={cx('text-[10px] font-black uppercase tracking-[0.2em]', isDark ? 'text-cyan-400/80' : 'text-cyan-700')}>
+          <p className={cx('text-[11.5px] font-black uppercase tracking-[0.2em]', isDark ? 'text-cyan-400/80' : 'text-cyan-700')}>
             {formatISTLong()}
           </p>
           <h2 className={cx('mt-1 font-display text-xl font-black tracking-tight sm:text-2xl', isDark ? 'text-white' : 'text-slate-950')}>
@@ -213,11 +213,11 @@ export function DashboardScreen() {
           </h2>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <RoleBadge user={user} />
-            <span className={cx('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-500')}>
+            <span className={cx('text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
               {owner ? 'Every module unlocked' : `${countPermissions(user)} of 4 staff permissions`}
             </span>
             {snapshot.demoPayments && (
-              <span className={cx('rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider', isDark ? 'border-amber-400/30 text-amber-300' : 'border-amber-300 bg-amber-50 text-amber-700')}>
+              <span className={cx('rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider', isDark ? 'border-amber-400/30 text-amber-300' : 'border-amber-300 bg-amber-50 text-amber-700')}>
                 Mock gateway
               </span>
             )}
@@ -243,7 +243,7 @@ export function DashboardScreen() {
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
             <div>
               <p className={cx('text-xs font-black', isDark ? 'text-rose-200' : 'text-rose-700')}>Dashboard data failed</p>
-              <p className={cx('text-[11px]', isDark ? 'text-slate-400' : 'text-slate-500')}>{error}</p>
+              <p className={cx('text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>{error}</p>
             </div>
           </div>
           <AppButton variant="secondary" size="sm" onClick={() => void load()}>
@@ -253,7 +253,7 @@ export function DashboardScreen() {
       )}
 
       {/* ── KPI strip ────────────────────────────────────────────────── */}
-      <section aria-label="Aaj ka kaam">
+      <section aria-label="Today's work">
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5">
           <StatPill
             label="Live matches"
@@ -366,11 +366,11 @@ export function DashboardScreen() {
 
           {!owner && !can(user, 'canManageWallet') && !can(user, 'canCreateMatch') && !can(user, 'canDistributePrize') && (
             <GlassCard className="flex items-start gap-2.5 p-4">
-              <ShieldCheck className={cx('mt-0.5 h-4 w-4 shrink-0', isDark ? 'text-slate-400' : 'text-slate-500')} />
+              <ShieldCheck className={cx('mt-0.5 h-4 w-4 shrink-0', isDark ? 'text-slate-400' : 'text-slate-600')} />
               <div>
                 <p className={cx('text-xs font-black', isDark ? 'text-white' : 'text-slate-950')}>Read-only staff session</p>
-                <p className={cx('mt-0.5 text-[11px] leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                  No permissions assigned yet. Owner se bolo ki Staff &amp; Access screen se permissions on kare.
+                <p className={cx('mt-0.5 text-[12.5px] leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                  No permissions assigned yet. Ask the owner to enable permissions on the Staff &amp; Access screen.
                 </p>
               </div>
             </GlassCard>
@@ -405,10 +405,10 @@ export function DashboardScreen() {
                 {nextMatch && (
                   <div className={cx('p-3.5', isDark ? 'bg-white/[0.02]' : 'bg-slate-50/70')}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className={cx('text-[10px] font-black uppercase tracking-wider', isDark ? 'text-amber-300' : 'text-amber-700')}>
+                      <p className={cx('text-[11.5px] font-black uppercase tracking-wider', isDark ? 'text-amber-300' : 'text-amber-700')}>
                         Next up
                       </p>
-                      <span className={cx('text-[10px] font-bold', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                      <span className={cx('text-[11.5px] font-bold', isDark ? 'text-slate-400' : 'text-slate-600')}>
                         {relativeToNow(nextMatch.matchTime)}
                       </span>
                     </div>
@@ -424,7 +424,7 @@ export function DashboardScreen() {
           <GlassCard className="p-4">
             <div className="flex items-center justify-between gap-2">
               <p className={cx('text-xs font-black', isDark ? 'text-white' : 'text-slate-950')}>Day snapshot</p>
-              <span className={cx('text-[10px] font-bold', isDark ? 'text-slate-500' : 'text-slate-500')}>
+              <span className={cx('text-[11.5px] font-bold', isDark ? 'text-slate-400' : 'text-slate-600')}>
                 {formatISTTime(new Date())} IST
               </span>
             </div>
@@ -442,8 +442,8 @@ export function DashboardScreen() {
                 },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-2">
-                  <dt className={cx('text-[11px]', isDark ? 'text-slate-400' : 'text-slate-500')}>{row.label}</dt>
-                  <dd className={cx('font-mono text-[11px] font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                  <dt className={cx('text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>{row.label}</dt>
+                  <dd className={cx('font-mono text-[12.5px] font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}>
                     {row.value}
                   </dd>
                 </div>
@@ -452,7 +452,7 @@ export function DashboardScreen() {
           </GlassCard>
 
           {walletError && (
-            <p className={cx('px-1 text-[10px]', isDark ? 'text-amber-300/80' : 'text-amber-700')}>
+            <p className={cx('px-1 text-[11.5px]', isDark ? 'text-amber-300/80' : 'text-amber-700')}>
               {walletError}
             </p>
           )}
@@ -486,10 +486,10 @@ function MatchRow({
           isDark ? 'border-white/10 bg-white/[0.04]' : 'border-slate-200 bg-slate-50'
         )}
       >
-        <span className={cx('font-mono text-[11px] font-black', isDark ? 'text-white' : 'text-slate-900')}>
+        <span className={cx('font-mono text-[12.5px] font-black', isDark ? 'text-white' : 'text-slate-900')}>
           {formatISTTime(match.matchTime).replace(' ', '').slice(0, 5)}
         </span>
-        <span className={cx('text-[8px] font-bold uppercase', isDark ? 'text-slate-500' : 'text-slate-400')}>IST</span>
+        <span className={cx('text-[11px] font-bold uppercase', 'text-slate-400')}>IST</span>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -497,9 +497,11 @@ function MatchRow({
           <p className={cx('truncate text-[12px] font-black', isDark ? 'text-white' : 'text-slate-950')}>
             {match.matchNumber ? `#${match.matchNumber}` : humanize(match.mapType)} · {humanize(match.matchType)}
           </p>
-          <StatusBadge status={match.status} />
+          <span className="shrink-0">
+            <StatusBadge status={match.status} />
+          </span>
         </div>
-        <p className={cx('mt-0.5 truncate text-[10px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
+        <p className={cx('mt-0.5 text-[11.5px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-600')}>
           {match.slotsBooked}/{match.totalSlots} slots · {formatINR(Number(match.entryFee))} entry ·{' '}
           {formatINR(Number(match.prizePool))} pool
           {match.status !== 'LIVE' ? ` · ${formatCountdown(match.matchTime)} left` : ''}
@@ -574,8 +576,8 @@ function ModuleCard({
           {phase && (
             <span
               className={cx(
-                'shrink-0 rounded-md border px-1 py-0.5 text-[8px] font-black uppercase tracking-wider',
-                isDark ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-400'
+                'shrink-0 rounded-md border px-1 py-0.5 text-[11px] font-black uppercase tracking-wider',
+                isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-600'
               )}
             >
               Phase {phase}
@@ -583,7 +585,7 @@ function ModuleCard({
           )}
         </span>
         {description && (
-          <span className={cx('mt-0.5 block text-[10.5px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          <span className={cx('mt-0.5 block text-[12px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-600')}>
             {description}
           </span>
         )}
@@ -592,7 +594,7 @@ function ModuleCard({
       <ArrowUpRight
         className={cx(
           'h-3.5 w-3.5 shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5',
-          isDark ? 'text-slate-500' : 'text-slate-400'
+          'text-slate-400'
         )}
       />
     </button>
@@ -605,7 +607,7 @@ export function Avatar({ name, className }: { name: string | null; className?: s
   return (
     <span
       className={cx(
-        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-[11px] font-black',
+        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-[12.5px] font-black',
         isDark ? 'border-white/10 bg-white/[0.05] text-slate-200' : 'border-slate-200 bg-slate-100 text-slate-700',
         className
       )}

@@ -22,7 +22,15 @@ import type { GameMode, MapType, MatchType } from '../../types';
 const MAPS: MapType[] = ['BERMUDA', 'PURGATORY', 'KALAHARI', 'ALPINE', 'NEXTERRA'];
 const MODES: GameMode[] = ['BATTLE_ROYALE', 'CLASH_SQUAD'];
 const TYPES: MatchType[] = ['SOLO', 'DUO', 'SQUAD'];
-const SEAT_OPTIONS = [12, 16, 24, 36, 48];
+
+/**
+ * Free Fire custom-room seat windows — one seat = one paying PLAYER.
+ * Must match SLOT_LIMITS in backend/src/services/tournament.service.ts.
+ */
+const SLOT_LIMITS: Record<GameMode, { min: number; max: number; step: number }> = {
+  BATTLE_ROYALE: { min: 20, max: 52, step: 1 },
+  CLASH_SQUAD: { min: 2, max: 52, step: 1 },
+};
 const HOURS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
 const QUICK_HOURS = [1, 3, 6, 12, 24];
@@ -42,7 +50,28 @@ export function CreateMatchScreen() {
   const [gameMode, setGameMode] = useState<GameMode>('BATTLE_ROYALE');
   const [matchType, setMatchType] = useState<MatchType>('SOLO');
   const [mapType, setMapType] = useState<MapType>('BERMUDA');
-  const [totalSlots, setTotalSlots] = useState(48);
+  const [totalSlots, setTotalSlots] = useState(52);
+  /** Raw text for the number box, so the admin can clear/type freely. */
+  const [slotsText, setSlotsText] = useState('52');
+
+  const slotLimits = SLOT_LIMITS[gameMode];
+  const slotsFixed = slotLimits.min === slotLimits.max;
+
+  /** Keep state, the typed box and the slider in sync, clamped to the mode window. */
+  const applySlots = (raw: number) => {
+    const next = Math.min(slotLimits.max, Math.max(slotLimits.min, Math.round(raw) || slotLimits.min));
+    setTotalSlots(next);
+    setSlotsText(String(next));
+  };
+
+  /** Switching BR <-> CS changes the window: snap the seat count into it. */
+  const changeGameMode = (mode: GameMode) => {
+    setGameMode(mode);
+    const next = SLOT_LIMITS[mode];
+    const clamped = Math.min(next.max, Math.max(next.min, totalSlots));
+    setTotalSlots(clamped);
+    setSlotsText(String(clamped));
+  };
 
   const [entryFee, setEntryFee] = useState('');
   const [prizePool, setPrizePool] = useState('');
@@ -142,7 +171,7 @@ export function CreateMatchScreen() {
       <button
         type="button"
         onClick={() => navigate('/matches')}
-        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> All matches
       </button>
@@ -163,12 +192,12 @@ export function CreateMatchScreen() {
           {/* ── Format ─────────────────────────────────────────────── */}
           <GlassCard flat className="p-4 sm:p-5">
             <h3 className="mb-3 flex items-center gap-2 text-[13px] font-black">
-              <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-300" /> Match format
+              <Sparkles className="h-4 w-4 text-amber-700 dark:text-amber-300" /> Match format
             </h3>
 
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Game mode">
-                <SelectField value={gameMode} onChange={(event) => setGameMode(event.target.value as GameMode)}>
+                <SelectField value={gameMode} onChange={(event) => changeGameMode(event.target.value as GameMode)}>
                   {MODES.map((mode) => (
                     <option key={mode} value={mode}>
                       {mode === 'BATTLE_ROYALE' ? 'Battle Royale' : 'Clash Squad'}
@@ -197,13 +226,44 @@ export function CreateMatchScreen() {
             </div>
 
             <div className="mt-3">
-              <Field label="Total slots" hint="Backend cap is 48 seats.">
-                <div className="flex flex-wrap gap-2">
-                  {SEAT_OPTIONS.map((seats) => (
-                    <Chip key={seats} active={totalSlots === seats} onClick={() => setTotalSlots(seats)}>
-                      {seats} seats
-                    </Chip>
-                  ))}
+              <Field
+                label="Players (slots)"
+                hint={
+                  slotsFixed
+                    ? `This mode is fixed at ${slotLimits.max} players.`
+                    : `Slide or type: ${slotLimits.min}–${slotLimits.max} players. One slot = one paying player.`
+                }
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={slotLimits.min}
+                    max={slotLimits.max}
+                    step={slotLimits.step}
+                    value={totalSlots}
+                    disabled={slotsFixed}
+                    onChange={(event) => applySlots(Number(event.target.value))}
+                    aria-label="Players / slots"
+                    className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-slate-300 accent-emerald-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/15"
+                  />
+                  <TextInput
+                    inputMode="numeric"
+                    value={slotsText}
+                    disabled={slotsFixed}
+                    aria-label="Players / slots (type a number)"
+                    className="w-20 text-center"
+                    onChange={(event) => {
+                      const raw = event.target.value.replace(/[^\d]/g, '').slice(0, 3);
+                      setSlotsText(raw);
+                      if (raw !== '') applySlots(Number(raw));
+                    }}
+                    onBlur={() => applySlots(totalSlots)}
+                  />
+                </div>
+                <div className="mt-1.5 flex justify-between text-[12.5px] font-semibold text-slate-600 dark:text-slate-400">
+                  <span>{slotLimits.min}</span>
+                  <span className="text-emerald-700 dark:text-emerald-300">{totalSlots} players</span>
+                  <span>{slotLimits.max}</span>
                 </div>
               </Field>
             </div>
@@ -259,7 +319,7 @@ export function CreateMatchScreen() {
             <h3 className="mb-1 flex items-center gap-2 text-[13px] font-black">
               <Clock className="h-4 w-4 text-cyan-700 dark:text-cyan-300" /> Match schedule (IST)
             </h3>
-            <p className="mb-3 text-[11px] text-slate-500">
+            <p className="mb-3 text-[12.5px] text-slate-600 dark:text-slate-400">
               Always India Standard Time with a 12-hour AM/PM picker — the browser time zone is ignored.
             </p>
 
@@ -280,7 +340,7 @@ export function CreateMatchScreen() {
                       </option>
                     ))}
                   </SelectField>
-                  <span className="text-slate-500">:</span>
+                  <span className="text-slate-600 dark:text-slate-400">:</span>
                   <SelectField
                     aria-label="Minute"
                     value={schedule.minute}
@@ -299,7 +359,7 @@ export function CreateMatchScreen() {
                         type="button"
                         onClick={() => setMeridiem(meridiem)}
                         className={cx(
-                          'h-11 px-2.5 text-[11px] font-black transition-colors sm:h-10',
+                          'h-11 px-2.5 text-[12.5px] font-black transition-colors sm:h-10',
                           schedule.meridiem === meridiem
                             ? 'bg-[#FFD000] text-slate-950'
                             : 'bg-transparent text-slate-400 hover:text-slate-950 dark:hover:text-white'
@@ -314,7 +374,7 @@ export function CreateMatchScreen() {
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Quick schedule:</span>
+              <span className="text-[11.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Quick schedule:</span>
               {QUICK_HOURS.map((hours) => (
                 <Chip key={hours} onClick={() => applyQuickHours(hours)}>
                   +{hours}h
@@ -328,10 +388,10 @@ export function CreateMatchScreen() {
                 matchInFuture ? 'border-[#FFD000]/30 bg-[#FFD000]/[0.06]' : 'border-rose-400/40 bg-rose-500/10'
               )}
             >
-              <p className={cx('text-[12px] font-black', matchInFuture ? 'text-amber-600 dark:text-amber-300' : 'text-rose-600 dark:text-rose-300')}>
+              <p className={cx('text-[12px] font-black', matchInFuture ? 'text-amber-700 dark:text-amber-300' : 'text-rose-600 dark:text-rose-300')}>
                 ⏰ Match starts: {draftPreview(schedule)} IST
               </p>
-              <p className={cx('mt-0.5 text-[11px]', matchInFuture ? 'text-slate-400' : 'text-rose-600 dark:text-rose-300')}>
+              <p className={cx('mt-0.5 text-[12.5px]', matchInFuture ? 'text-slate-400' : 'text-rose-600 dark:text-rose-300')}>
                 {matchInFuture
                   ? `Starts in about ${formatCountdown(matchIso)} (IST).`
                   : '❌ Match time must be in the future.'}
@@ -344,7 +404,7 @@ export function CreateMatchScreen() {
             <h3 className="mb-1 flex items-center gap-2 text-[13px] font-black">
               <Eye className="h-4 w-4 text-cyan-700 dark:text-cyan-300" /> Player list visibility
             </h3>
-            <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
+            <p className="mb-3 text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-400">
               You decide when players can see this match in their list. Tip: a match 12 hours away with a
               10-hour window stays hidden until 10 hours remain. Players who already joined always keep
               seeing their match.
@@ -391,7 +451,7 @@ export function CreateMatchScreen() {
                     <p className="text-[12px] font-black text-cyan-800 dark:text-cyan-200">
                       👁 Players see this match from: {formatIST(visibleFromIso)}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">
+                    <p className="mt-0.5 text-[12.5px] text-slate-400">
                       {windowAlreadyOpen
                         ? 'This window has already opened — the match will be visible immediately.'
                         : `Hidden until then • ${formatCountdown(visibleFromIso)} from now (${parsedVisibilityHours} hours before kickoff).`}
@@ -400,7 +460,7 @@ export function CreateMatchScreen() {
                 )}
               </div>
             ) : (
-              <p className="mt-3 text-[12px] font-semibold text-amber-600 dark:text-amber-300">
+              <p className="mt-3 text-[12px] font-semibold text-amber-700 dark:text-amber-300">
                 👁 Players can see this match in their list right after it is created.
               </p>
             )}
@@ -434,37 +494,37 @@ export function CreateMatchScreen() {
         {/* ── Live preview ────────────────────────────────────────── */}
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <GlassCard flat className="p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-600 dark:text-amber-300">Preview</p>
+            <p className="text-[11.5px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">Preview</p>
             <p className="mt-1 text-[15px] font-black">{mapType.charAt(0) + mapType.slice(1).toLowerCase()} {matchType}</p>
-            <p className="text-[11px] text-slate-500">Match number assigned on save</p>
+            <p className="text-[12.5px] text-slate-600 dark:text-slate-400">Match number assigned on save</p>
 
             <dl className="mt-3 space-y-2 text-[12px]">
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Kickoff</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Kickoff</dt>
                 <dd className="text-right font-bold">{draftPreview(schedule)} IST</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Countdown</dt>
-                <dd className="font-bold text-amber-600 dark:text-amber-300">{matchInFuture ? formatCountdown(matchIso) : '—'}</dd>
+                <dt className="text-slate-600 dark:text-slate-400">Countdown</dt>
+                <dd className="font-bold text-amber-700 dark:text-amber-300">{matchInFuture ? formatCountdown(matchIso) : '—'}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Entry</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Entry</dt>
                 <dd className="font-bold">₹{fee || 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Prize pool</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Prize pool</dt>
                 <dd className="font-bold">₹{pool || 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Per kill</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Per kill</dt>
                 <dd className="font-bold">₹{perKill ?? 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Seats</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Seats</dt>
                 <dd className="font-bold">{totalSlots}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Player list</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Player list</dt>
                 <dd className="text-right font-bold">
                   {visibilityMode === 'ALWAYS' ? 'Always visible' : `Last ${visibilityHoursText || 0}h`}
                 </dd>

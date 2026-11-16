@@ -51,7 +51,7 @@
 ### 🔹 Stage 5: Verification
 - [x] `npm run build` — 0 errors.
 - [x] `npm test` — **326/326 pass** (targeted accessKey 18/18, authFlows 17/17).
-- [x] Supabase live check: `StaffAccessKey` + `AdminAuditLog` tables present,
+- [x] Live DB check: `StaffAccessKey` + `AdminAuditLog` tables present,
       `EmailOtp` has `codeHash/attempts/usedAt`, owner row `deadesports99@gmail.com`.
 - [x] Master phase table updated.
 

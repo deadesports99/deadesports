@@ -28,17 +28,22 @@ First-time DB setup:
 ```bash
 cd backend
 docker compose -f docker-compose.dev.yml up -d
-npx prisma db push
+npx prisma migrate deploy   # 13 tables (baseline migration)
 npm run seed          # demo tenant, players, 2 matches
 npm run seed:owner    # deadesports99@gmail.com as ADMIN
 ```
+
+> **Schema change karne ke baad `prisma db push` mat use karo.**
+> Uske bajaye `npx prisma migrate dev --name describe_change` — isse migration file banti
+> hai jo git me jaati hai aur Supabase par clean deploy hoti hai. Details:
+> `docs/PRISMA-MIGRATIONS.md`.
 
 ## Tenant ids (bohot important)
 
 | DB | Tenant id |
 |---|---|
-| **Local Docker DB (current)** | `53a09545-e6e2-4cf5-a5c2-7ef18b276a52` |
-| Hosted Supabase (backup `.env.supabase.bak`) | `a3c11cd0-324e-4886-b27c-9667fd7f59dc` |
+| **Local Docker** (current) | `53a09545-e6e2-4cf5-a5c2-7ef18b276a52` |
+| **Production (Neon)** | `a3c11cd0-324e-4886-b27c-9667fd7f59dc` |
 
 Ye id in sab jagah same hona chahiye, warna login "Tenant not found" deta hai:
 
@@ -58,6 +63,12 @@ Ye id in sab jagah same hona chahiye, warna login "Tenant not found" deta hai:
 
 ## Android APK local build
 
+**Fast loop (recommended):** `START-DEV-CONSOLE.bat` → phone/laptop browser me
+`http://localhost:5199` → Player/Admin tap = build+install+launch, aur **Watcher ON**
+kar do to file save = phone me APK khud install. Details: `docs/DEV-CONSOLE.md`.
+
+Manual:
+
 ```bash
 adb reverse tcp:5000 tcp:5000          # USB connected device → laptop's backend
 cd android
@@ -72,22 +83,21 @@ cd android
   (Gradle release me localhost accept nahi karta).
 - Client config badalne ke baad **APK dobara build + install** karna zaroori hai.
 
-## Purana Supabase DB (sirf data recovery ke liye)
+## Database: Postgres (local Docker ya Neon)
 
-The app ka Supabase par **koi runtime dependency nahi** hai (2026-11-14 se):
-na `@supabase/supabase-js`, na Supabase SDK, na hosted DB connection — local Docker
-Postgres source of truth hai aur Firebase delivery layer (mirror/feed/stats) hai.
-Sirf purana hosted data ek backup file me pada hai, agar kabhi recover karna ho:
+App ka kisi hosted BaaS par **koi runtime dependency nahi** hai — na Supabase SDK,
+na koi BaaS client. Sirf plain PostgreSQL:
 
-```bash
-cd backend
-cp .env.supabase.bak .env      # hosted Supabase ka DATABASE_URL
-# backend restart
-```
+| Environment | DB |
+|---|---|
+| **Local dev** | Docker Postgres `localhost:5433` (`backend/docker-compose.dev.yml`) |
+| **Production** | **Neon Postgres** — setup: `docs/DEPLOY_RENDER.md` §4 |
 
-Phir tenant id `a3c11cd0-...` kar do chaaron jagah (admin-web, player-web, dono APK config)
-warna login "Tenant not found" dega. Aam taur par iski zaroorat nahi — local DB me poora
-demo data hai.
+`DATABASE_URL` badalne ke alawa kuch nahi karna. Neon ke liye `?sslmode=require`
+zaroori hai; Prisma schema, queries aur migrations dono par bilkul same chalte hain.
+
+> Purana hosted DB (Supabase) repo se **poori tarah hata diya gaya** (2026-11-16).
+> Na koi SDK, na connection string, na backup file. Sirf plain PostgreSQL bacha hai.
 
 ## Local DB functions (ek baar)
 

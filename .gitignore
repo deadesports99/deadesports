@@ -55,6 +55,8 @@ video_page.html
 dev-server.pid
 tmp_uitest/
 tmp_screens/
+tmp_emu/
+*.bak-hermes
 {
 backend/scripts_join_after_publish.mts
 

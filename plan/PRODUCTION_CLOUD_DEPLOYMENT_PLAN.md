@@ -1,7 +1,7 @@
 # 🌐 Master Plan: Production Cloud Deployment & Live Android URL Switch
 
 > **Target Goal:** Transition the Free Fire Tournament SaaS Backend from local laptop execution (`http://localhost:5000` via USB ADB reverse) to a 24/7 Live Cloud Server with Custom Domain, SSL/TLS encryption, production Redis, and update Android Apps (`:app-player` & `:app-admin`) to connect over the live internet without USB cables.  
-> **Target Environment:** Cloud Platform (Render / Railway / VPS / Cloud Run) + Supabase (London) + Upstash/Railway Redis + Custom Domain (`api.yourbrand.com`).  
+> **Target Environment:** Cloud Platform (Render / Railway / VPS / Cloud Run) + Neon Postgres + Upstash/Railway Redis + Custom Domain (`api.yourbrand.com`).  
 > **Target Status:** 🏗️ READY FOR EXECUTION (Prompt generated for Astra 6 / Reasoning LLM).  
 > **Author:** Antigravity Architect  
 
@@ -28,7 +28,7 @@ flowchart TD
     end
 
     subgraph ManagedDataStore["🗄️ Production Data & State"]
-        SUPABASE["🐘 Supabase PostgreSQL (London AWS)<br>Pooler: Port 6543 (PgBouncer) + Direct 5432<br>Double-Entry Ledger + Multi-Tenant Isolation"]
+        NEON["🐘 Neon PostgreSQL<br>Serverless Postgres, ?sslmode=require<br>Double-Entry Ledger + Multi-Tenant Isolation"]
         REDIS["⚡ Production Redis (Upstash / Railway)<br>Atomic Slot Mutex Lock (0 duplicate seats)"]
     end
 
@@ -38,7 +38,7 @@ flowchart TD
     SSL --> DOCKER
     DOCKER --> API
     API --> SWEEP
-    API --> SUPABASE
+    API --> NEON
     API --> REDIS
 ```
 
@@ -73,9 +73,9 @@ flowchart TD
 ---
 
 ### 🔹 Stage 2: Database & Redis Cloud Hardening
-- [ ] **2.1 Supabase Connection Optimization:**
-  - Ensure `DATABASE_URL` connects via Supabase Connection Pooler (`pooler.supabase.com:6543`) with `?pgbouncer=true&connection_limit=10`.
-  - Maintain `withoutSslMode()` in `src/config/prisma.ts` so `pg` doesn't reject Supabase's managed self-signed CA.
+- [ ] **2.1 Neon Connection Optimization:**
+  - Ensure `DATABASE_URL` points at Neon with `?sslmode=require` (direct host, or the `-pooler` host on bigger plans).
+  - Keep the pool bounded (`connection_limit=10`); Neon free tier suspend after ~5 min idle.
 - [ ] **2.2 Production Redis Setup:**
   - Create free serverless Redis on **Upstash** (upstash.com) or deploy managed Redis on Railway/Docker.
   - Set `REDIS_URL=rediss://default:PASSWORD@ENDPOINT.upstash.io:6379`.
@@ -87,7 +87,7 @@ flowchart TD
 - [ ] **3.1 Environment Variables Configuration:**
   - `PORT=5000` (or dynamically mapped by cloud provider).
   - `NODE_ENV=production`.
-  - `DATABASE_URL=postgresql://postgres.zupnlhdtfirufmlurkef:...@aws-0-eu-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true`.
+  - `DATABASE_URL=postgresql://neondb_owner:...@ep-xxx.<region>.aws.neon.tech/neondb?sslmode=require`.
   - `REDIS_URL=rediss://...`.
   - `JWT_SECRET=super_secret_production_key_32_chars_long`.
   - `JWT_EXPIRES_IN=7d`.

@@ -6,7 +6,7 @@
 > database, **their own** Firebase project and **their own** UPI ID.
 >
 > **Zero data liability:** we never store the client's money, player data or match data.
-> Everything lives in the client's Supabase/Firebase account after handover.
+> Everything lives in the client's Neon/Firebase account after handover.
 
 ---
 
@@ -18,7 +18,7 @@
 | `Admin.apk` | Owner + staff app: create matches, publish room ID, spectator scorer (kills/ranks/hacker flags + 1-click payout), deposits (UTR) & withdrawals approvals, staff hiring with granular permissions |
 | `backend/` | Node.js + Express + TypeScript + Prisma + Redis API (multi-tenant, double-entry wallet ledger, FCM push, auto match-lifecycle sweep) |
 | `clients/<slug>/` + `package_client.bat` | 10-minute re-branding: name, colors, package id, tenant, UPI, icon → two fresh APKs |
-| This manual | Supabase/Firebase setup, Play Store compliance, ops runbook |
+| This manual | Neon/Firebase setup, Play Store compliance, ops runbook |
 
 **Panels:** Owner (Admin) → Staff (Sub-Admin with 4 permission flags) → Player.
 **Money flow:** Player pays the client's UPI → submits 12-digit UTR → staff approves → deposit balance → joins match → spectator verifies → prize to winning balance → withdrawal request → staff pays UPI.
@@ -53,16 +53,16 @@ Free Fire turnament/
 | JDK | 17 | `java -version` |
 | Android SDK | compileSdk 36 + build-tools | Android Studio / `local.properties` with `sdk.dir` |
 | Git | any | `git --version` |
-| Supabase account | free tier OK | supabase.com |
+| Neon account | free tier OK | neon.com |
 | Redis | Upstash free tier (cloud) or local Docker | — |
 | Firebase account | free (optional, for push) | console.firebase.google.com |
 
 ---
 
-## 4. Part A — Client's Supabase + backend (≈ 10 minutes)
+## 4. Part A — Client's Neon Postgres + backend (≈ 10 minutes)
 
 ### A1. Create the client's PostgreSQL
-1. supabase.com → **New project** (region: Mumbai/Singapore for Indian clients).
+1. neon.com → **New project** (region: Mumbai/Singapore for Indian clients).
 2. **Project Settings → Database → Connection string → URI** (Session pooler).
 3. Keep the password safe — this is the client's DB password.
 
@@ -76,7 +76,7 @@ Fill `backend/.env`:
 ```ini
 PORT=5000
 NODE_ENV=production
-DATABASE_URL="postgresql://postgres.<ref>:<PASSWORD>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+DATABASE_URL="postgresql://neondb_owner:<PASSWORD>@ep-xxx.<region>.aws.neon.tech/neondb?sslmode=require"
 REDIS_URL="rediss://default:<PASSWORD>@<region>.upstash.io:6379"
 JWT_SECRET="<64 random characters - generate once, never share>"
 JWT_EXPIRES_IN=7d
@@ -86,7 +86,7 @@ FCM_CREDENTIALS_JSON='{"type":"service_account", ... }'
 ```
 
 > `DATABASE_URL` needs `sslmode=require` — the code strips that flag for the
-> driver but keeps TLS on, so Supabase pooler works out of the box.
+> driver but keeps TLS on, so managed Postgres (Neon) works out of the box.
 
 ### A3. Create the tables + first owner account
 ```bat
@@ -97,7 +97,7 @@ npx prisma db push
 npm run seed        # optional demo tenant (Apex Free Fire Club) + test players
 ```
 `seed` prints the demo tenant id and login phone numbers. For a **real** client,
-create the tenant row (Supabase SQL editor) and the owner user:
+create the tenant row (Neon SQL editor or `psql`) and the owner user:
 
 ```sql
 INSERT INTO "Tenant" (id, subdomain, "brandName", "primaryColor", "commissionRate", "upiId", "isActive", "createdAt")
@@ -252,7 +252,7 @@ Players cannot upload screenshots anywhere in the Player app (anti-fraud by desi
 | **Repetitive content / spam policy** | Each client gets a **unique package id**, name, icon, colors and **their own backend/tenant**. Never publish two brands with the same package id or identical listing text. |
 | **Real-money / gambling** | The platform is an **entry-fee skill contest** (esports), not a game of chance. Show entry fee + prize pool clearly before joining; keep the "skill" framing in the listing; no "bet/win cash" language. Check your state's local rules with the client (some Indian states restrict paid-entry gaming). |
 | **Payments** | Money moves **directly between the player and the client's UPI ID**. Never route it through our account (zero data/financial liability). UTR approval is a manual verification step. |
-| **Data safety form** | Declare: phone number, name, Free Fire IGN/UID, wallet transaction history, device id (fraud signal), optional FCM token. Data is stored in the client's own Supabase. |
+| **Data safety form** | Declare: phone number, name, Free Fire IGN/UID, wallet transaction history, device id (fraud signal), optional FCM token. Data is stored in the client's own database. |
 | **Account deletion** | Google requires an in-app or web deletion path. Client must provide a support contact (`support_whatsapp` in the config is shown in the player wallet) and delete/anonymise on request. |
 | **Target API level** | `compileSdk/targetSdk 36`, `minSdk 24` — meets current Play requirements. |
 | **Permissions** | INTERNET + POST_NOTIFICATIONS only. No location, contacts or file access. |
@@ -269,7 +269,7 @@ Players cannot upload screenshots anywhere in the Player app (anti-fraud by desi
 
 ## 9. Zero data liability — what you must NOT keep
 
-- ❌ Client's Supabase password / connection string (theirs, in their own `.env`).
+- ❌ Client's database password / connection string (theirs, in their own `.env`).
 - ❌ Client's Firebase service account JSON (theirs).
 - ❌ Player money — never in our UPI/bank account.
 - ❌ Copies of the player database after handover.

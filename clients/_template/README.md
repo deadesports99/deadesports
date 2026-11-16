@@ -38,7 +38,7 @@ dist/alpha_esports/build-info.json
 | `theme.*` | ✅ | `primary_color` is a `#RRGGBB` hex; `corner_radius_dp` 4 = sharp, 12 = rounded, 999 = pill |
 | `backend.api_base_url` | ✅ | Must end with `/api/v1` |
 | `backend.tenant_id` | ✅ | The client's tenant UUID from their database (`Tenant.id`) |
-| `backend.supabase_url` / `supabase_anon_key` | – | Only needed if the client later adds direct storage reads |
+| `backend.api_base_url` / `firebase_project_id` | – | Neon/Postgres + Firebase config for this client |
 | `payments.upi_id` | ✅ | **The client's own** UPI ID — money never touches our account |
 | `payments.upi_name` | ✅ | Payee name shown inside GPay/PhonePe |
 | `payments.min_deposit` | – | Defaults `10` |

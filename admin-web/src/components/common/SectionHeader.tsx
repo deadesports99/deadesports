@@ -20,7 +20,7 @@ export function SectionHeader({ title, subtitle, action, className, eyebrow }: S
         {eyebrow && (
           <p
             className={cx(
-              'mb-1 text-[10px] font-black uppercase tracking-[0.18em]',
+              'mb-1 text-[11.5px] font-black uppercase tracking-[0.18em]',
               isDark ? 'text-cyan-400/80' : 'text-cyan-700'
             )}
           >
@@ -36,7 +36,7 @@ export function SectionHeader({ title, subtitle, action, className, eyebrow }: S
           {title}
         </h2>
         {subtitle && (
-          <p className={cx('mt-0.5 text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          <p className={cx('mt-0.5 text-xs', isDark ? 'text-slate-400' : 'text-slate-600')}>
             {subtitle}
           </p>
         )}

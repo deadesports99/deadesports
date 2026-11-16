@@ -16,7 +16,7 @@ const createTournamentSchema = z.object({
   prizePool: z.coerce.number().nonnegative('prizePool cannot be negative'),
   perKillPrize: z.coerce.number().nonnegative('perKillPrize cannot be negative').optional(),
   matchTime: z.coerce.date({ error: 'matchTime must be a valid ISO date' }),
-  totalSlots: z.coerce.number().int().min(1).max(48).optional(),
+  totalSlots: z.coerce.number().int().min(2).max(52).optional(),
   /** null/omitted = list immediately; N = hide from players until N hours before start. */
   visibilityHours: z
     .number({ error: 'visibilityHours must be a number or null' })
@@ -48,7 +48,7 @@ const listQuerySchema = z.object({
 });
 
 const joinSchema = z.object({
-  slotNumber: z.coerce.number().int().min(1, 'slotNumber must be 1-48').max(48, 'slotNumber must be 1-48').optional(),
+  slotNumber: z.coerce.number().int().min(1, 'slotNumber must be 1-52').max(52, 'slotNumber must be 1-52').optional(),
   teamCode: z
     .string()
     .trim()
@@ -89,6 +89,18 @@ const visibilitySchema = z.object({
 });
 
 // ─── Handlers ────────────────────────────────────────────────────────────
+
+/**
+ * Free Fire custom-room seat windows — the single source of truth for the
+ * admin slider/stepper on web and Android. Seats are per PLAYER (every player
+ * pays their own entry fee).
+ */
+export function getSlotLimits(_req: Request, res: Response): void {
+  sendResponse(res, 200, 'Slot limits fetched', {
+    modes: tournamentService.SLOT_LIMITS,
+    note: 'One seat = one paying player. Battle Royale 20-52, Clash Squad 2-52 (admin decides the slot count).',
+  });
+}
 
 export async function createTournament(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

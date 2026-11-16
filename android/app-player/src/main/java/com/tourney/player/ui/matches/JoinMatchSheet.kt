@@ -139,6 +139,14 @@ fun JoinMatchSheet(
     val canAfford = balance >= tournament.entryFeeValue
     val identityOk = ignOk && uidOk
 
+    // A first-time player has no saved identity, so the fields start empty and
+    // the CTA is locked until both are typed. Say why: a greyed-out button with
+    // no reason reads as a broken app, and the placeholder text used to look
+    // like a value that was already filled in.
+    val needIgn = effectiveIgn.isBlank()
+    val needUid = effectiveUid.isBlank()
+    val identityBlocked = !identityOk
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -325,7 +333,7 @@ fun JoinMatchSheet(
                             DemoCompactField(
                                 value = ign,
                                 onValueChange = { ign = it.take(30) },
-                                placeholder = "SpartanOP",
+                                placeholder = "Your in-game name",
                                 enabled = !joined && !joining,
                                 isError = ign.isNotEmpty() && !ignOk,
                                 height = 32.dp,
@@ -348,11 +356,20 @@ fun JoinMatchSheet(
                             )
                         }
                     }
-                    if (!identityOk && (ign.isNotEmpty() || uid.isNotEmpty())) {
+                    // Always explain a blocked join, typing or not.
+                    if (!identityOk && !joined) {
+                        val hint = when {
+                            needIgn && needUid -> "Enter your Free Fire IGN and UID to join."
+                            needIgn -> "Enter your in-game name (2-30 characters)."
+                            needUid -> "Enter your 6-12 digit Free Fire UID."
+                            else -> "IGN must be 2-30 characters and UID 6-12 digits."
+                        }
                         Text(
-                            "IGN 2-30 characters • UID 6-12 digits",
+                            hint,
                             fontSize = DemoText.Micro,
-                            color = DemoColors.TextFaint,
+                            fontWeight = FontWeight.Bold,
+                            color = if (needIgn || needUid) DemoColors.Gold else DemoColors.Danger,
+                            lineHeight = 12.sp,
                             modifier = Modifier.padding(top = 4.dp),
                         )
                     }
@@ -489,6 +506,7 @@ fun JoinMatchSheet(
                     slotFull -> "Slot Full"
                     entryClosed -> "Entry closed — joining stops 1 min before start"
                     joining -> "Booking your slot..."
+                    identityBlocked -> "Enter IGN & UID to join"
                     canAfford -> "Confirm & Join Slot"
                     else -> "Add Cash to Join"
                 },

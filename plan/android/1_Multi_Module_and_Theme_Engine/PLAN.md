@@ -12,7 +12,7 @@
 
 ### 🔹 Stage 1: Multi-Module Project Architecture & Gradle Configuration
 - [x] **1.1 Root `settings.gradle.kts`:** Include `:app-player`, `:app-admin`, and `:core` with centralized dependency resolution management (Google + MavenCentral via version catalog `gradle/libs.versions.toml`).
-- [x] **1.2 Root `build.gradle.kts`:** AGP 8.10.1 + Kotlin 2.1.20 + Compose Compiler plugin declared (apply false per module). Google-Services plugin reserved for Supabase/Firebase Phase 2 (not yet needed).
+- [x] **1.2 Root `build.gradle.kts`:** AGP 8.10.1 + Kotlin 2.1.20 + Compose Compiler plugin declared (apply false per module). Google-Services plugin reserved for Firebase Phase 2 (not yet needed).
 - [x] **1.3 Shared `:core/build.gradle.kts`:**
   - Android library, compileSdk 36 / minSdk 24 / Java 17.
   - Jetpack Compose Material 3 (BOM 2024.12.01), Foundation, UI, Tooling.
@@ -26,7 +26,7 @@
 ---
 
 ### 🔹 Stage 2: Centralized White-Label Design System & Tokens (`:core`)
-- [x] **2.1 `client_config.json` Specification:** packaged in BOTH apps — `client_name`, `application_id`, `app_name`, `primary_color`, `button_color`, `accent_color`, `corner_radius_dp` (4 Sharp / 12 Rounded / 999 Pill), `font_style`, `enable_dark_mode`, `api_base_url`, `supabase_url`, `supabase_anon_key`.
+- [x] **2.1 `client_config.json` Specification:** packaged in BOTH apps — `client_name`, `application_id`, `app_name`, `primary_color`, `button_color`, `accent_color`, `corner_radius_dp` (4 Sharp / 12 Rounded / 999 Pill), `font_style`, `enable_dark_mode`, `api_base_url`, `tenant_id`.
 - [x] **2.2 `ClientConfig.kt` Parser:** `ClientConfig.load(context)` reads asset with org.json, `DEFAULT` fallback (Thunder eSports, #FF5722, 12dp).
 - [x] **2.3 Dynamic Theme & Color Tokens (`Theme.kt`):** dynamic Material 3 `ColorScheme` from client hexes; OLED Deep-Dark + Light schemes honouring `enableDarkMode`; `CompositionLocal`s `LocalClientConfig` / `LocalCardShape` / `LocalButtonShape`. (Color tokens live in Theme.kt; a separate Color.kt not required.)
 - [x] **2.4 Shape & Typography Hierarchy:** corner radius mapping (Sharp/Rounded/Pill) to card+button shapes; typography mapping (rajdhani/orbitron/poppins/inter) → SansSerif stub until Google Fonts land in Android Phase 2.

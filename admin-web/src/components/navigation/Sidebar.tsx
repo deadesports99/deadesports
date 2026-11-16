@@ -34,7 +34,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
             <p className={cx('truncate font-display text-sm font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>
               Spartan Arena
             </p>
-            <p className={cx('text-[10px] font-bold uppercase tracking-[0.18em]', isDark ? 'text-slate-500' : 'text-slate-500')}>
+            <p className={cx('text-[11.5px] font-bold uppercase tracking-[0.18em]', isDark ? 'text-slate-400' : 'text-slate-600')}>
               Admin Console
             </p>
           </div>
@@ -63,7 +63,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
           return (
             <div key={group.id} className="mb-4 last:mb-0">
               {!collapsed && (
-                <p className={cx('mb-1.5 px-2.5 text-[9px] font-black uppercase tracking-[0.2em]', isDark ? 'text-slate-600' : 'text-slate-400')}>
+                <p className={cx('mb-1.5 px-2.5 text-[11px] font-black uppercase tracking-[0.2em]', 'text-slate-400')}>
                   {group.label}
                 </p>
               )}
@@ -105,9 +105,9 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
                               {phase && (
                                 <span
                                   className={cx(
-                                    'ml-auto rounded-md border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider',
+                                    'ml-auto rounded-md border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider',
                                     isDark
-                                      ? 'border-white/10 text-slate-500'
+                                      ? 'border-white/10 text-slate-600 dark:text-slate-400'
                                       : 'border-slate-200 text-slate-400'
                                   )}
                                 >
@@ -132,7 +132,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
         <div className={cx('flex items-center gap-2.5', collapsed && 'justify-center')}>
           <div
             className={cx(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-[11px] font-black',
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-[12.5px] font-black',
               isDark
                 ? 'border-white/10 bg-white/[0.05] text-slate-200'
                 : 'border-slate-200 bg-slate-100 text-slate-700'
@@ -146,7 +146,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
               <p className={cx('truncate text-[12px] font-black', isDark ? 'text-white' : 'text-slate-950')}>
                 {user?.name ?? 'Admin'}
               </p>
-              <p className={cx('truncate text-[10px]', isDark ? 'text-slate-500' : 'text-slate-500')}>
+              <p className={cx('truncate text-[11.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
                 {user?.email ?? user?.phoneNumber ?? ''}
               </p>
             </div>
@@ -162,7 +162,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
             onClick={onLogout}
             title="Sign out"
             className={cx(
-              'flex h-9 items-center justify-center gap-1.5 rounded-xl border text-[11px] font-bold transition-all active:scale-95',
+              'flex h-9 items-center justify-center gap-1.5 rounded-xl border text-[12.5px] font-bold transition-all active:scale-95',
               collapsed ? 'w-8' : 'flex-1 px-2.5',
               isDark
                 ? 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-rose-400/40 hover:text-rose-300'
