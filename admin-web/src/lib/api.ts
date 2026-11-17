@@ -17,6 +17,8 @@ import type {
   WatchlistSummary,
   MatchRoomCredentials,
   MatchRoster,
+  ManageBoard,
+  ManageMatchListResult,
   Paged,
   PayoutAwardInput,
   PayoutAwardsResult,
@@ -480,6 +482,66 @@ async function downloadFile(path: string, filename: string): Promise<void> {
   URL.revokeObjectURL(objectUrl);
 }
 
+
+/**
+ * Manage Matches — the one-screen control room. Every call returns the whole
+ * board so the page never has to guess what changed.
+ */
+export const manage = {
+  list: (filter: 'live' | 'upcoming' | 'all' | 'closed' = 'all', q?: string) => {
+    const params = new URLSearchParams({ filter });
+    if (q?.trim()) params.set('q', q.trim());
+    return request<ManageMatchListResult>(`/admin/matches/manage?${params.toString()}`);
+  },
+
+  board: (matchId: string) => request<ManageBoard>(`/admin/matches/${matchId}/live-board`),
+
+  setKills: (matchId: string, userId: string, kills: number) =>
+    request<ManageBoard>(`/admin/matches/${matchId}/participants/${userId}/kills`, {
+      method: 'PATCH',
+      body: JSON.stringify({ kills }),
+    }),
+
+  setDone: (matchId: string, userId: string, done: boolean) =>
+    request<ManageBoard>(`/admin/matches/${matchId}/participants/${userId}/done`, {
+      method: 'POST',
+      body: JSON.stringify({ done }),
+    }),
+
+  refund: (matchId: string, userId: string, reason?: string) =>
+    request<ManageBoard>(`/admin/matches/${matchId}/participants/${userId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason?.trim() || undefined }),
+    }),
+
+  ban: (matchId: string, userId: string, isBanned: boolean, reason?: string) =>
+    request<unknown>(`/admin/matches/${matchId}/participants/${userId}/ban`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isBanned, reason: reason?.trim() || undefined }),
+    }),
+
+  publishRoom: (matchId: string, roomId: string, roomPassword: string) =>
+    request<MatchRoomCredentials>(`/tournaments/${matchId}/room`, {
+      method: 'PATCH',
+      body: JSON.stringify({ roomId, roomPassword }),
+    }),
+
+  goLive: (matchId: string) =>
+    request<AdminTournament>(`/tournaments/${matchId}/go-live`, { method: 'PATCH' }),
+
+  cancel: (matchId: string, reason: string) =>
+    request<CancelMatchResult>(`/tournaments/${matchId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  payout: (matchId: string, awards: PayoutAwardInput[], completeMatch = true) =>
+    request<PayoutAwardsResult>(`/admin/matches/${matchId}/payout`, {
+      method: 'POST',
+      body: JSON.stringify({ awards, completeMatch }),
+    }),
+};
+
 export const api = {
   auth,
   matches,
@@ -487,6 +549,7 @@ export const api = {
   players,
   accessKeys,
   settings,
+  manage,
   tenantId: TENANT_ID,
   baseUrl: API_BASE,
 };

@@ -18,7 +18,7 @@ import { tournamentRouter } from './routes/tournament.routes.js';
 import { tenantRouter, adminTenantRouter } from './routes/tenant.routes.js';
 import { playerRouter } from './routes/player.routes.js';
 import { adminPlayerRouter } from './routes/adminPlayer.routes.js';
-import { adminMatchRouter } from './routes/adminMatch.routes.js';
+import { adminMatchControlRouter, adminMatchRouter } from './routes/adminMatch.routes.js';
 import { paymentConfig } from './config/payment.js';
 import { paymentRouter } from './routes/payment.routes.js';
 import { walletRouter } from './routes/wallet.routes.js';
@@ -192,6 +192,8 @@ app.use('/api/v1/admin/players', adminPlayerRouter);
 app.use('/api/v1/admin/access', adminAccessRouter);
 
 // Phase 12 — match roster: participants, per-player rewards, cheat flags, bans
+// Control room first: `/manage` and the live board must win over `/:id`.
+app.use('/api/v1/admin/matches', adminMatchControlRouter);
 app.use('/api/v1/admin/matches', adminMatchRouter);
 
 // Online wallet top-up (Razorpay / mock) — order, verify, webhook, demo.

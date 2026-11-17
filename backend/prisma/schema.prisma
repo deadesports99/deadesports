@@ -23,10 +23,8 @@ model Tenant {
   supportWhatsapp String? // Digits only, e.g. "919999900001"
   minDeposit      Int     @default(10)
   allowPhoneAuth  Boolean @default(true)
-
-  allowGoogleAuth Boolean  @default(true)
-  allowEmailAuth  Boolean  @default(true)
-  isActive        Boolean  @default(true)
+  allowGoogleAuth Boolean @default(true)
+  isActive        Boolean @default(true)
   createdAt       DateTime @default(now())
 
   users         User[]
@@ -211,6 +209,13 @@ model TournamentSlot {
   banReason String?
   bannedAt  DateTime?
   bannedBy  String? // admin/staff user id who applied it
+
+  // Live scoring, driven from the admin control room. `liveKills` is the only
+  // number the final payout reads, and it is capped at seats - 1 there, so a
+  // half-scored match can never promise money the pool does not hold.
+  liveKills    Int       @default(0)
+  isEliminated Boolean   @default(false)
+  eliminatedAt DateTime?
 
   @@unique([tournamentId, slotNumber])
   @@unique([tournamentId, userId])

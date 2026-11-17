@@ -506,7 +506,7 @@ export async function payoutMatchAwards(
               referenceId: tournamentId,
               notes:
                 award.note ||
-                `Prize — rank ${rank ?? '-'} + ${kills} kill(s) for match ${tournament.matchNumber ?? '-'}`,
+                `Prize: ${kills} kill(s) x ₹${perKill} = ₹${prize} — match ${tournament.matchNumber ?? '-'}`,
             },
           });
         }

@@ -554,7 +554,6 @@ export interface TenantSettings {
   commissionRate: number;
   allowPhoneAuth: boolean;
   allowGoogleAuth: boolean;
-  allowEmailAuth: boolean;
 }
 
 /** Everything the "Today's work" strip needs, loaded in parallel. */
@@ -577,4 +576,58 @@ export interface ToastMessage {
   id: number;
   type: 'success' | 'error';
   text: string;
+}
+
+// ── Manage Matches (control room) ───────────────────────────────────────
+
+/** One row in the control room list. Counts are live, not cached. */
+export interface ManageMatchRow {
+  id: string;
+  matchNumber: number | null;
+  title: string;
+  gameMode: string;
+  matchType: string;
+  mapType: string;
+  status: string;
+  entryFee: number;
+  perKillPrize: number;
+  prizePool: number;
+  totalSlots: number;
+  joined: number;
+  banned: number;
+  totalKills: number;
+  finished: number;
+  matchTime: string;
+  roomId: string | null;
+  roomPassword: string | null;
+  roomPublished: boolean;
+}
+
+export interface ManageMatchListResult {
+  matches: ManageMatchRow[];
+  counts: { live: number; upcoming: number; closed: number; all: number };
+}
+
+/** One player on the live scoreboard. `kills` is the only payout input. */
+export interface ManageBoardPlayer {
+  userId: string;
+  slotNumber: number;
+  ign: string;
+  freeFireUid: string;
+  phoneNumber: string | null;
+  kills: number;
+  isEliminated: boolean;
+  isBanned: boolean;
+  banReason: string | null;
+  joinedAt: string;
+  paid: number;
+}
+
+export interface ManageBoard {
+  match: ManageMatchRow;
+  players: ManageBoardPlayer[];
+  aliveCount: number;
+  totalKills: number;
+  maxKills: number;
+  payoutPreview: number;
 }

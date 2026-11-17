@@ -11,7 +11,9 @@ export type RealtimeEventType =
   | 'WALLET_UPDATED'
   | 'ROOM_CREDENTIALS_REVEALED'
   | 'DEPOSIT_APPROVED'
-  | 'PRIZE_WON';
+  | 'PRIZE_WON'
+  /** Live control room touched the scoreboard: kills or Done changed. */
+  | 'LIVE_BOARD_UPDATED';
 
 export interface RealtimeMessage {
   type: RealtimeEventType;

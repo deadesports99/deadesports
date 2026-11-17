@@ -9,6 +9,7 @@ import { AppShell } from './components/navigation/AppShell';
 import { AdminLoginScreen } from './screens/auth/AdminLoginScreen';
 import { DashboardScreen } from './screens/dashboard/DashboardScreen';
 import { MatchesScreen } from './screens/matches/MatchesScreen';
+import { ManageMatchesScreen } from './screens/manage/ManageMatchesScreen';
 import { CreateMatchScreen } from './screens/matches/CreateMatchScreen';
 import { PublishRoomScreen } from './screens/matches/PublishRoomScreen';
 import { MatchControlScreen } from './screens/matches/MatchControlScreen';
@@ -35,11 +36,11 @@ function SplashScreen() {
       <Crest />
       <div className="text-center">
         <p className="font-spartan text-lg font-black tracking-tight">Spartan Arena</p>
-        <p className={cx('mt-1 text-[11.5px] font-bold uppercase tracking-[0.24em]', isDark ? 'text-amber-300' : 'text-amber-700')}>
+        <p className={cx('mt-1 text-[11.5px] font-bold uppercase tracking-[0.24em]', isDark ? 'text-amber-300' : 'text-amber-800')}>
           Admin Console
         </p>
       </div>
-      <Loader2 className={cx('h-5 w-5 animate-spin', 'text-slate-400')} />
+      <Loader2 className={cx('h-5 w-5 animate-spin', 'text-slate-600 dark:text-slate-400')} />
     </div>
   );
 }
@@ -57,6 +58,7 @@ function AppRoutes() {
 
         {/* Phase 4 — match operations (live) */}
         <Route path="matches" element={<MatchesScreen />} />
+        <Route path="manage" element={<ManageMatchesScreen />} />
         <Route path="matches/create" element={<CreateMatchScreen />} />
         <Route path="matches/publish" element={<PublishRoomScreen />} />
         <Route path="matches/:id" element={<MatchControlScreen />} />

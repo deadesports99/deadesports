@@ -5,6 +5,7 @@ import {
   Radio,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Swords,
   Users,
   Wallet,
@@ -69,7 +70,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/matches', label: 'Matches', icon: Gamepad2, access: 'any', mobile: true },
       { to: '/matches/create', label: 'Create Match', icon: Swords, access: 'canCreateMatch' },
       { to: '/matches/publish', label: 'Publish Room', icon: Radio, access: 'canUpdateRoomId' },
-      { to: '/roster', label: 'Live Scorer', shortLabel: 'Scorer', icon: ListChecks, access: 'canDistributePrize', mobile: true },
+      { to: '/manage', label: 'Manage Matches', shortLabel: 'Manage', icon: SlidersHorizontal, access: 'canCreateMatch', mobile: true },
+      { to: '/roster', label: 'Live Scorer', shortLabel: 'Scorer', icon: ListChecks, access: 'canDistributePrize' },
     ],
   },
   {
