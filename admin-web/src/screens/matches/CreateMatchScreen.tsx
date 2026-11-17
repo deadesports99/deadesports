@@ -402,7 +402,7 @@ export function CreateMatchScreen() {
                   }}
                 />
               </Field>
-              <Field label="Prize pool (₹) — auto">
+              <Field label="Pool if full house (₹)">
                 <TextInput
                   value={autoPool ? String(autoPool) : '0'}
                   readOnly
@@ -443,12 +443,12 @@ export function CreateMatchScreen() {
                 <b> ₹{collectedAtFull.toFixed(2)}</b>.
               </InfoNote>
               <InfoNote>
-                Pool share: <b>{100 - cutPercent}%</b> to players,{' '}
-                <b>{cutTouched ? cutPercent : suggestedCutClamped}%</b> to you
-                {cutTouched ? ' (your override)' : ' (auto = most you can keep safely)'}. Players pay{' '}
-                <b>₹{fee || 0}</b> to join, so the pool grows by
-                <b> ₹{(fee * playerShare).toFixed(2)}</b> per join and holds{' '}
-                <b>₹{autoPool.toFixed(2)}</b> at a full house.
+                The match starts at <b>₹0</b> — nobody has paid yet. Every join adds{' '}
+                <b>₹{(fee * playerShare).toFixed(2)}</b> to the pool ({100 - cutPercent}% of the fee), so
+                a full house of <b>{totalSlots}</b> seats reaches{' '}
+                <b>₹{autoPool.toFixed(2)}</b>. Your cut is{' '}
+                <b>{cutTouched ? cutPercent : suggestedCutClamped}%</b>
+                {cutTouched ? ' (your override)' : ' (auto = most you can keep safely)'}.
               </InfoNote>
               {poolShortfall > 0 ? (
                 <div className="rounded-xl border border-rose-300/70 bg-rose-50 px-3 py-2 text-[12px] font-semibold text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200">
@@ -669,7 +669,7 @@ export function CreateMatchScreen() {
                 <dd className="font-bold">₹{fee || 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-600 dark:text-slate-400">Prize pool (auto)</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Pool (full house)</dt>
                 <dd className="font-bold">₹{autoPool || 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">

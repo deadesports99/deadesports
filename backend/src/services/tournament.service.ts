@@ -86,17 +86,7 @@ export function computePrizePool(
 }
 
 /** Pool advertised before anyone joins: a full house at the current rate. */
-function initialPrizePool(
-  entryFee: number,
-  totalSlots: number,
-  perKillPrize: number,
-  commissionPercent: number = DEFAULT_COMMISSION_PERCENT,
-): number {
-  return computePrizePool(entryFee, totalSlots, perKillPrize, commissionPercent);
-}
-
-/** Loads the tenant's cut, falling back to the default when not yet set. */
-async function commissionFor(tenantId: string): Promise<number> {
+/** Loads the tenant's cut, falling back to the default when not yet set. */async function commissionFor(tenantId: string): Promise<number> {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
     select: { commissionRate: true },
@@ -298,13 +288,10 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
           matchType: data.matchType,
           mapType: data.mapType,
           entryFee: data.entryFee,
-          // Placeholder: recomputed from real seats sold on every join.
-          prizePool: initialPrizePool(
-            data.entryFee,
-            totalSlots,
-            data.perKillPrize,
-            await commissionFor(creator.tenantId),
-          ),
+          // Nobody has paid yet, so the pool starts empty and only grows from
+          // real seats. Showing the full-house figure here used to make an
+          // empty match look like it already held thousands.
+          prizePool: 0,
           perKillPrize: data.perKillPrize,
           totalSlots,
           matchTime: data.matchTime,
