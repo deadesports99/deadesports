@@ -1119,6 +1119,9 @@ const MAX_JOIN_ATTEMPTS = 8;
             fillFraction: Math.min(1, bookedCount / maxSlots),
             isFull: bookedCount >= maxSlots,
             status: result.status,
+            // The pool grows with every seat, so the card must carry it too;
+            // otherwise the app keeps the opening number until a refetch.
+            prizePool: String(result.prizePool),
           });
 
           realtimeService.sendToUser(user.userId, 'WALLET_UPDATED', {

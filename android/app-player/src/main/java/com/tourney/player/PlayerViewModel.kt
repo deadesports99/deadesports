@@ -17,13 +17,12 @@ import com.tourney.core.model.PaymentGatewayInfo
 import com.tourney.core.model.VerifyPaymentRequest
 import com.tourney.core.model.VerifyPaymentResponse
 import com.tourney.core.model.LoginRequest
+import com.tourney.core.model.MyMatchBucket
+import com.tourney.core.model.MyMatchesResponse
 import com.tourney.core.model.PlayerDepositsResponse
 import com.tourney.core.model.PlayerStats
 import com.tourney.core.model.TenantSettings
 import com.tourney.core.model.RegisterRequest
-import com.tourney.core.model.SendEmailOtpRequest
-import com.tourney.core.model.VerifyEmailOtpRequest
-import com.tourney.core.model.EmailOtpResponse
 import com.tourney.core.model.SubmitDepositRequest
 import com.tourney.core.model.TournamentListResponse
 import com.tourney.core.model.User
@@ -88,7 +87,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                                 item.copy(
                                     slotsBooked = event.slotsBooked,
                                     totalSlots = event.totalSlots,
-                                    status = newStatus
+                                    status = newStatus,
+                                    // Keep the pool in step with the seat count; a
+                                    // missing field means an older server.
+                                    prizePool = event.prizePool ?: item.prizePool,
                                 )
                             } else {
                                 item
@@ -97,6 +99,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                         val updatedFeed = currentFeed.copy(items = updatedItems)
                         feedUi = UiState.Success(updatedFeed)
                         saveFeedCache(updatedFeed)
+                    }
+
+                    is RealtimeEvent.FeedChanged -> {
+                        // A match was published, cloned, made visible or cancelled:
+                        // re-fetch so the lobby shows it without a manual refresh.
+                        refreshFeed(silent = true)
+                        refreshMyMatchesIfLoaded()
                     }
 
                     is RealtimeEvent.WalletUpdated -> {
@@ -133,16 +142,12 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                             feedUi = UiState.Success(updatedFeed)
                             saveFeedCache(updatedFeed)
                         }
-                    }
-
-                    is RealtimeEvent.FeedChanged -> {
-                        // A match was published, cloned, made visible or cancelled:
-                        // re-fetch so the lobby shows it without a manual refresh.
-                        refreshFeed(silent = true)
+                        refreshMyMatchesIfLoaded()
                     }
 
                     is RealtimeEvent.RoomCredentialsRevealed -> {
                         refreshFeed(silent = true)
+                        refreshMyMatchesIfLoaded()
                     }
 
                     is RealtimeEvent.DepositApproved -> {
@@ -151,6 +156,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
                     is RealtimeEvent.PrizeWon -> {
                         refreshWallet(silent = true)
+                        refreshMyMatchesIfLoaded()
                     }
                 }
             }
@@ -270,71 +276,6 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                             inGameName = inGameName?.takeIf { it.isNotBlank() },
                             inGameUid = inGameUid?.takeIf { it.isNotBlank() },
                             deviceId = DeviceIdProvider.androidId(getApplication()),
-                        )
-                    )
-                }
-                persistLogin(response)
-                FcmTokenSync.syncIfLoggedIn(getApplication())
-                authUi = UiState.Success(response.user)
-                prefetchData()
-            } catch (e: ApiException) {
-                authUi = UiState.Error(e.message)
-            } catch (e: Exception) {
-                authUi = UiState.Error("Network error — is the server running?")
-            }
-        }
-    }
-
-    fun sendEmailOtp(
-        email: String,
-        password: String,
-        name: String? = null,
-        type: String = "REGISTER",
-        onSuccess: (EmailOtpResponse) -> Unit,
-        onError: (String) -> Unit,
-    ) {
-        viewModelScope.launch {
-            try {
-                val res = apiCall {
-                    api.sendEmailOtp(
-                        SendEmailOtpRequest(
-                            tenantId = config.tenantId,
-                            email = email.trim(),
-                            password = password,
-                            name = name?.trim()?.takeIf { it.isNotBlank() },
-                            type = type,
-                        )
-                    )
-                }
-                onSuccess(res)
-            } catch (e: ApiException) {
-                onError(e.message)
-            } catch (e: Exception) {
-                onError("Network error — is the server running?")
-            }
-        }
-    }
-
-    fun verifyEmailOtp(
-        email: String,
-        code: String,
-        password: String,
-        name: String? = null,
-        type: String = "REGISTER",
-    ) {
-        authUi = UiState.Loading
-        viewModelScope.launch {
-            try {
-                val response = apiCall {
-                    api.verifyEmailOtp(
-                        VerifyEmailOtpRequest(
-                            tenantId = config.tenantId,
-                            email = email.trim(),
-                            code = code.trim(),
-                            password = password,
-                            name = name?.trim()?.takeIf { it.isNotBlank() },
-                            deviceId = DeviceIdProvider.androidId(getApplication()),
-                            type = type,
                         )
                     )
                 }
@@ -541,6 +482,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             if (!session.isLoggedIn) return@launch
             refreshFeed(silent = true)
             refreshWallet(silent = true)
+            refreshMyMatchesIfLoaded()
         }
     }
 
@@ -568,6 +510,86 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 isCompletedRefreshing = false
             }
         }
+    }
+
+    // ─── My Matches (own history) ───────────────────────────────────────
+    var myMatchesUi by mutableStateOf<UiState<MyMatchesResponse>>(UiState.Idle)
+        private set
+
+    /** Active history filter — the API owns the status mapping. */
+    var myMatchesBucket by mutableStateOf(MyMatchBucket.ALL)
+        private set
+
+    var isMyMatchesRefreshing by mutableStateOf(false)
+        private set
+
+    var isLoadingMoreMatches by mutableStateOf(false)
+        private set
+
+    fun selectMyMatchesBucket(bucket: MyMatchBucket) {
+        if (bucket == myMatchesBucket && myMatchesUi is UiState.Success) return
+        myMatchesBucket = bucket
+        refreshMyMatches(forceLoading = true)
+    }
+
+    /**
+     * Load the player's own match history (seat, result, refund, room).
+     * `silent` is used by realtime pushes so the list never flashes.
+     */
+    fun refreshMyMatches(forceLoading: Boolean = false, silent: Boolean = false) {
+        if (!silent && (forceLoading || myMatchesUi is UiState.Idle || myMatchesUi is UiState.Error)) {
+            myMatchesUi = UiState.Loading
+        }
+        if (!silent) isMyMatchesRefreshing = true
+        val bucket = myMatchesBucket
+        viewModelScope.launch {
+            try {
+                val fresh = apiCall { api.myMatches(bucket = bucket.query, limit = 20) }
+                // A slower response for an older chip must not overwrite the new one.
+                if (bucket == myMatchesBucket) myMatchesUi = UiState.Success(fresh)
+            } catch (e: ApiException) {
+                if (myMatchesUi !is UiState.Success) myMatchesUi = UiState.Error(e.message)
+            } catch (e: Exception) {
+                if (myMatchesUi !is UiState.Success) {
+                    myMatchesUi = UiState.Error("Network error — is the server running?")
+                }
+            } finally {
+                if (!silent) isMyMatchesRefreshing = false
+            }
+        }
+    }
+
+    /** "Load more" — appends the next page without touching the header strip. */
+    fun loadMoreMyMatches() {
+        val current = (myMatchesUi as? UiState.Success)?.data ?: return
+        val page = current.pagination.page
+        if (isLoadingMoreMatches || page >= current.pagination.totalPages) return
+        val bucket = myMatchesBucket
+        isLoadingMoreMatches = true
+        viewModelScope.launch {
+            try {
+                val next = apiCall { api.myMatches(bucket = bucket.query, page = page + 1, limit = 20) }
+                val latest = (myMatchesUi as? UiState.Success)?.data ?: return@launch
+                if (bucket != myMatchesBucket) return@launch
+                val seen = latest.items.map { it.id }.toSet()
+                myMatchesUi = UiState.Success(
+                    latest.copy(
+                        items = latest.items + next.items.filter { it.id !in seen },
+                        pagination = next.pagination,
+                        summary = next.summary,
+                    ),
+                )
+            } catch (e: Exception) {
+                // A failed page keeps the rows already on screen.
+            } finally {
+                isLoadingMoreMatches = false
+            }
+        }
+    }
+
+    /** Realtime / resume refresh: only once the tab has data, so no surprise call. */
+    private fun refreshMyMatchesIfLoaded() {
+        if (myMatchesUi is UiState.Success) refreshMyMatches(silent = true)
     }
 
     // ─── Wallet ──────────────────────────────────────────────────────────
