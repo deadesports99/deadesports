@@ -38,6 +38,8 @@ const SLOT_LIMITS: Record<GameMode, { min: number; max: number; step: number }> 
  * The live value comes from Tenant.commissionRate (Settings screen).
  */
 const DEFAULT_COMMISSION_PERCENT = 20;
+/** Mirror of MAX_COMMISSION_PERCENT in backend/src/services/tenant.service.ts. */
+const MAX_CUT_PERCENT = 90;
 const HOURS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
 const QUICK_HOURS = [1, 3, 6, 12, 24];
@@ -125,7 +127,7 @@ export function CreateMatchScreen() {
    * moving the percentage instantly shows what the match earns and what it
    * pays out. The server uses the same number from Tenant.commissionRate.
    */
-  const cutPercent = Math.min(50, Math.max(0, Number(cutPercentText || 0)));
+  const cutPercent = Math.min(MAX_CUT_PERCENT, Math.max(0, Number(cutPercentText || 0)));
   const playerShare = 1 - cutPercent / 100;
 
   /** Cash in if every seat sells: seats x entry fee. */
@@ -151,7 +153,7 @@ export function CreateMatchScreen() {
    * Adopted only while the admin has not typed a value themselves.
    */
   const safeCutPct = Math.round(killProfitPct * 10) / 10;
-  const suggestedCutClamped = Math.min(50, Math.max(0, safeCutPct));
+  const suggestedCutClamped = Math.min(MAX_CUT_PERCENT, Math.max(0, safeCutPct));
 
   /** Pool paid back to players at a full house. */
   const autoPool = Math.round(collectedAtFull * playerShare * 100) / 100;
@@ -394,9 +396,9 @@ export function CreateMatchScreen() {
                     setCutTouched(true);
                     const raw = event.target.value.replace(/[^\d.]/g, '').slice(0, 5);
                     // Clamp on the way in so the box always shows what the match
-                    // will really use; the server enforces the same 0-50 range.
+                    // will really use; the server enforces the same 0-90 range.
                     const n = Number(raw);
-                    setCutPercentText(raw === '' ? '' : String(Math.min(50, Math.max(0, n))));
+                    setCutPercentText(raw === '' ? '' : String(Math.min(MAX_CUT_PERCENT, Math.max(0, n))));
                   }}
                 />
               </Field>

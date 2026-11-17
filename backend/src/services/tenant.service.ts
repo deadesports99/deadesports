@@ -19,7 +19,7 @@ export const MIN_DEPOSIT_CEILING = 10000;
  */
 export const DEFAULT_COMMISSION_PERCENT = 20;
 export const MIN_COMMISSION_PERCENT = 0;
-export const MAX_COMMISSION_PERCENT = 50;
+export const MAX_COMMISSION_PERCENT = 90;
 
 // ─── VIEWS ───────────────────────────────────────────────────────────────
 
@@ -33,7 +33,6 @@ export interface TenantSettingsView {
   commissionRate: number;
   allowPhoneAuth: boolean;
   allowGoogleAuth: boolean;
-  allowEmailAuth: boolean;
 }
 
 export interface UpdateTenantSettingsInput {
@@ -44,7 +43,6 @@ export interface UpdateTenantSettingsInput {
   commissionRate?: number;
   allowPhoneAuth?: boolean;
   allowGoogleAuth?: boolean;
-  allowEmailAuth?: boolean;
 }
 
 function toSettingsView(tenant: {
@@ -56,7 +54,6 @@ function toSettingsView(tenant: {
   commissionRate?: number | null;
   allowPhoneAuth?: boolean | null;
   allowGoogleAuth?: boolean | null;
-  allowEmailAuth?: boolean | null;
 }): TenantSettingsView {
   return {
     brandName: tenant.brandName,
@@ -67,7 +64,6 @@ function toSettingsView(tenant: {
     commissionRate: tenant.commissionRate ?? DEFAULT_COMMISSION_PERCENT,
     allowPhoneAuth: tenant.allowPhoneAuth ?? true,
     allowGoogleAuth: tenant.allowGoogleAuth ?? true,
-    allowEmailAuth: tenant.allowEmailAuth ?? true,
   };
 }
 
@@ -89,7 +85,6 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
       commissionRate: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
-      allowEmailAuth: true,
     },
   });
   if (!tenant) throw ApiError.notFound('Tenant not found');
@@ -109,7 +104,6 @@ export async function updateTenantSettings(
       isActive: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
-      allowEmailAuth: true,
     },
   });
   if (!tenant) throw ApiError.notFound('Tenant not found');
@@ -122,7 +116,6 @@ export async function updateTenantSettings(
     minDeposit?: number;
     commissionRate?: number;
     allowPhoneAuth?: boolean;
-    allowEmailAuth?: boolean;
     allowGoogleAuth?: boolean;
   } = {};
 
@@ -188,16 +181,10 @@ export async function updateTenantSettings(
   if (input.allowGoogleAuth !== undefined) {
     data.allowGoogleAuth = Boolean(input.allowGoogleAuth);
   }
-  if (input.allowEmailAuth !== undefined) {
-    data.allowEmailAuth = Boolean(input.allowEmailAuth);
-  }
-
   // Ensure at least one authentication method remains enabled
   const finalPhoneAuth = data.allowPhoneAuth !== undefined ? data.allowPhoneAuth : tenant.allowPhoneAuth;
   const finalGoogleAuth = data.allowGoogleAuth !== undefined ? data.allowGoogleAuth : tenant.allowGoogleAuth;
-  const finalEmailAuth = data.allowEmailAuth !== undefined ? data.allowEmailAuth : tenant.allowEmailAuth;
-
-  if (!finalPhoneAuth && !finalGoogleAuth && !finalEmailAuth) {
+  if (!finalPhoneAuth && !finalGoogleAuth) {
     throw ApiError.badRequest('At least one authentication method must remain enabled.');
   }
 
@@ -217,7 +204,6 @@ export async function updateTenantSettings(
       commissionRate: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
-      allowEmailAuth: true,
     },
   });
 
