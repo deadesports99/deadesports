@@ -248,7 +248,9 @@ export async function getLiveBoard(tenantId: string, tournamentId: string): Prom
     players,
     aliveCount: players.filter((player) => !player.isEliminated && !player.isBanned).length,
     totalKills,
-    maxKills: Math.max(0, players.length - 1),
+    // The ceiling is how many players the lobby can hold, not how many have
+    // joined yet: scoring starts as soon as the first player is in the room.
+    maxKills: Math.max(0, match.totalSlots - 1),
     payoutPreview: round2(totalKills * num(match.perKillPrize)),
   };
 }
@@ -284,13 +286,13 @@ export async function setPlayerKills(
   userId: string,
   kills: number,
 ): Promise<ManageBoard> {
-  await findMatchOrThrow(staff.tenantId, tournamentId);
+  const match = await findMatchOrThrow(staff.tenantId, tournamentId);
   const slot = await findSlotOrThrow(tournamentId, userId);
 
   if (slot.isBanned) throw ApiError.conflict('This player is banned — unban before scoring');
   if (slot.isEliminated) throw ApiError.conflict('This player is already marked done');
 
-  const seats = await prisma.tournamentSlot.count({ where: { tournamentId } });
+  const seats = match.totalSlots;
   const maxKills = Math.max(0, seats - 1);
   if (!Number.isInteger(kills) || kills < 0 || kills > maxKills) {
     throw ApiError.badRequest(

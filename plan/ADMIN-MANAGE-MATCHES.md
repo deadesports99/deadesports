@@ -142,3 +142,34 @@ other admins and the player app update without a refresh.
 - Verified on the running stack: publish room → go live → kills → done
   (sinks to "Finished") → ban (pays 0) → refund (seat gone, pool shrinks) →
   final submit (wallets credited, match COMPLETED).
+
+## 10. Device test round (emulator + admin web)
+
+Full pass on the Android emulator (1080x2400, `emulator-5554`, localhost via
+`adb reverse`) against the live local stack.
+
+| Step | Result |
+|---|---|
+| Logout → phone login (OTP `482916` auto-fill) | OK, wallet refetched |
+| Create match from admin form (20 seats, ₹20 entry, ₹10 kill) | OK, auto cut 52.5%, pool ₹190 shown as full-house only |
+| Player sees new match | OK, 0/20 slots, pool ₹0 |
+| Player joins | OK, wallet ₹300→₹280, card 1/20 · ₹10, admin row updates live |
+| Publish room 556677/room88 | OK, player's "View Room ID" shows both |
+| Go live | OK, player shows LIVE / in progress |
+| Admin + kills, Done, Final submit | OK, 3 kills → ₹30 into winnings |
+| My Matches after payout | OK, 1 played · 3 kills · ₹30 won · PLAYED · net +₹10 |
+| Wallet after payout | OK after refresh: total ₹290, winnings ₹30, "Prize Payout +₹30" |
+| Insufficient balance join | OK, "Insufficient balance to join this tournament" |
+| Duplicate join | OK, 409 "You have already joined this tournament" |
+| Invalid FF UID (5 digits) | OK, "Free Fire UID must be 6-12 digits" |
+| Ban, single-seat refund, cancel & refund all | OK, banned gets nothing, all refunds posted |
+| Cancel a LIVE match | Fixed — was rejected server-side while the button was enabled |
+| Kills above the lobby ceiling | OK, "between 0 and 19 for this 20-player match" |
+
+Bugs found and fixed in this round:
+1. `maxKills` was `joined - 1`, so the first player in a room could not be
+   scored at all. Now `totalSlots - 1`.
+2. A live match could not be cancelled although the button allowed it. `LIVE`
+   is now cancellable; `COMPLETED` / `CANCELLED` stay final.
+3. Ledger note for a payout read `Prize — rank - + 2 kill(s)`; now
+   `Prize: 2 kill(s) x ₹10 = ₹20 — match 6`.

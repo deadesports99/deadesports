@@ -110,7 +110,17 @@ const JOINABLE_STATUSES = ['UPCOMING', 'OPEN'] as const;
 export const JOIN_CUTOFF_MS = 60 * 1000;
 
 /** Tournament statuses from which an admin may cancel + refund. */
-const CANCELLABLE_STATUSES = ['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
+// LIVE is cancellable on purpose: a match that starts into a broken room (or a
+// lobby that never fills) is exactly when an organiser needs the refund button.
+// Only COMPLETED and CANCELLED are final.
+const CANCELLABLE_STATUSES = [
+  'DRAFT',
+  'UPCOMING',
+  'OPEN',
+  'SLOTS_FULL',
+  'ROOM_REVEALED',
+  'LIVE',
+] as const;
 
 /** Statuses a player may still book a seat in (ROOM_REVEALED is included: a
  *  published room does not close the entry window — only kickoff-1min does). */
