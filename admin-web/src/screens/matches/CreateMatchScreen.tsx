@@ -88,6 +88,8 @@ export function CreateMatchScreen() {
   const [cutPercentText, setCutPercentText] = useState(String(DEFAULT_COMMISSION_PERCENT));
   /** Last value confirmed on the server, so we only PATCH when it really moved. */
   const lastSavedCutRef = useRef(DEFAULT_COMMISSION_PERCENT);
+  /** True once the admin types their own cut; auto-suggest then stops overriding. */
+  const [cutTouched, setCutTouched] = useState(false);
 
   const [schedule, setSchedule] = useState<ScheduleDraft>(() => defaultSchedule());
 
@@ -128,10 +130,49 @@ export function CreateMatchScreen() {
 
   /** Cash in if every seat sells: seats x entry fee. */
   const collectedAtFull = Math.round(fee * totalSlots * 100) / 100;
+
+  /**
+   * What the lobby can actually pay out: every player but the winner can score,
+   * so the worst case is (seats - 1) kills at the per-kill rate. This is the real
+   * cost of the match, not the flat percentage.
+   */
+  const maxKills = Math.max(0, totalSlots - 1);
+  const maxPayout = Math.round(maxKills * (perKill ?? 0) * 100) / 100;
+
+  /** Kept after paying every possible kill. */
+  const killProfit = Math.round((collectedAtFull - maxPayout) * 100) / 100;
+  /** Kill-based margins as a share of collections, so they read like the cut. */
+  const payoutPct = collectedAtFull > 0 ? (maxPayout / collectedAtFull) * 100 : 0;
+  const killProfitPct = collectedAtFull > 0 ? (killProfit / collectedAtFull) * 100 : 0;
+
+  /**
+   * Suggested cut = the most you can keep while the pool still covers every
+   * possible kill. Anything above this loses money, so the box starts here.
+   * Adopted only while the admin has not typed a value themselves.
+   */
+  const safeCutPct = Math.round(killProfitPct * 10) / 10;
+  const suggestedCutClamped = Math.min(50, Math.max(0, safeCutPct));
+
   /** Pool paid back to players at a full house. */
   const autoPool = Math.round(collectedAtFull * playerShare * 100) / 100;
-  /** What the match keeps when every seat sells. */
-  const profitAtFull = Math.round((collectedAtFull - autoPool) * 100) / 100;
+
+  /**
+   * A cut that leaves less in the pool than the kills can claim is a guaranteed
+   * loss; surface the exact shortfall instead of hiding it.
+   */
+  const poolShortfall = Math.round((maxPayout - autoPool) * 100) / 100;
+
+  /**
+   * Auto-fill the cut from the kill maths until the admin overrides it. Entry
+   * fee or per-kill changes re-run the suggestion, so the box never lags behind
+   * the numbers beside it.
+   */
+  useEffect(() => {
+    if (cutTouched || fee <= 0 || perKill === undefined) {
+      return;
+    }
+    setCutPercentText(String(suggestedCutClamped));
+  }, [fee, perKill, suggestedCutClamped, cutTouched]);
 
   const matchIso = useMemo(() => scheduleToIso(schedule), [schedule]);
   const matchInFuture = isDraftInFuture(schedule);
@@ -343,15 +384,20 @@ export function CreateMatchScreen() {
                   onChange={(event) => setPerKillPrize(event.target.value.replace(/[^\d.]/g, '').slice(0, 8))}
                 />
               </Field>
-              <Field label="Your cut (%)">
+              <Field label={cutTouched ? 'Your cut (%)' : 'Your cut (%) — auto'}>
                 <TextInput
                   inputMode="decimal"
                   value={cutPercentText}
                   placeholder={String(DEFAULT_COMMISSION_PERCENT)}
                   aria-label="Platform cut percent"
-                  onChange={(event) =>
-                    setCutPercentText(event.target.value.replace(/[^\d.]/g, '').slice(0, 5))
-                  }
+                  onChange={(event) => {
+                    setCutTouched(true);
+                    const raw = event.target.value.replace(/[^\d.]/g, '').slice(0, 5);
+                    // Clamp on the way in so the box always shows what the match
+                    // will really use; the server enforces the same 0-50 range.
+                    const n = Number(raw);
+                    setCutPercentText(raw === '' ? '' : String(Math.min(50, Math.max(0, n))));
+                  }}
                 />
               </Field>
               <Field label="Prize pool (₹) — auto">
@@ -368,18 +414,54 @@ export function CreateMatchScreen() {
             {/* Live money split — moves the moment any number above changes. */}
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MoneyCell label="Collected (full house)" value={collectedAtFull} tone="plain" />
-              <MoneyCell label={`To players (${100 - cutPercent}%)`} value={autoPool} tone="good" />
-              <MoneyCell label={`Your profit (${cutPercent}%)`} value={profitAtFull} tone="profit" />
-              <MoneyCell label="Per seat profit" value={Math.round(fee * (cutPercent / 100) * 100) / 100} tone="plain" />
+              <MoneyCell
+                label={`Max payout (${maxKills} kills)`}
+                value={maxPayout}
+                tone="plain"
+                hint={`${payoutPct.toFixed(1)}% of collections`}
+              />
+              <MoneyCell
+                label="Your profit (auto)"
+                value={killProfit}
+                tone={killProfit >= 0 ? 'profit' : 'loss'}
+                hint={`${killProfitPct.toFixed(1)}% margin`}
+              />
+              <MoneyCell
+                label="Per seat profit"
+                value={Math.round((fee - (maxPayout / (totalSlots || 1))) * 100) / 100}
+                tone="plain"
+              />
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <InfoNote>
-                Players pay <b>₹{fee || 0}</b> to join. The pool grows by
-                <b> ₹{(fee * playerShare).toFixed(2)}</b> with every player who joins, and is
-                <b> {100 - cutPercent}%</b> of everything collected — the other
-                <b> {cutPercent}%</b> is yours.
+                Kill maths: worst case is <b>{maxKills}</b> kills x <b>₹{perKill ?? 0}</b> =
+                <b> ₹{maxPayout.toFixed(2)}</b> paid out, so you keep
+                <b> ₹{killProfit.toFixed(2)}</b> ({killProfitPct.toFixed(1)}%) of
+                <b> ₹{collectedAtFull.toFixed(2)}</b>.
               </InfoNote>
+              <InfoNote>
+                Pool share: <b>{100 - cutPercent}%</b> to players,{' '}
+                <b>{cutTouched ? cutPercent : suggestedCutClamped}%</b> to you
+                {cutTouched ? ' (your override)' : ' (auto = most you can keep safely)'}. Players pay{' '}
+                <b>₹{fee || 0}</b> to join, so the pool grows by
+                <b> ₹{(fee * playerShare).toFixed(2)}</b> per join and holds{' '}
+                <b>₹{autoPool.toFixed(2)}</b> at a full house.
+              </InfoNote>
+              {poolShortfall > 0 ? (
+                <div className="rounded-xl border border-rose-300/70 bg-rose-50 px-3 py-2 text-[12px] font-semibold text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200">
+                  Loss alert: at <b>{cutPercent}%</b> the pool is ₹{autoPool.toFixed(2)} but{' '}
+                  <b>{maxKills}</b> kills would need ₹{maxPayout.toFixed(2)} — short by{' '}
+                  <b>₹{poolShortfall.toFixed(2)}</b>. Lower your cut to{' '}
+                  <b>{suggestedCutClamped}%</b> or less.
+                </div>
+              ) : (
+                <InfoNote>
+                  Safe: the ₹{autoPool.toFixed(2)} pool still covers the worst case of{' '}
+                  <b>{maxKills}</b> kills (₹{maxPayout.toFixed(2)}), leaving
+                  <b> ₹{(autoPool - maxPayout).toFixed(2)}</b>.
+                </InfoNote>
+              )}
               <InfoNote>
                 Pure per-kill format: no 1st/2nd/3rd prize. Every confirmed kill pays
                 <b> ₹{perKill ?? 0}</b>, so a player's payout is simply kills × ₹{perKill ?? 0}.
@@ -625,17 +707,21 @@ function MoneyCell({
   label,
   value,
   tone,
+  hint,
 }: {
   label: string;
   value: number;
-  tone: 'plain' | 'good' | 'profit';
+  tone: 'plain' | 'good' | 'profit' | 'loss';
+  hint?: string;
 }) {
   const valueClass =
-    tone === 'profit'
-      ? 'text-emerald-700 dark:text-emerald-300'
-      : tone === 'good'
-        ? 'text-cyan-700 dark:text-cyan-300'
-        : 'text-slate-900 dark:text-slate-100';
+    tone === 'loss'
+      ? 'text-rose-700 dark:text-rose-300'
+      : tone === 'profit'
+        ? 'text-emerald-700 dark:text-emerald-300'
+        : tone === 'good'
+          ? 'text-cyan-700 dark:text-cyan-300'
+          : 'text-slate-900 dark:text-slate-100';
   return (
     <div className="rounded-xl border border-slate-200/70 bg-white/60 px-2.5 py-2 dark:border-white/10 dark:bg-white/5">
       <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -644,6 +730,9 @@ function MoneyCell({
       <div className={`text-[15px] font-black tabular-nums ${valueClass}`}>
         ₹{(Number.isFinite(value) ? value : 0).toFixed(2)}
       </div>
+      {hint ? (
+        <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">{hint}</div>
+      ) : null}
     </div>
   );
 }
