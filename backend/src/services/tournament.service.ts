@@ -1197,6 +1197,11 @@ export async function cancelTournamentAndRefundAll(
       const slots = await tx.tournamentSlot.findMany({ where: { tournamentId } });
 
       let totalRefunded = 0;
+      const walletNotices: Array<{
+        userId: string;
+        depositBalance: number;
+        winningBalance: number;
+      }> = [];
       for (const slot of slots) {
         // Refund to the same balance the fee was debited from (audit trail).
         const joinLedger = await tx.walletLedger.findFirst({
@@ -1228,12 +1233,17 @@ export async function cancelTournamentAndRefundAll(
             notes: `Refund for cancelled tournament: ${reason}`,
           },
         });
+        walletNotices.push({
+          userId: slot.userId,
+          depositBalance: Number(refundedUser.depositBalance),
+          winningBalance: Number(refundedUser.winningBalance),
+        });
         totalRefunded += Number(tournament.entryFee);
       }
 
       clearFeedCache();
 
-    return { refundedPlayers: slots.length, totalRefunded };
+    return { refundedPlayers: slots.length, totalRefunded, walletNotices };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -1241,6 +1251,20 @@ export async function cancelTournamentAndRefundAll(
       timeout: 20000,
     },
   );
+
+  // Every refunded player's wallet updates on their own screen right away.
+  for (const notice of result.walletNotices) {
+    try {
+      realtimeService.sendToUser(notice.userId, 'WALLET_UPDATED', {
+        userId: notice.userId,
+        depositBalance: notice.depositBalance.toFixed(2),
+        winningBalance: notice.winningBalance.toFixed(2),
+        totalBalance: (notice.depositBalance + notice.winningBalance).toFixed(2),
+      });
+    } catch (error) {
+      console.warn('[Cancel wallet notice failed]', error);
+    }
+  }
 
   // Wipe Redis seat state so the room immediately frees up.
   await clearTournamentRedis(tournamentId);

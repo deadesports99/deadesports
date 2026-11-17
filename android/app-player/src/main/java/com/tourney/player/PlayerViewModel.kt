@@ -118,9 +118,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                             )
                             walletUi = UiState.Success(updated)
                             saveWalletCache(updated)
-                        } else {
-                            refreshWallet(silent = true)
                         }
+                        // The numbers above are patched instantly; this re-fetch is
+                        // what brings the new passbook row (prize, refund, deposit)
+                        // onto the screen without the player opening the tab again.
+                        refreshWallet(silent = true)
                     }
 
                     is RealtimeEvent.MatchStatusChanged -> {

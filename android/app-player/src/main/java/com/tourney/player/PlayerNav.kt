@@ -23,11 +23,13 @@ import androidx.navigation.compose.rememberNavController
 import com.tourney.core.model.MatchType
 import com.tourney.core.theme.ThemeMode
 import com.tourney.player.ui.matches.MatchesScreen
+import com.tourney.player.ui.matches.MyMatchesScreen
 import com.tourney.player.ui.nav.DemoBottomBar
 
-/** Bottom tabs — Matches, Wallet and Profile. Push screens hide the bar. */
+/** Bottom tabs — Matches, My Matches, Wallet and Profile. Push screens hide the bar. */
 private enum class PlayerTab(val route: String) {
     MATCHES("feed"),
+    MY_MATCHES("my-matches"),
     WALLET("wallet"),
     SETTINGS("settings"),
 }
@@ -96,7 +98,20 @@ fun PlayerNavHost(
                         onToast = { message -> playerNavToast = message },
                     )
                 }
+                composable(PlayerTab.MY_MATCHES.route) {
+                    MyMatchesScreen(
+                        viewModel = playerViewModel,
+                        onOpenWallet = { navController.navigate(PlayerTab.WALLET.route) },
+                        onOpenRoom = { id -> navController.navigate("room/$id") },
+                        onOpenScoreboard = { id -> navController.navigate("scoreboard/$id") },
+                        onBrowseTournaments = { navController.navigate(PlayerTab.MATCHES.route) },
+                    )
+                }
                 composable(PlayerTab.WALLET.route) {
+                    // Money moves while this tab is closed (prize paid, seat
+                    // refunded, deposit approved). Ask the server on every open
+                    // instead of rendering a stale cached balance.
+                    LaunchedEffect(Unit) { playerViewModel.refreshWallet(silent = true) }
                     com.tourney.player.ui.wallet.WalletScreen(
                         viewModel = playerViewModel,
                         onToast = { message -> playerNavToast = message },

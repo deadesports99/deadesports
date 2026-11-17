@@ -255,6 +255,24 @@ export async function getLiveBoard(tenantId: string, tournamentId: string): Prom
   };
 }
 
+/** Pushes the fresh balance to one player so their wallet tab updates live. */
+function sendWalletNudge(
+  userId: string,
+  balances: { depositBalance: number; winningBalance: number } | null,
+): void {
+  if (!balances) return;
+  try {
+    realtimeService.sendToUser(userId, 'WALLET_UPDATED', {
+      userId,
+      depositBalance: balances.depositBalance.toFixed(2),
+      winningBalance: balances.winningBalance.toFixed(2),
+      totalBalance: (balances.depositBalance + balances.winningBalance).toFixed(2),
+    });
+  } catch (error) {
+    console.warn('[Wallet nudge failed]', error);
+  }
+}
+
 function announceBoard(tenantId: string, tournamentId: string, payload: Record<string, unknown>): void {
   try {
     realtimeService.broadcastToTenant(tenantId, 'LIVE_BOARD_UPDATED', {
@@ -351,6 +369,8 @@ export async function refundParticipant(
   if (CLOSED_STATUSES.includes(match.status as (typeof CLOSED_STATUSES)[number])) {
     throw ApiError.conflict(`This match is ${match.status} — refunds are closed`);
   }
+  let refundedUser: { depositBalance: number; winningBalance: number } | null = null;
+
   if (slot.liveKills > 0) {
     throw ApiError.conflict(
       'This player already has kills on the board — reset the kills to 0 before refunding',
@@ -403,6 +423,11 @@ export async function refundParticipant(
 
       // The pool is only ever the money actually collected, minus the cut.
       const remaining = await tx.tournamentSlot.count({ where: { tournamentId } });
+      refundedUser = {
+        depositBalance: Number(updatedUser.depositBalance),
+        winningBalance: Number(updatedUser.winningBalance),
+      };
+
       await tx.tournament.update({
         where: { id: tournamentId },
         data: {
@@ -417,6 +442,9 @@ export async function refundParticipant(
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 20000 },
   );
+
+  // Money moved back to the player — let their app show it without a refresh.
+  sendWalletNudge(userId, refundedUser);
 
   announceBoard(staff.tenantId, tournamentId, { userId, refunded: true });
   return { board: await getLiveBoard(staff.tenantId, tournamentId), refunded: entryFee };

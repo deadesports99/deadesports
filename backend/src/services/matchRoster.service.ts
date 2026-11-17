@@ -4,6 +4,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { invalidateAuthCache } from '../middlewares/auth.middleware.js';
 import { AuthUser } from '../types/auth.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { realtimeService } from './realtime.service.js';
 
 /**
  * 🧑‍🤝‍🧑 ADMIN MATCH ROSTER — "who is in this match, what do they get, who cheats"
@@ -387,8 +388,19 @@ export async function payoutMatchAwards(
   const pool = Number(tournament.prizePool);
   const perKill = Number(tournament.perKillPrize);
 
-  return prisma.$transaction(
+  const payout = await prisma.$transaction(
     async (tx) => {
+      // Collected inside the transaction and replayed after it commits, so a
+      // rolled-back payout can never push a wallet nudge to a player.
+      const walletNotices: Array<{
+        userId: string;
+        depositBalance: number;
+        winningBalance: number;
+        totalBalance: number;
+        prize: number;
+        kills: number;
+      }> = [];
+
       // Lock the match so two admins cannot double-pay concurrently.
       const locked = await tx.$queryRaw<Array<{ id: string; status: string }>>`
         SELECT id, status::text AS status FROM "Tournament" WHERE id = ${tournamentId} FOR UPDATE
@@ -509,6 +521,15 @@ export async function payoutMatchAwards(
                 `Prize: ${kills} kill(s) x ₹${perKill} = ₹${prize} — match ${tournament.matchNumber ?? '-'}`,
             },
           });
+
+          walletNotices.push({
+            userId: award.userId,
+            depositBalance: Number(credited.depositBalance),
+            winningBalance: Number(credited.winningBalance),
+            totalBalance: Number(credited.depositBalance) + Number(credited.winningBalance),
+            prize,
+            kills,
+          });
         }
 
         await tx.matchResult.upsert({
@@ -563,6 +584,7 @@ export async function payoutMatchAwards(
         playersPaid,
         skipped,
         breakdown,
+        walletNotices,
       };
     },
     {
@@ -571,6 +593,37 @@ export async function payoutMatchAwards(
       timeout: 20000,
     },
   );
+
+  // Tell each paid player immediately. Their wallet tab then shows the new
+  // balance without waiting for a manual refresh or an app restart.
+  for (const notice of payout.walletNotices) {
+    try {
+      realtimeService.sendToUser(notice.userId, 'WALLET_UPDATED', {
+        userId: notice.userId,
+        depositBalance: notice.depositBalance.toFixed(2),
+        winningBalance: notice.winningBalance.toFixed(2),
+        totalBalance: notice.totalBalance.toFixed(2),
+      });
+      if (notice.prize > 0) {
+        realtimeService.sendToUser(notice.userId, 'PRIZE_WON', {
+          tournamentId,
+          totalPrize: notice.prize,
+          verifiedKills: notice.kills,
+        });
+      }
+    } catch (error) {
+      console.warn('[Payout wallet notice failed]', error);
+    }
+  }
+
+  return {
+    tournamentId: payout.tournamentId,
+    status: payout.status,
+    totalPaid: payout.totalPaid,
+    playersPaid: payout.playersPaid,
+    skipped: payout.skipped,
+    breakdown: payout.breakdown,
+  };
 }
 
 export interface ParticipantBanResult {
