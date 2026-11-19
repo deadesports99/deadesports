@@ -1,7 +1,6 @@
 import type {
   AdminTournament,
   MatchRoomCredentials,
-  MatchRoster,
   RosterParticipant,
   TournamentStatus,
 } from '../types';
@@ -18,6 +17,7 @@ export const UPCOMING_STATUSES: TournamentStatus[] = [
   'OPEN',
   'SLOTS_FULL',
   'ROOM_REVEALED',
+  'STARTING_SOON',
 ];
 
 /** Matches the roster payout engine accepts (`PAYOUT_STATUSES`). */
@@ -25,6 +25,7 @@ export const PAYOUT_STATUSES: TournamentStatus[] = [
   'OPEN',
   'SLOTS_FULL',
   'ROOM_REVEALED',
+  'STARTING_SOON',
   'LIVE',
   'UNDER_REVIEW',
 ];
@@ -36,7 +37,16 @@ export const CANCELLABLE_STATUSES: TournamentStatus[] = [
   'OPEN',
   'SLOTS_FULL',
   'ROOM_REVEALED',
+  'STARTING_SOON',
 ];
+
+/**
+ * Kickoff has arrived and the players are waiting: the clock stopped at
+ * STARTING_SOON and only "Go live" can move the match to LIVE.
+ */
+export function isAwaitingAdminStart(status: TournamentStatus): boolean {
+  return status === 'STARTING_SOON';
+}
 
 export type MatchTab = 'LIVE' | 'UPCOMING' | 'HISTORY';
 
@@ -72,9 +82,21 @@ export function entryOf(match: Pick<AdminTournament, 'entryFee'>): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-export function prizePoolOf(match: Pick<AdminTournament, 'prizePool'>): number {
-  const value = Number(match.prizePool);
-  return Number.isFinite(value) ? value : 0;
+/**
+ * Money actually collected for a match (entry fee × paid seats).
+ *
+ * There is no prize pool any more, so every budget/cap in the UI is measured
+ * against the cash that was really taken for those seats.
+ */
+export function collectedPool(match: {
+  entryFee: number | string;
+  slotsBooked?: number;
+  totalSlots?: number;
+}): number {
+  const fee = Number(match.entryFee ?? 0);
+  const seats = Number(match.slotsBooked ?? match.totalSlots ?? 0);
+  const total = fee * seats;
+  return Number.isFinite(total) ? Math.round(total * 100) / 100 : 0;
 }
 
 /** `👁 Listed` / `Hidden — lists 05 Nov, 06:00 PM IST`. */
@@ -111,23 +133,11 @@ export function matchTiming(match: Pick<AdminTournament, 'matchTime'>): string {
   return relativeToNow(match.matchTime);
 }
 
-/** Rank prize share of the pool — single source of truth (backend mirror). */
-export const DEFAULT_PRIZE_RULES: MatchRoster['prizeRules'] = { '1': 0.5, '2': 0.3, '3': 0.2 };
-
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
-/** Same maths as `computePrize` in matchRoster.service.ts. */
-export function computePrize(
-  pool: number,
-  perKill: number,
-  rank: number | null,
-  kills: number,
-  rules: MatchRoster['prizeRules'] = DEFAULT_PRIZE_RULES
-): number {
-  const share = rank ? Number(rules[String(rank) as '1' | '2' | '3'] ?? 0) : 0;
-  const rankPrize = round2(share * pool);
-  const killPrize = round2(Math.max(0, Math.round(kills)) * perKill);
-  return round2(rankPrize + killPrize);
+/** Same maths as `computePrize` in matchRoster.service.ts: kills only. */
+export function computePrize(perKill: number, kills: number): number {
+  return round2(Math.max(0, Math.round(kills)) * perKill);
 }
 
 /** One-line player identity for tables (`Slot 4 • IGN • P-XXXX`). */

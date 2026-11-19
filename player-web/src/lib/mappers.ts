@@ -1,5 +1,5 @@
-import type { ApiTournament } from './api';
-import type { TournamentMatch } from '../types';
+import type { ApiMyMatch, ApiTournament } from './api';
+import type { MyMatch, MyMatchPhase, TournamentMatch } from '../types';
 
 /**
  * How the account is shown on the Settings page.
@@ -56,12 +56,12 @@ export function toMatch(t: ApiTournament): TournamentMatch {
     matchNumber: t.matchNumber ?? null,
     kickoffIso: t.matchTime,
     isLive: t.status === 'LIVE',
+    awaitingStart: t.status === 'STARTING_SOON',
     map: MAP_LABEL[t.mapType] ?? 'Bermuda',
     category: CATEGORY[t.matchType] ?? 'Solo',
     modeBadge: `${MODE_LABEL[t.matchType]} • ${MAP_LABEL[t.mapType]}`,
     modeChip: (MODE_LABEL[t.matchType] ?? 'Solo').toUpperCase(),
     time: formatMatchTime(t.matchTime),
-    prizePool: Number(t.prizePool),
     perKill: t.perKillPrize ? Number(t.perKillPrize) : 0,
     entryFee: Number(t.entryFee),
     filledSlots: t.slotsBooked,
@@ -118,7 +118,9 @@ export function formatMatchTime(iso: string): string {
 
 /** Feed rule: joinable or live, and not hidden by the admin's visibility window. */
 export function isFeedMatch(t: ApiTournament): boolean {
-  const feedStatuses = ['OPEN', 'UPCOMING', 'SLOTS_FULL', 'ROOM_REVEALED', 'LIVE'];
+  // STARTING_SOON stays in the feed: kickoff passed, the organiser is about to
+  // start it, and the player must still see their match.
+  const feedStatuses = ['OPEN', 'UPCOMING', 'SLOTS_FULL', 'ROOM_REVEALED', 'STARTING_SOON', 'LIVE'];
   if (!feedStatuses.includes(t.status)) return false;
   if (t.isListedNow === false) return false;
   if (t.mySlot) return true;
@@ -131,4 +133,143 @@ export function isJoinClosed(t: ApiTournament, nowMs = Date.now()): boolean {
   const kickoff = new Date(t.matchTime).getTime();
   if (Number.isNaN(kickoff)) return true;
   return kickoff - nowMs <= 60_000;
+}
+
+// ── My Matches ───────────────────────────────────────────────────────────
+
+/** Backend history row → the shape the My Matches card renders. */
+export function toMyMatch(item: ApiMyMatch): MyMatch {
+  return {
+    id: item.id,
+    title: item.title,
+    matchNumber: item.matchNumber ?? null,
+    kickoffIso: item.matchTime,
+    status: item.status,
+    phase: item.phase,
+    map: MAP_LABEL[item.mapType] ?? 'Bermuda',
+    category: CATEGORY[item.matchType] ?? 'Solo',
+    modeChip: (MODE_LABEL[item.matchType] ?? 'Solo').toUpperCase(),
+    entryFee: Number(item.entryFee ?? 0),
+    perKill: Number(item.perKillPrize ?? 0),
+    slotNumber: item.slotNumber,
+    joinedIso: item.joinedAt,
+    inGameNameSnapshot: item.inGameNameSnapshot ?? null,
+    inGameUidSnapshot: item.inGameUidSnapshot ?? null,
+    isBannedFromMatch: item.isBannedFromMatch === true,
+    banReason: item.banReason ?? null,
+    roomUnlocked: item.roomUnlocked === true,
+    room: item.room ?? null,
+    result: item.result
+      ? {
+          rank: item.result.rank ?? null,
+          kills: item.result.kills ?? 0,
+          prizeWon: Number(item.result.prizeWon ?? 0),
+          isApproved: item.result.isApproved === true,
+          isDisqualified: item.result.isDisqualified === true,
+          disqualifyReason: item.result.disqualifyReason ?? null,
+        }
+      : null,
+    refunded: item.refunded === true,
+    refundAmount: Number(item.refundAmount ?? 0),
+    net: item.net === null || item.net === undefined ? null : Number(item.net),
+  };
+}
+
+/**
+ * The status pill on a history card. Deliberately a different vocabulary from
+ * the lobby: here nothing is "joinable", every state is an outcome.
+ */
+export type MyMatchTone = 'cyan' | 'amber' | 'rose' | 'emerald' | 'gold' | 'slate';
+
+export interface MyMatchPill {
+  label: string;
+  tone: MyMatchTone;
+}
+
+export function myMatchPill(match: MyMatch): MyMatchPill {
+  if (match.isBannedFromMatch) return { label: 'BANNED', tone: 'rose' };
+  if (match.result?.isDisqualified) return { label: 'DISQUALIFIED', tone: 'rose' };
+
+  switch (match.phase) {
+    case 'upcoming':
+      if (match.status === 'STARTING_SOON') return { label: 'STARTING SOON', tone: 'amber' };
+      return match.roomUnlocked && match.room
+        ? { label: 'ROOM READY', tone: 'amber' }
+        : { label: 'JOINED', tone: 'cyan' };
+    case 'live':
+      return { label: 'LIVE', tone: 'rose' };
+    case 'completed':
+      if (!match.result) return { label: 'RESULT PENDING', tone: 'slate' };
+      if (match.result.rank === 1) return { label: 'BOOYAH', tone: 'gold' };
+      if (match.result.rank != null) return { label: `RANK #${match.result.rank}`, tone: 'emerald' };
+      return { label: 'PLAYED', tone: 'slate' };
+    case 'cancelled':
+      return match.refunded
+        ? { label: 'REFUNDED', tone: 'slate' }
+        : { label: 'CANCELLED', tone: 'slate' };
+    default:
+      return { label: match.status, tone: 'slate' };
+  }
+}
+
+export type MyMatchActionKind = 'room' | 'pending' | 'none';
+
+export interface MyMatchAction {
+  label: string;
+  kind: MyMatchActionKind;
+}
+
+/**
+ * What the card's button does — never "Join".
+ * A published room opens the code sheet; everything else (including finished
+ * matches, whose rank/kills/prize already sit on the card) is read-only status.
+ */
+export function myMatchAction(match: MyMatch): MyMatchAction {
+  if (match.isBannedFromMatch) return { label: 'Banned from this match', kind: 'pending' };
+  if (match.result?.isDisqualified) return { label: 'Disqualified', kind: 'pending' };
+
+  if (match.phase === 'upcoming' || match.phase === 'live') {
+    if (match.roomUnlocked && match.room) return { label: 'View Room ID', kind: 'room' };
+    if (match.status === 'STARTING_SOON') return { label: 'Please wait', kind: 'pending' };
+    return match.phase === 'live'
+      ? { label: 'Room awaited', kind: 'pending' }
+      : { label: 'Joined — awaiting room', kind: 'pending' };
+  }
+
+  if (match.phase === 'completed') {
+    return match.result
+      ? { label: 'Result declared', kind: 'none' }
+      : { label: 'Result awaited', kind: 'pending' };
+  }
+
+  return match.refunded
+    ? { label: `Refunded ₹${match.refundAmount}`, kind: 'none' }
+    : { label: 'Match cancelled', kind: 'none' };
+}
+
+/** "+₹50" / "−₹20" / "₹0" — the money outcome chip on a settled card. */
+/**
+ * Short "when" line under the seat: "in 2h 10m", "in 45m", "starting now",
+ * "in progress", or "" when the kickoff time cannot be parsed.
+ *
+ * Pure — `nowMs` is injected so the rule stays testable.
+ */
+export function matchTiming(kickoffIso: string, phase: MyMatchPhase, nowMs: number = Date.now()): string {
+  if (phase === 'live') return 'in progress';
+  const startMs = Date.parse(kickoffIso);
+  if (Number.isNaN(startMs)) return '';
+  const deltaMs = startMs - nowMs;
+  // Kickoff passed but the match is not LIVE: the organiser has not started it yet.
+  if (deltaMs <= 0) return 'starting shortly';
+  const minutes = Math.ceil(deltaMs / 60000);
+  if (minutes < 60) return `in ${minutes}m`;
+  if (minutes < 24 * 60) return `in ${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return `in ${Math.floor(minutes / (24 * 60))}d`;
+}
+
+export function formatNet(net: number | null): string {
+  if (net === null) return '—';
+  if (net > 0) return `+₹${net.toLocaleString('en-IN')}`;
+  if (net < 0) return `−₹${Math.abs(net).toLocaleString('en-IN')}`;
+  return '₹0';
 }

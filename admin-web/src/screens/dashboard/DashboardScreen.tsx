@@ -10,16 +10,16 @@ import {
   ClipboardCheck,
   Coins,
   KeyRound,
-  Radio,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  SlidersHorizontal,
   Users,
   Wallet as WalletIcon,
 } from 'lucide-react';
 import { ApiError, api } from '../../lib/api';
-import { can, isOwner, NAV_GROUPS } from '../../lib/permissions';
+import { can, isOwner, NAV_GROUPS, PERMISSION_KEYS } from '../../lib/permissions';
 import { useTheme } from '../../lib/theme';
 import {
   cx,
@@ -66,7 +66,16 @@ const MODULE_META: Record<
 > = {
   '/matches': { description: 'All matches, room state and lifecycle actions', icon: CalendarClock, accent: 'cyan' },
   '/matches/create': { description: 'Map, mode, slots, entry fee and IST schedule', icon: Sparkles, accent: 'gold' },
-  '/matches/publish': { description: 'Room ID + password and reveal windows', icon: Radio, accent: 'cyan' },
+  '/manage': {
+    description: 'Room ID + password, start, kills and match completion',
+    icon: SlidersHorizontal,
+    accent: 'cyan',
+  },
+  '/payouts': {
+    description: 'Final payout desk — submitted matches, kills and money released',
+    icon: Banknote,
+    accent: 'emerald',
+  },
   '/roster': { description: 'Per-player ranks, kills, DQ and prize payout', icon: ClipboardCheck, accent: 'emerald' },
   '/wallet': { description: 'Deposits, withdrawal UTRs and online payments', icon: WalletIcon, accent: 'gold' },
   '/wallet/settlement': { description: 'Daily P&L, ledger and CSV export', icon: Coins, accent: 'emerald' },
@@ -213,11 +222,11 @@ export function DashboardScreen() {
           </h2>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <RoleBadge user={user} />
-            <span className={cx('text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
+            <span className={cx('text-[12.5px]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
               {owner ? 'Every module unlocked' : `${countPermissions(user)} of 4 staff permissions`}
             </span>
             {snapshot.demoPayments && (
-              <span className={cx('rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider', isDark ? 'border-amber-400/30 text-amber-300' : 'border-amber-300 bg-amber-50 text-amber-700')}>
+              <span className={cx('rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider', isDark ? 'border-amber-400/30 text-amber-300' : 'border-amber-300 bg-amber-50 text-amber-800')}>
                 Mock gateway
               </span>
             )}
@@ -243,7 +252,7 @@ export function DashboardScreen() {
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
             <div>
               <p className={cx('text-xs font-black', isDark ? 'text-rose-200' : 'text-rose-700')}>Dashboard data failed</p>
-              <p className={cx('text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>{error}</p>
+              <p className={cx('text-[12.5px]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>{error}</p>
             </div>
           </div>
           <AppButton variant="secondary" size="sm" onClick={() => void load()}>
@@ -262,7 +271,11 @@ export function DashboardScreen() {
             icon={Activity}
             tone="rose"
             loading={loading}
-            onClick={can(user, 'canDistributePrize') ? () => navigate('/roster') : undefined}
+            onClick={
+              can(user, 'canViewPayout') || can(user, 'canDistributePrize')
+                ? () => navigate('/roster')
+                : undefined
+            }
           />
           <StatPill
             label="Pending withdrawals"
@@ -364,12 +377,12 @@ export function DashboardScreen() {
             </section>
           )}
 
-          {!owner && !can(user, 'canManageWallet') && !can(user, 'canCreateMatch') && !can(user, 'canDistributePrize') && (
+          {!owner && !PERMISSION_KEYS.some((key) => can(user, key)) && (
             <GlassCard className="flex items-start gap-2.5 p-4">
-              <ShieldCheck className={cx('mt-0.5 h-4 w-4 shrink-0', isDark ? 'text-slate-400' : 'text-slate-600')} />
+              <ShieldCheck className={cx('mt-0.5 h-4 w-4 shrink-0', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')} />
               <div>
                 <p className={cx('text-xs font-black', isDark ? 'text-white' : 'text-slate-950')}>Read-only staff session</p>
-                <p className={cx('mt-0.5 text-[12.5px] leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                <p className={cx('mt-0.5 text-[12.5px] leading-relaxed', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                   No permissions assigned yet. Ask the owner to enable permissions on the Staff &amp; Access screen.
                 </p>
               </div>
@@ -405,10 +418,10 @@ export function DashboardScreen() {
                 {nextMatch && (
                   <div className={cx('p-3.5', isDark ? 'bg-white/[0.02]' : 'bg-slate-50/70')}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className={cx('text-[11.5px] font-black uppercase tracking-wider', isDark ? 'text-amber-300' : 'text-amber-700')}>
+                      <p className={cx('text-[11.5px] font-black uppercase tracking-wider', isDark ? 'text-amber-300' : 'text-amber-800')}>
                         Next up
                       </p>
-                      <span className={cx('text-[11.5px] font-bold', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                      <span className={cx('text-[11.5px] font-bold', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                         {relativeToNow(nextMatch.matchTime)}
                       </span>
                     </div>
@@ -424,7 +437,7 @@ export function DashboardScreen() {
           <GlassCard className="p-4">
             <div className="flex items-center justify-between gap-2">
               <p className={cx('text-xs font-black', isDark ? 'text-white' : 'text-slate-950')}>Day snapshot</p>
-              <span className={cx('text-[11.5px] font-bold', isDark ? 'text-slate-400' : 'text-slate-600')}>
+              <span className={cx('text-[11.5px] font-bold', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                 {formatISTTime(new Date())} IST
               </span>
             </div>
@@ -442,7 +455,7 @@ export function DashboardScreen() {
                 },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-2">
-                  <dt className={cx('text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>{row.label}</dt>
+                  <dt className={cx('text-[12.5px]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>{row.label}</dt>
                   <dd className={cx('font-mono text-[12.5px] font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}>
                     {row.value}
                   </dd>
@@ -452,7 +465,7 @@ export function DashboardScreen() {
           </GlassCard>
 
           {walletError && (
-            <p className={cx('px-1 text-[11.5px]', isDark ? 'text-amber-300/80' : 'text-amber-700')}>
+            <p className={cx('px-1 text-[11.5px]', isDark ? 'text-amber-300/80' : 'text-amber-800')}>
               {walletError}
             </p>
           )}
@@ -489,7 +502,7 @@ function MatchRow({
         <span className={cx('font-mono text-[12.5px] font-black', isDark ? 'text-white' : 'text-slate-900')}>
           {formatISTTime(match.matchTime).replace(' ', '').slice(0, 5)}
         </span>
-        <span className={cx('text-[11px] font-bold uppercase', 'text-slate-400')}>IST</span>
+        <span className={cx('text-[11px] font-bold uppercase', 'text-slate-600 dark:text-slate-400')}>IST</span>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -501,9 +514,9 @@ function MatchRow({
             <StatusBadge status={match.status} />
           </span>
         </div>
-        <p className={cx('mt-0.5 text-[11.5px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-600')}>
+        <p className={cx('mt-0.5 text-[11.5px] leading-snug', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
           {match.slotsBooked}/{match.totalSlots} slots · {formatINR(Number(match.entryFee))} entry ·{' '}
-          {formatINR(Number(match.prizePool))} pool
+          {formatINR(Number(match.entryFee))} entry
           {match.status !== 'LIVE' ? ` · ${formatCountdown(match.matchTime)} left` : ''}
         </p>
       </div>
@@ -545,7 +558,7 @@ function ModuleCard({
   const isDark = useTheme() === 'dark';
 
   const accents = {
-    gold: isDark ? 'text-amber-300 bg-amber-400/10 border-amber-400/20' : 'text-amber-700 bg-amber-50 border-amber-200',
+    gold: isDark ? 'text-amber-300 bg-amber-400/10 border-amber-400/20' : 'text-amber-800 bg-amber-50 border-amber-200',
     cyan: isDark ? 'text-cyan-300 bg-cyan-400/10 border-cyan-400/20' : 'text-cyan-700 bg-cyan-50 border-cyan-200',
     emerald: isDark ? 'text-emerald-300 bg-emerald-400/10 border-emerald-400/20' : 'text-emerald-700 bg-emerald-50 border-emerald-200',
     rose: isDark ? 'text-rose-300 bg-rose-400/10 border-rose-400/20' : 'text-rose-700 bg-rose-50 border-rose-200',
@@ -577,7 +590,7 @@ function ModuleCard({
             <span
               className={cx(
                 'shrink-0 rounded-md border px-1 py-0.5 text-[11px] font-black uppercase tracking-wider',
-                isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-600'
+                isDark ? 'border-white/10 text-slate-600 dark:text-slate-400' : 'border-slate-200 text-slate-600'
               )}
             >
               Phase {phase}
@@ -585,7 +598,7 @@ function ModuleCard({
           )}
         </span>
         {description && (
-          <span className={cx('mt-0.5 block text-[12px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-600')}>
+          <span className={cx('mt-0.5 block text-[12px] leading-snug', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
             {description}
           </span>
         )}
@@ -594,7 +607,7 @@ function ModuleCard({
       <ArrowUpRight
         className={cx(
           'h-3.5 w-3.5 shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5',
-          'text-slate-400'
+          'text-slate-600 dark:text-slate-400'
         )}
       />
     </button>

@@ -18,7 +18,7 @@ export function SecurityModal({
   const [pin, setPin] = useState('4829');
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150">
       <div
         className={cx(
           'w-full max-w-sm rounded-2xl border p-4 shadow-2xl transition-all',

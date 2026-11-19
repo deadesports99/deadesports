@@ -10,5 +10,5 @@ export function generateUTR(): string {
 }
 
 export function generateEGAId(): string {
-  return `EGA-${Math.floor(1000000 + Math.random() * 9000000)}`;
+  return `SPA-${Math.floor(1000000 + Math.random() * 9000000)}`;
 }

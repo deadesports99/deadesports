@@ -57,7 +57,7 @@ export function ScrollRegion({ children, className }: ScrollRegionProps) {
           <p
             className={cx(
               'pointer-events-none absolute bottom-1 right-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold',
-              isDark ? 'bg-white/[0.06] text-slate-400' : 'bg-slate-900/[0.06] text-slate-600'
+              isDark ? 'bg-white/[0.06] text-slate-600 dark:text-slate-400' : 'bg-slate-900/[0.06] text-slate-600'
             )}
           >
             Scroll →

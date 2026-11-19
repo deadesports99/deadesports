@@ -34,7 +34,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
             <p className={cx('truncate font-display text-sm font-black tracking-tight', isDark ? 'text-white' : 'text-slate-950')}>
               Spartan Arena
             </p>
-            <p className={cx('text-[11.5px] font-bold uppercase tracking-[0.18em]', isDark ? 'text-slate-400' : 'text-slate-600')}>
+            <p className={cx('text-[11.5px] font-bold uppercase tracking-[0.18em]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
               Admin Console
             </p>
           </div>
@@ -63,7 +63,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
           return (
             <div key={group.id} className="mb-4 last:mb-0">
               {!collapsed && (
-                <p className={cx('mb-1.5 px-2.5 text-[11px] font-black uppercase tracking-[0.2em]', 'text-slate-400')}>
+                <p className={cx('mb-1.5 px-2.5 text-[11px] font-black uppercase tracking-[0.2em]', 'text-slate-600 dark:text-slate-400')}>
                   {group.label}
                 </p>
               )}
@@ -84,7 +84,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
                               ? 'bg-white/[0.08] text-white'
                               : 'bg-slate-900 text-white shadow-sm'
                             : isDark
-                              ? 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
+                              ? 'text-slate-600 dark:text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
                               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
                         )
                       }
@@ -108,7 +108,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
                                     'ml-auto rounded-md border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider',
                                     isDark
                                       ? 'border-white/10 text-slate-600 dark:text-slate-400'
-                                      : 'border-slate-200 text-slate-400'
+                                      : 'border-slate-200 text-slate-600 dark:text-slate-400'
                                   )}
                                 >
                                   P{phase}
@@ -146,7 +146,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
               <p className={cx('truncate text-[12px] font-black', isDark ? 'text-white' : 'text-slate-950')}>
                 {user?.name ?? 'Admin'}
               </p>
-              <p className={cx('truncate text-[11.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
+              <p className={cx('truncate text-[11.5px]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                 {user?.email ?? user?.phoneNumber ?? ''}
               </p>
             </div>
@@ -166,7 +166,7 @@ function NavContent({ collapsed = false, onNavigate, onLogout, onClose }: NavCon
               collapsed ? 'w-8' : 'flex-1 px-2.5',
               isDark
                 ? 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-rose-400/40 hover:text-rose-300'
-                : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:text-rose-600'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:text-rose-700'
             )}
           >
             <LogOut className="h-3.5 w-3.5" />

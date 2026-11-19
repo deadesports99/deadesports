@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Theme,
   AuthStep,
@@ -10,6 +10,9 @@ import {
   UserProfile,
   TournamentMatch,
   TransactionItem,
+  MyMatch,
+  MyMatchBucket,
+  MyMatchesSummary,
 } from './types';
 import {
   INITIAL_TRANSACTIONS,
@@ -17,7 +20,7 @@ import {
 import { generateUTR } from './utils/formatters';
 import { api, ApiError, DEV_AUTH, getStoredUser } from './lib/api';
 import { connectRealtime } from './lib/realtime';
-import { identityLabel, isFeedMatch, isJoinClosed, toMatch } from './lib/mappers';
+import { identityLabel, isFeedMatch, isJoinClosed, toMatch, toMyMatch } from './lib/mappers';
 import type { ApiWallet } from './lib/api';
 
 // Common Components
@@ -30,6 +33,7 @@ import { BottomNav } from './components/navigation/BottomNav';
 
 // Modals & Sheets
 import { MatchSheet } from './components/tournaments/MatchSheet';
+import { RoomCodeSheet } from './components/myMatches/RoomCodeSheet';
 import { SettingsSheet } from './components/modals/SettingsSheet';
 import { SignOutModal } from './components/modals/SignOutModal';
 
@@ -37,6 +41,7 @@ import { SignOutModal } from './components/modals/SignOutModal';
 import { LoginScreen } from './screens/auth/LoginScreen';
 import { OtpScreen } from './screens/auth/OtpScreen';
 import { TournamentsScreen } from './screens/TournamentsScreen';
+import { MyMatchesScreen } from './screens/MyMatchesScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 
@@ -165,6 +170,19 @@ export function App() {
 
   const balance = depositCash + winningsCash;
 
+  // ── My Matches (own match history) ─────────────────────────────────────
+  const [myMatches, setMyMatches] = useState<MyMatch[]>([]);
+  const [mySummary, setMySummary] = useState<MyMatchesSummary | null>(null);
+  const [myBucket, setMyBucket] = useState<MyMatchBucket>('all');
+  const [myLoading, setMyLoading] = useState(false);
+  const [myLoadingMore, setMyLoadingMore] = useState(false);
+  const [myPage, setMyPage] = useState(1);
+  const [myTotalPages, setMyTotalPages] = useState(1);
+  /** Realtime/join refreshes must not run before the first tab open. */
+  const myLoadedRef = useRef(false);
+  const myBucketRef = useRef<MyMatchBucket>('all');
+  const [roomMatch, setRoomMatch] = useState<MyMatch | null>(null);
+
   /** Wallet balances + the real ledger, used by the Wallet screen. */
   const loadWallet = async () => {
     const summary = await api.wallet.summary(1, 25);
@@ -212,6 +230,45 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  /**
+   * Load one page of my own matches. `append` powers "Load more"; `silent` is
+   * used by realtime pushes and after a join so the list never flashes.
+   */
+  const loadMyMatches = async (
+    options: { bucket?: MyMatchBucket; page?: number; append?: boolean; silent?: boolean } = {}
+  ) => {
+    const bucket = options.bucket ?? myBucketRef.current;
+    const page = options.page ?? 1;
+    const append = options.append === true;
+    if (append) setMyLoadingMore(true);
+    else if (!options.silent) setMyLoading(true);
+    try {
+      const data = await api.player.matches(bucket, page, 20);
+      const items = data.items.map(toMyMatch);
+      setMyMatches((previous) => (append ? [...previous, ...items] : items));
+      setMySummary(data.summary);
+      setMyBucket(bucket);
+      myBucketRef.current = bucket;
+      setMyPage(data.pagination.page);
+      setMyTotalPages(Math.max(1, data.pagination.totalPages || 1));
+      myLoadedRef.current = true;
+    } catch (error) {
+      if (!options.silent) {
+        showToast(error instanceof ApiError ? error.message : 'Could not load your matches', 'error');
+      }
+    } finally {
+      if (append) setMyLoadingMore(false);
+      else setMyLoading(false);
+    }
+  };
+
+  // First open of the tab loads the history; later opens refresh it quietly.
+  useEffect(() => {
+    if (step !== 'APP' || activeTab !== 'matches') return;
+    void loadMyMatches({ silent: myLoadedRef.current });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, activeTab]);
+
   // ⚡ Live lobby: the server pushes MATCH_CREATED the moment a match is
   // published (plus SLOT_BOOKED / status changes), so a newly created match
   // appears without anyone tapping the refresh chip. Bursts are debounced into
@@ -229,7 +286,11 @@ export function App() {
         return;
       }
       if (debounce !== undefined) window.clearTimeout(debounce);
-      debounce = window.setTimeout(() => void loadFeed({ silent: true }), 400);
+      debounce = window.setTimeout(() => {
+        void loadFeed({ silent: true });
+        // A finished match / payout changes the history too.
+        if (myLoadedRef.current) void loadMyMatches({ silent: true });
+      }, 400);
     });
     return () => {
       if (debounce !== undefined) window.clearTimeout(debounce);
@@ -288,10 +349,14 @@ export function App() {
       setProfileUid(identity.inGameUid);
       showToast(`Slot confirmed for ${match.title}!`);
       await loadFeed();
+      if (myLoadedRef.current) void loadMyMatches({ silent: true });
 
       // The organiser may have published the room before this join — hand the
       // code over immediately instead of closing the sheet on the player.
-      if (rawMatches[match.id]?.status === 'ROOM_REVEALED' || result.roomId) {
+      if (
+        ['ROOM_REVEALED', 'STARTING_SOON'].includes(rawMatches[match.id]?.status ?? '') ||
+        result.roomId
+      ) {
         try {
           const room = await api.tournaments.room(match.id);
           setSheetRoom({ roomId: room.roomId, roomPassword: room.roomPassword });
@@ -315,7 +380,8 @@ export function App() {
     setJoinError(undefined);
     setSheetRoom(null);
     setSelectedMatch(match);
-    if (rawMatches[match.id]?.status !== 'ROOM_REVEALED') return;
+    // A kicked-off match also matters here: the room usually arrives last minute.
+    if (!['ROOM_REVEALED', 'STARTING_SOON'].includes(rawMatches[match.id]?.status ?? '')) return;
     try {
       const room = await api.tournaments.room(match.id);
       setSheetRoom({ roomId: room.roomId, roomPassword: room.roomPassword });
@@ -430,7 +496,7 @@ export function App() {
         provider,
       });
       setStep('APP');
-      showToast(`Welcome ${session.user.name ?? 'to Spartan Esports Arena'}!`);
+      showToast(`Welcome ${session.user.name ?? 'to Spartan Arena'}!`);
     } catch (error) {
       setAuthError(error instanceof ApiError ? error.message : (error as Error).message);
     } finally {
@@ -487,13 +553,17 @@ export function App() {
         title={
           activeTab === 'tournaments'
             ? 'Esports Lobby'
+            : activeTab === 'matches'
+            ? 'My Matches'
             : activeTab === 'wallet'
-            ? 'Arena Wallet'
-            : 'Arena Settings'
+            ? 'Spartan Wallet'
+            : 'Spartan Settings'
         }
         subtitle={
           activeTab === 'tournaments'
             ? 'Free Fire Max • Custom Scrims'
+            : activeTab === 'matches'
+            ? 'Career Record • Results • Payouts'
             : activeTab === 'wallet'
             ? 'Dual Ledger • Instant UPI'
             : 'Preferences • Notifications • Rules'
@@ -527,6 +597,23 @@ export function App() {
               const hero = matches[0];
               if (hero) void openMatchSheet(hero);
             }}
+          />
+        )}
+
+        {activeTab === 'matches' && (
+          <MyMatchesScreen
+            theme={theme}
+            summary={mySummary}
+            matches={myMatches}
+            bucket={myBucket}
+            onBucket={(bucket) => void loadMyMatches({ bucket })}
+            loading={myLoading}
+            loadingMore={myLoadingMore}
+            hasMore={myPage < myTotalPages}
+            onRefresh={() => void loadMyMatches()}
+            onLoadMore={() => void loadMyMatches({ page: myPage + 1, append: true })}
+            onRoom={(match) => setRoomMatch(match)}
+            onBrowse={() => setActiveTab('tournaments')}
           />
         )}
 
@@ -595,6 +682,11 @@ export function App() {
           joinError={joinError}
           joining={joining}
           joinClosed={rawMatches[selectedMatch.id] ? isJoinClosed(rawMatches[selectedMatch.id]) : false}
+          slotsFull={
+            Boolean(rawMatches[selectedMatch.id]) &&
+            !joinedIds.includes(selectedMatch.id) &&
+            rawMatches[selectedMatch.id].slotsBooked >= rawMatches[selectedMatch.id].totalSlots
+          }
           hasCredentials={joinedIds.includes(selectedMatch.id) && Boolean(sheetRoom)}
           roomPending={!joinedIds.includes(selectedMatch.id) && rawMatches[selectedMatch.id]?.status === 'ROOM_REVEALED'}
           room={sheetRoom}
@@ -610,6 +702,16 @@ export function App() {
             setActiveTab('wallet');
             setWalletMode('add');
           }}
+        />
+      )}
+
+      {/* My Matches — published room code for one of my joined matches */}
+      {roomMatch && (
+        <RoomCodeSheet
+          theme={theme}
+          match={roomMatch}
+          onClose={() => setRoomMatch(null)}
+          onCopied={(label) => showToast(`${label} copied to clipboard`)}
         />
       )}
 

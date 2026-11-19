@@ -287,7 +287,7 @@ export function OtpScreen({
                 isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
               )}
             >
-              <Headphones className="h-3.5 w-3.5 text-slate-400" /> Spartan Tournament Support is online
+              <Headphones className="h-3.5 w-3.5 text-slate-400" /> Spartan Arena Support is online
             </div>
           </div>
         </div>

@@ -60,6 +60,15 @@ export function AdminLoginScreen() {
   const [attemptsHint, setAttemptsHint] = useState('');
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+  /**
+   * Synchronous re-entry latch for "Send sign-in code".
+   *
+   * `busy` is React state, so `setBusy(true)` only disables the button on the
+   * NEXT render — an impatient double/triple click lands several requests in
+   * the same tick and every one of them mails a fresh OTP. A ref is updated
+   * immediately, so the extra clicks are dropped before they hit the network.
+   */
+  const otpRequestInFlight = useRef(false);
 
   useEffect(() => {
     if (phase !== 'otp' || resendLeft <= 0) return undefined;
@@ -77,16 +86,23 @@ export function AdminLoginScreen() {
 
   const requestOtp = async (event?: FormEvent) => {
     event?.preventDefault();
+
+    // Drop duplicate submits that arrive before React re-renders with busy=true.
+    if (otpRequestInFlight.current) return;
+    otpRequestInFlight.current = true;
+
     setError('');
     setAttemptsHint('');
 
     const cleanEmail = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       setError('Enter a valid email address');
+      otpRequestInFlight.current = false;
       return;
     }
     if (mode === 'staff' && accessKey.trim().length < 10) {
       setError(`Enter the ${KEY_LENGTH}-character permission key from the owner`);
+      otpRequestInFlight.current = false;
       return;
     }
 
@@ -112,6 +128,7 @@ export function AdminLoginScreen() {
         setError(message);
       }
     } finally {
+      otpRequestInFlight.current = false;
       setBusy(false);
     }
   };
@@ -204,7 +221,7 @@ export function AdminLoginScreen() {
             <Crest />
             <div>
               <p className="font-spartan text-2xl font-black tracking-tight">Spartan Arena</p>
-              <p className={cx('text-[12.5px] font-bold uppercase tracking-[0.24em]', isDark ? 'text-amber-300' : 'text-amber-700')}>
+              <p className={cx('text-[12.5px] font-bold uppercase tracking-[0.24em]', isDark ? 'text-amber-300' : 'text-amber-800')}>
                 Operations Console
               </p>
             </div>
@@ -212,9 +229,9 @@ export function AdminLoginScreen() {
 
           <h1 className="mt-8 max-w-lg font-display text-[30px] font-black leading-[1.12] tracking-tight xl:text-[36px]">
             Everything for match night,{" "}
-            <span className={isDark ? 'text-amber-300' : 'text-amber-700'}>in one browser tab</span>.
+            <span className={isDark ? 'text-amber-300' : 'text-amber-800'}>in one browser tab</span>.
           </h1>
-          <p className={cx('mt-3 max-w-md text-sm leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+          <p className={cx('mt-3 max-w-md text-sm leading-relaxed', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
             Matches, room IDs, live scoring, wallet approvals and staff permissions — the same
             data and the same design language as the player app.
           </p>
@@ -231,14 +248,14 @@ export function AdminLoginScreen() {
                     'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border',
                     isDark
                       ? 'border-white/10 bg-white/[0.04] text-amber-300'
-                      : 'border-slate-200 bg-white text-amber-700'
+                      : 'border-slate-200 bg-white text-amber-800'
                   )}
                 >
                   <Icon className="h-4 w-4" />
                 </span>
                 <div>
                   <p className="text-[13px] font-black">{title}</p>
-                  <p className={cx('text-xs', isDark ? 'text-slate-400' : 'text-slate-600')}>{text}</p>
+                  <p className={cx('text-xs', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>{text}</p>
                 </div>
               </li>
             ))}
@@ -247,7 +264,7 @@ export function AdminLoginScreen() {
           <div
             className={cx(
               'mt-8 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[12.5px] font-semibold',
-              isDark ? 'border-white/10 bg-white/[0.03] text-slate-400' : 'border-slate-200 bg-white text-slate-600'
+              isDark ? 'border-white/10 bg-white/[0.03] text-slate-600 dark:text-slate-400' : 'border-slate-200 bg-white text-slate-600'
             )}
           >
             <Lock className="h-3.5 w-3.5" />
@@ -263,7 +280,7 @@ export function AdminLoginScreen() {
               <Crest small />
               <div>
                 <p className="text-sm font-black leading-none tracking-tight">Spartan Arena</p>
-                <p className={cx('mt-1 text-[11px] font-bold uppercase tracking-[0.2em]', isDark ? 'text-amber-300' : 'text-amber-700')}>
+                <p className={cx('mt-1 text-[11px] font-bold uppercase tracking-[0.2em]', isDark ? 'text-amber-300' : 'text-amber-800')}>
                   Admin Console
                 </p>
               </div>
@@ -285,7 +302,7 @@ export function AdminLoginScreen() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h2 className="text-xl font-black tracking-tight sm:text-2xl">Admin sign in</h2>
-                      <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                      <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                         {mode === 'owner'
                           ? 'A 6-digit code will be sent to the owner email.'
                           : 'Staff sign in with the owner email + permission key.'}
@@ -328,12 +345,12 @@ export function AdminLoginScreen() {
                               ? 'bg-white/[0.09] text-white shadow-sm'
                               : 'bg-white text-slate-950 shadow-sm'
                             : isDark
-                              ? 'text-slate-400 hover:text-slate-200'
+                              ? 'text-slate-600 dark:text-slate-400 hover:text-slate-200'
                               : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
                         )}
                       >
                         {tab.label}
-                        <span className={cx('ml-1 hidden font-medium sm:inline', 'text-slate-400')}>
+                        <span className={cx('ml-1 hidden font-medium sm:inline', 'text-slate-600 dark:text-slate-400')}>
                           · {tab.hint}
                         </span>
                       </button>
@@ -347,7 +364,7 @@ export function AdminLoginScreen() {
                         htmlFor="admin-email"
                         className={cx('mb-1.5 flex items-center gap-1.5 text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
                       >
-                        <Mail className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-600')} />
+                        <Mail className={cx('h-3.5 w-3.5', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')} />
                         {mode === 'owner' ? 'Owner email' : 'Owner email (admin)'}
                       </label>
                       <input
@@ -380,9 +397,9 @@ export function AdminLoginScreen() {
                           htmlFor="admin-key"
                           className={cx('mb-1.5 flex items-center gap-1.5 text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
                         >
-                          <KeyRound className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-600')} />
+                          <KeyRound className={cx('h-3.5 w-3.5', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')} />
                           Permission key
-                          <span className={cx('font-medium', 'text-slate-400')}>
+                          <span className={cx('font-medium', 'text-slate-600 dark:text-slate-400')}>
                             (24 characters)
                           </span>
                         </label>
@@ -416,12 +433,12 @@ export function AdminLoginScreen() {
                             type="button"
                             onClick={() => setShowKey((value) => !value)}
                             aria-label={showKey ? 'Hide permission key' : 'Show permission key'}
-                            className={cx('flex h-9 w-9 shrink-0 items-center justify-center', isDark ? 'text-slate-400' : 'text-slate-600')}
+                            className={cx('flex h-9 w-9 shrink-0 items-center justify-center', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}
                           >
                             {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        <p className={cx('mt-1.5 text-[11.5px] leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                        <p className={cx('mt-1.5 text-[11.5px] leading-relaxed', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                           The owner issues this key. The OTP still goes to the owner email.
                         </p>
                       </div>
@@ -447,7 +464,7 @@ export function AdminLoginScreen() {
                   <div
                     className={cx(
                       'mt-5 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[11.5px] leading-relaxed',
-                      isDark ? 'border-white/[0.06] bg-white/[0.02] text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
+                      isDark ? 'border-white/[0.06] bg-white/[0.02] text-slate-600 dark:text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
                     )}
                   >
                     <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -465,7 +482,7 @@ export function AdminLoginScreen() {
                     disabled={busy}
                     className={cx(
                       'group inline-flex items-center gap-2 text-xs font-bold transition-all',
-                      isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
+                      isDark ? 'text-slate-600 dark:text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
                     )}
                   >
                     <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
@@ -474,7 +491,7 @@ export function AdminLoginScreen() {
 
                   <div className="mt-4">
                     <h2 className="text-xl font-black tracking-tight sm:text-2xl">Enter OTP</h2>
-                    <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                    <p className={cx('mt-1 text-xs leading-relaxed', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                       A 6-digit code has been sent to the owner email.
                     </p>
                   </div>
@@ -487,7 +504,7 @@ export function AdminLoginScreen() {
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <Mail className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-400' : 'text-slate-600')} />
+                      <Mail className={cx('h-3.5 w-3.5 shrink-0', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')} />
                       <div className="min-w-0">
                         <p className={cx('truncate text-[12px] font-black', isDark ? 'text-white' : 'text-slate-950')}>
                           {email.trim()}
@@ -500,7 +517,7 @@ export function AdminLoginScreen() {
                                 : ({ role: 'SUB_ADMIN' } as never)
                             }
                           />
-                          <span className={cx('text-[11px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
+                          <span className={cx('text-[11px]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
                             {mode === 'staff' ? 'key verified on submit' : 'owner inbox'}
                           </span>
                         </div>
@@ -528,7 +545,7 @@ export function AdminLoginScreen() {
                         className={cx('mb-2 flex items-center justify-between text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}
                       >
                         <span>6-digit code</span>
-                        <span className={cx('text-[11.5px] font-medium', 'text-slate-400')}>
+                        <span className={cx('text-[11.5px] font-medium', 'text-slate-600 dark:text-slate-400')}>
                           10 min expiry
                         </span>
                       </label>
@@ -589,7 +606,7 @@ export function AdminLoginScreen() {
                           isDark ? 'border-amber-400/30 bg-amber-400/[0.06]' : 'border-amber-300 bg-amber-50'
                         )}
                       >
-                        <span className={cx('text-[11.5px] font-bold', isDark ? 'text-amber-300' : 'text-amber-700')}>
+                        <span className={cx('text-[11.5px] font-bold', isDark ? 'text-amber-300' : 'text-amber-800')}>
                           DEV — backend log code:{' '}
                           <code className="font-mono text-[12px]">{debugOtp}</code>
                         </span>
@@ -598,7 +615,7 @@ export function AdminLoginScreen() {
                           onClick={fillDebugOtp}
                           className={cx(
                             'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11.5px] font-black',
-                            isDark ? 'border-amber-400/30 text-amber-200' : 'border-amber-300 text-amber-700'
+                            isDark ? 'border-amber-400/30 text-amber-200' : 'border-amber-300 text-amber-800'
                           )}
                         >
                           <Zap className="h-3 w-3" /> Fill
@@ -613,7 +630,7 @@ export function AdminLoginScreen() {
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        <Clock3 className={cx('h-3.5 w-3.5', isDark ? 'text-slate-400' : 'text-slate-600')} />
+                        <Clock3 className={cx('h-3.5 w-3.5', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')} />
                         {resendLeft > 0 ? (
                           <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
                             Resend in{' '}
@@ -622,7 +639,7 @@ export function AdminLoginScreen() {
                             </strong>
                           </span>
                         ) : (
-                          <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Didn&apos;t receive the code?</span>
+                          <span className={isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600'}>Didn&apos;t receive the code?</span>
                         )}
                       </div>
 
@@ -652,7 +669,7 @@ export function AdminLoginScreen() {
                   <div
                     className={cx(
                       'mt-4 flex items-center justify-center gap-1.5 border-t pt-3 text-[11.5px]',
-                      isDark ? 'text-slate-400' : 'text-slate-600'
+                      isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600'
                     )}
                   >
                     <KeyRound className="h-3.5 w-3.5" />
@@ -663,7 +680,7 @@ export function AdminLoginScreen() {
             </div>
           </div>
 
-          <p className={cx('mt-4 text-center text-[11.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>
+          <p className={cx('mt-4 text-center text-[11.5px]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
             Spartan Arena · Admin access only · All actions are audited
           </p>
         </section>

@@ -1,9 +1,11 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/common/Toast';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Crest } from './components/common/Crest';
 import { SessionProvider, useSession } from './context/SessionContext';
+import { StepUpProvider } from './context/StepUpContext';
 import { RealtimeProvider } from './context/RealtimeContext';
 import { AppShell } from './components/navigation/AppShell';
 import { AdminLoginScreen } from './screens/auth/AdminLoginScreen';
@@ -11,9 +13,9 @@ import { DashboardScreen } from './screens/dashboard/DashboardScreen';
 import { MatchesScreen } from './screens/matches/MatchesScreen';
 import { ManageMatchesScreen } from './screens/manage/ManageMatchesScreen';
 import { CreateMatchScreen } from './screens/matches/CreateMatchScreen';
-import { PublishRoomScreen } from './screens/matches/PublishRoomScreen';
 import { MatchControlScreen } from './screens/matches/MatchControlScreen';
-import { ScorerPickerScreen } from './screens/matches/ScorerPickerScreen';
+import { MatchPlayersScreen } from './screens/matches/MatchPlayersScreen';
+import { FinalPayoutScreen } from './screens/payout/FinalPayoutScreen';
 import { WalletScreen } from './screens/wallet/WalletScreen';
 import { SettlementScreen } from './screens/wallet/SettlementScreen';
 import { PlayersScreen } from './screens/players/PlayersScreen';
@@ -23,7 +25,7 @@ import { useTheme } from './lib/theme';
 import { cx } from './lib/format';
 
 /** Boot screen while `GET /auth/me` decides between login and shell. */
-function SplashScreen() {
+function SplashScreen({ reconnecting = false }: { reconnecting?: boolean }) {
   const isDark = useTheme() === 'dark';
 
   return (
@@ -41,15 +43,78 @@ function SplashScreen() {
         </p>
       </div>
       <Loader2 className={cx('h-5 w-5 animate-spin', 'text-slate-600 dark:text-slate-400')} />
+      {reconnecting && (
+        <p className={cx('text-[12px] font-semibold', isDark ? 'text-slate-400' : 'text-slate-600')}>
+          Reconnecting to the server — your session is safe.
+        </p>
+      )}
     </div>
   );
 }
 
-function AppRoutes() {
-  const { status } = useSession();
+/**
+ * Where to send the admin after sign-in. Kept in sessionStorage because the
+ * post-login redirect can happen in a different render pass than the sign-out.
+ */
+const RETURN_TO_KEY = 'admin:returnTo';
 
-  if (status === 'loading') return <SplashScreen />;
-  if (status === 'anonymous') return <AdminLoginScreen />;
+function rememberReturnTo(from: string) {
+  if (!from.startsWith('/') || from.startsWith('//') || from === '/login') return;
+  try {
+    window.sessionStorage.setItem(RETURN_TO_KEY, from);
+  } catch {
+    /* private mode / storage disabled — fall back to the dashboard */
+  }
+}
+
+function readReturnTo(): string {
+  let raw: string | null = null;
+  try {
+    raw = window.sessionStorage.getItem(RETURN_TO_KEY);
+  } catch {
+    raw = null;
+  }
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw === '/login') return '/';
+  return raw;
+}
+
+function clearReturnTo() {
+  try {
+    window.sessionStorage.removeItem(RETURN_TO_KEY);
+  } catch {
+    /* storage disabled */
+  }
+}
+
+/**
+ * Signed-out gate: the login screen always lives at `/login`, and the page the
+ * admin was on is remembered so sign-in can return there. Rendering the form on
+ * top of `/settings` left a stale URL in the address bar (and reloading it
+ * bounced the admin straight back to the sign-in form).
+ */
+function AnonymousGate() {
+  const location = useLocation();
+
+  if (location.pathname === '/login') return <AdminLoginScreen />;
+
+  rememberReturnTo(`${location.pathname}${location.search}`);
+  return <Navigate to="/login" replace />;
+}
+
+function AppRoutes() {
+  const { status, reconnecting } = useSession();
+  const location = useLocation();
+
+  // Once the admin is back on a real page, the remembered target is spent.
+  useEffect(() => {
+    if (location.pathname !== '/login') clearReturnTo();
+  }, [location.pathname]);
+
+  if (status === 'loading') return <SplashScreen reconnecting={reconnecting} />;
+  if (status === 'anonymous') return <AnonymousGate />;
+
+  // Freshly signed in while sitting on `/login` — go back where they came from.
+  if (location.pathname === '/login') return <Navigate to={readReturnTo()} replace />;
 
   return (
     <Routes>
@@ -60,10 +125,16 @@ function AppRoutes() {
         <Route path="matches" element={<MatchesScreen />} />
         <Route path="manage" element={<ManageMatchesScreen />} />
         <Route path="matches/create" element={<CreateMatchScreen />} />
-        <Route path="matches/publish" element={<PublishRoomScreen />} />
+        {/* Publish Room merged into Manage Matches — old links keep working. */}
+        <Route path="matches/publish" element={<Navigate to="/manage" replace />} />
+        {/* Every joined player, earliest join first — linked from the seats chip. */}
+        <Route path="matches/:id/players" element={<MatchPlayersScreen />} />
         <Route path="matches/:id" element={<MatchControlScreen />} />
-        <Route path="roster" element={<ScorerPickerScreen />} />
-        <Route path="scorer" element={<Navigate to="/roster" replace />} />
+        {/* Final Payout desk — submitted matches, totals and the OTP payout. */}
+        <Route path="payouts" element={<FinalPayoutScreen />} />
+        {/* Live Scorer is gone; old bookmarks land on the payout desk. */}
+        <Route path="roster" element={<Navigate to="/payouts" replace />} />
+        <Route path="scorer" element={<Navigate to="/payouts" replace />} />
 
         {/* Phase 5 — money, players, staff, settings */}
         <Route path="wallet" element={<WalletScreen />} />
@@ -84,18 +155,20 @@ function AppRoutes() {
 
 /**
  * Provider order matters:
- *   Toast (UI) → Session (cookie) → Realtime (needs a session) → Router.
+ *   Toast (UI) → Session (cookie) → Step-up (needs the toast) → Realtime → Router.
  */
 export function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
         <SessionProvider>
-          <RealtimeProvider>
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <AppRoutes />
-            </BrowserRouter>
-          </RealtimeProvider>
+          <StepUpProvider>
+            <RealtimeProvider>
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <AppRoutes />
+              </BrowserRouter>
+            </RealtimeProvider>
+          </StepUpProvider>
         </SessionProvider>
       </ToastProvider>
     </ErrorBoundary>

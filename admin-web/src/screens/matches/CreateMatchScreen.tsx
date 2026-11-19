@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CalendarClock, Clock, Eye, ShieldCheck, Sparkles } from 'lucide-react';
 import { ApiError, api } from '../../lib/api';
@@ -32,14 +32,6 @@ const SLOT_LIMITS: Record<GameMode, { min: number; max: number; step: number }> 
   CLASH_SQUAD: { min: 2, max: 8, step: 1 },
 };
 
-/**
- * Share of entry-fee collection paid back to players as kill bounties.
- * Fallback platform cut when the tenant has not set one yet.
- * The live value comes from Tenant.commissionRate (Settings screen).
- */
-const DEFAULT_COMMISSION_PERCENT = 20;
-/** Mirror of MAX_COMMISSION_PERCENT in backend/src/services/tenant.service.ts. */
-const MAX_CUT_PERCENT = 90;
 const HOURS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
 const QUICK_HOURS = [1, 3, 6, 12, 24];
@@ -85,13 +77,6 @@ export function CreateMatchScreen() {
   const [entryFee, setEntryFee] = useState('');
   const [perKillPrize, setPerKillPrize] = useState('');
 
-  // Platform cut, seeded from the tenant settings so the number the admin sees
-  // here matches what the server will actually keep. Editable per match.
-  const [cutPercentText, setCutPercentText] = useState(String(DEFAULT_COMMISSION_PERCENT));
-  /** Last value confirmed on the server, so we only PATCH when it really moved. */
-  const lastSavedCutRef = useRef(DEFAULT_COMMISSION_PERCENT);
-  /** True once the admin types their own cut; auto-suggest then stops overriding. */
-  const [cutTouched, setCutTouched] = useState(false);
 
   const [schedule, setSchedule] = useState<ScheduleDraft>(() => defaultSchedule());
 
@@ -101,80 +86,17 @@ export function CreateMatchScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Seed the cut from the tenant's saved rate. Fails silently: the admin can
-  // still type a number, and the default is a safe 20%.
-  useEffect(() => {
-    let alive = true;
-    api.settings
-      .get()
-      .then((settings) => {
-        if (alive && typeof settings.commissionRate === 'number') {
-          setCutPercentText(String(settings.commissionRate));
-          lastSavedCutRef.current = settings.commissionRate;
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const fee = Number(entryFee || 0);
   const perKill = perKillPrize.trim() ? Number(perKillPrize) : undefined;
 
   /**
-   * The admin owns the platform cut. Everything below recomputes from it, so
-   * moving the percentage instantly shows what the match earns and what it
-   * pays out. The server uses the same number from Tenant.commissionRate.
+   * Money maths for this match: what a full house collects and what the kill
+   * bounties can cost in the worst case (every seat but the winner scores).
    */
-  const cutPercent = Math.min(MAX_CUT_PERCENT, Math.max(0, Number(cutPercentText || 0)));
-  const playerShare = 1 - cutPercent / 100;
-
-  /** Cash in if every seat sells: seats x entry fee. */
   const collectedAtFull = Math.round(fee * totalSlots * 100) / 100;
-
-  /**
-   * What the lobby can actually pay out: every player but the winner can score,
-   * so the worst case is (seats - 1) kills at the per-kill rate. This is the real
-   * cost of the match, not the flat percentage.
-   */
   const maxKills = Math.max(0, totalSlots - 1);
   const maxPayout = Math.round(maxKills * (perKill ?? 0) * 100) / 100;
-
-  /** Kept after paying every possible kill. */
   const killProfit = Math.round((collectedAtFull - maxPayout) * 100) / 100;
-  /** Kill-based margins as a share of collections, so they read like the cut. */
-  const payoutPct = collectedAtFull > 0 ? (maxPayout / collectedAtFull) * 100 : 0;
-  const killProfitPct = collectedAtFull > 0 ? (killProfit / collectedAtFull) * 100 : 0;
-
-  /**
-   * Suggested cut = the most you can keep while the pool still covers every
-   * possible kill. Anything above this loses money, so the box starts here.
-   * Adopted only while the admin has not typed a value themselves.
-   */
-  const safeCutPct = Math.round(killProfitPct * 10) / 10;
-  const suggestedCutClamped = Math.min(MAX_CUT_PERCENT, Math.max(0, safeCutPct));
-
-  /** Pool paid back to players at a full house. */
-  const autoPool = Math.round(collectedAtFull * playerShare * 100) / 100;
-
-  /**
-   * A cut that leaves less in the pool than the kills can claim is a guaranteed
-   * loss; surface the exact shortfall instead of hiding it.
-   */
-  const poolShortfall = Math.round((maxPayout - autoPool) * 100) / 100;
-
-  /**
-   * Auto-fill the cut from the kill maths until the admin overrides it. Entry
-   * fee or per-kill changes re-run the suggestion, so the box never lags behind
-   * the numbers beside it.
-   */
-  useEffect(() => {
-    if (cutTouched || fee <= 0 || perKill === undefined) {
-      return;
-    }
-    setCutPercentText(String(suggestedCutClamped));
-  }, [fee, perKill, suggestedCutClamped, cutTouched]);
 
   const matchIso = useMemo(() => scheduleToIso(schedule), [schedule]);
   const matchInFuture = isDraftInFuture(schedule);
@@ -230,19 +152,11 @@ export function CreateMatchScreen() {
 
     setSubmitting(true);
     try {
-      // The cut lives on the tenant, so persist it before creating the match.
-      // Without this the admin's number would only affect the preview.
-      if (cutPercent !== lastSavedCutRef.current) {
-        await api.settings.update({ commissionRate: cutPercent });
-        lastSavedCutRef.current = cutPercent;
-      }
-
       const created = await api.matches.create({
         gameMode,
         matchType,
         mapType,
         entryFee: fee,
-        prizePool: autoPool,
         perKillPrize: perKill ?? 0,
         matchTime: matchIso,
         totalSlots,
@@ -386,47 +300,16 @@ export function CreateMatchScreen() {
                   onChange={(event) => setPerKillPrize(event.target.value.replace(/[^\d.]/g, '').slice(0, 8))}
                 />
               </Field>
-              <Field label={cutTouched ? 'Your cut (%)' : 'Your cut (%) — auto'}>
-                <TextInput
-                  inputMode="decimal"
-                  value={cutPercentText}
-                  placeholder={String(DEFAULT_COMMISSION_PERCENT)}
-                  aria-label="Platform cut percent"
-                  onChange={(event) => {
-                    setCutTouched(true);
-                    const raw = event.target.value.replace(/[^\d.]/g, '').slice(0, 5);
-                    // Clamp on the way in so the box always shows what the match
-                    // will really use; the server enforces the same 0-90 range.
-                    const n = Number(raw);
-                    setCutPercentText(raw === '' ? '' : String(Math.min(MAX_CUT_PERCENT, Math.max(0, n))));
-                  }}
-                />
-              </Field>
-              <Field label="Pool if full house (₹)">
-                <TextInput
-                  value={autoPool ? String(autoPool) : '0'}
-                  readOnly
-                  disabled
-                  aria-label="Prize pool (auto-calculated)"
-                  className="cursor-not-allowed opacity-70"
-                />
-              </Field>
             </div>
 
             {/* Live money split — moves the moment any number above changes. */}
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MoneyCell label="Collected (full house)" value={collectedAtFull} tone="plain" />
+              <MoneyCell label={`Max payout (${maxKills} kills)`} value={maxPayout} tone="plain" />
               <MoneyCell
-                label={`Max payout (${maxKills} kills)`}
-                value={maxPayout}
-                tone="plain"
-                hint={`${payoutPct.toFixed(1)}% of collections`}
-              />
-              <MoneyCell
-                label="Your profit (auto)"
+                label="Left after all kills"
                 value={killProfit}
                 tone={killProfit >= 0 ? 'profit' : 'loss'}
-                hint={`${killProfitPct.toFixed(1)}% margin`}
               />
               <MoneyCell
                 label="Per seat profit"
@@ -438,36 +321,22 @@ export function CreateMatchScreen() {
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <InfoNote>
                 Kill maths: worst case is <b>{maxKills}</b> kills x <b>₹{perKill ?? 0}</b> =
-                <b> ₹{maxPayout.toFixed(2)}</b> paid out, so you keep
-                <b> ₹{killProfit.toFixed(2)}</b> ({killProfitPct.toFixed(1)}%) of
-                <b> ₹{collectedAtFull.toFixed(2)}</b>.
+                <b> ₹{maxPayout.toFixed(2)}</b> paid out from <b>₹{collectedAtFull.toFixed(2)}</b>
+                collected, leaving <b>₹{killProfit.toFixed(2)}</b>.
               </InfoNote>
-              <InfoNote>
-                The match starts at <b>₹0</b> — nobody has paid yet. Every join adds{' '}
-                <b>₹{(fee * playerShare).toFixed(2)}</b> to the pool ({100 - cutPercent}% of the fee), so
-                a full house of <b>{totalSlots}</b> seats reaches{' '}
-                <b>₹{autoPool.toFixed(2)}</b>. Your cut is{' '}
-                <b>{cutTouched ? cutPercent : suggestedCutClamped}%</b>
-                {cutTouched ? ' (your override)' : ' (auto = most you can keep safely)'}.
-              </InfoNote>
-              {poolShortfall > 0 ? (
+              {killProfit < 0 ? (
                 <div className="rounded-xl border border-rose-300/70 bg-rose-50 px-3 py-2 text-[12px] font-semibold text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200">
-                  Loss alert: at <b>{cutPercent}%</b> the pool is ₹{autoPool.toFixed(2)} but{' '}
+                  Loss alert: a full house collects ₹{collectedAtFull.toFixed(2)} but{' '}
                   <b>{maxKills}</b> kills would need ₹{maxPayout.toFixed(2)} — short by{' '}
-                  <b>₹{poolShortfall.toFixed(2)}</b>. Lower your cut to{' '}
-                  <b>{suggestedCutClamped}%</b> or less.
+                  <b>₹{Math.abs(killProfit).toFixed(2)}</b>. Raise the entry fee or lower the
+                  per-kill prize.
                 </div>
               ) : (
                 <InfoNote>
-                  Safe: the ₹{autoPool.toFixed(2)} pool still covers the worst case of{' '}
-                  <b>{maxKills}</b> kills (₹{maxPayout.toFixed(2)}), leaving
-                  <b> ₹{(autoPool - maxPayout).toFixed(2)}</b>.
+                  Pure per-kill format: no 1st/2nd/3rd prize. Every confirmed kill pays
+                  <b> ₹{perKill ?? 0}</b>, so a player's payout is simply kills × ₹{perKill ?? 0}.
                 </InfoNote>
               )}
-              <InfoNote>
-                Pure per-kill format: no 1st/2nd/3rd prize. Every confirmed kill pays
-                <b> ₹{perKill ?? 0}</b>, so a player's payout is simply kills × ₹{perKill ?? 0}.
-              </InfoNote>
             </div>
           </GlassCard>
 
@@ -624,7 +493,8 @@ export function CreateMatchScreen() {
 
             <div className="mt-3">
               <InfoNote>
-                🔑 Room ID & Password are not part of creation. After saving, open <b>Publish Room</b> to set
+                🔑 Room ID & Password are not part of creation. After saving, open <b>Manage Matches</b> and expand
+                <b>Publish Room ID &amp; Password</b> to set
                 the code, its password and reveal it to joined players.
               </InfoNote>
             </div>
@@ -669,10 +539,6 @@ export function CreateMatchScreen() {
                 <dd className="font-bold">₹{fee || 0}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-600 dark:text-slate-400">Pool (full house)</dt>
-                <dd className="font-bold">₹{autoPool || 0}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-600 dark:text-slate-400">Per kill</dt>
                 <dd className="font-bold">₹{perKill ?? 0}</dd>
               </div>
@@ -691,7 +557,7 @@ export function CreateMatchScreen() {
 
           <div className="hidden xl:block">
             <InfoNote>
-              After creating, use <b>Publish Room</b> for Room ID/password and <b>Live Scorer</b> after kickoff
+              After creating, use <b>Manage Matches</b> for Room ID/password and <b>Live Scorer</b> after kickoff
               to rank players and pay prizes.
             </InfoNote>
           </div>

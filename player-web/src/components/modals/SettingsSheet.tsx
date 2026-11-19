@@ -22,7 +22,7 @@ export function SettingsSheet({
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         className={cx(
-          'max-h-[86%] overflow-y-auto rounded-t-[28px] border-t p-4 shadow-2xl max-w-lg mx-auto w-full transition-all',
+          'max-h-[86%] overflow-y-auto rounded-t-[28px] border-t p-4 pb-safe shadow-2xl max-w-lg mx-auto w-full animate-in slide-in-from-bottom-8 duration-300',
           isDark
             ? 'border-white/15 bg-slate-900/95 text-white'
             : 'border-slate-300 bg-white/95 text-slate-950'

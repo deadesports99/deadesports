@@ -13,7 +13,7 @@ import { ThemeToggle } from '../common/ThemeToggle';
 /** Page title fallback for routes that are not in the nav (e.g. create match). */
 const EXTRA_TITLES: Array<{ test: RegExp; title: string }> = [
   { test: /^\/matches\/create/, title: 'Create Match' },
-  { test: /^\/matches\/publish/, title: 'Publish Room' },
+  { test: /^\/matches\/[^/]+\/players/, title: 'Joined Players' },
   { test: /^\/matches\/[^/]+/, title: 'Match Details' },
   { test: /^\/players\/[^/]+/, title: 'Player Detail' },
   { test: /^\/players\/watchlist/, title: 'Watchlist' },
@@ -90,7 +90,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         >
           {title}
         </h1>
-        <p className={cx('hidden text-[11.5px] font-medium sm:block', isDark ? 'text-slate-400' : 'text-slate-600')}>
+        <p className={cx('hidden text-[11.5px] font-medium sm:block', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
           {clock}
         </p>
       </div>
@@ -117,7 +117,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         <span
           className={cx(
             'hidden rounded-lg border px-2 py-1 font-mono text-[11.5px] font-bold xl:block',
-            isDark ? 'border-white/10 bg-white/[0.03] text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
+            isDark ? 'border-white/10 bg-white/[0.03] text-slate-600 dark:text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
           )}
         >
           {clock}

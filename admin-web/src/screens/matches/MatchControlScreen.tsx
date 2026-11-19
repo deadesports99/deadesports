@@ -8,6 +8,7 @@ import {
   Download,
   Flag,
   ListChecks,
+  Play,
   RefreshCw,
   RotateCcw,
   Search,
@@ -20,6 +21,7 @@ import { ApiError, api } from '../../lib/api';
 import { useSession } from '../../context/SessionContext';
 import { useRealtime } from '../../context/RealtimeContext';
 import { useToast } from '../../components/common/Toast';
+import { useStepUp } from '../../context/StepUpContext';
 import { GlassCard } from '../../components/common/GlassCard';
 import { SectionHeader } from '../../components/common/SectionHeader';
 import { AppButton } from '../../components/common/AppButton';
@@ -30,12 +32,12 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { FormDialog } from '../../components/common/FormDialog';
 import { formatIST, humanize } from '../../lib/format';
 import {
-  DEFAULT_PRIZE_RULES,
   computePrize,
   displayName,
   money,
   roomShareText,
   whatsappShareUrl,
+  collectedPool,
 } from '../../lib/matchUi';
 import { Chip, Field, InlineError, InfoNote, TextInput, Toggle } from './MatchFormBits';
 import type {
@@ -97,6 +99,7 @@ export function MatchControlScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const stepUp = useStepUp();
   const { user } = useSession();
   const { version } = useRealtime();
 
@@ -115,6 +118,7 @@ export function MatchControlScreen() {
   const [filter, setFilter] = useState<RosterFilter>('all');
 
   const [saving, setSaving] = useState<'complete' | 'review' | null>(null);
+  const [starting, setStarting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [confirm, setConfirm] = useState<'complete' | 'review' | null>(null);
   const [payoutResult, setPayoutResult] = useState<PayoutAwardsResult | null>(null);
@@ -164,9 +168,11 @@ export function MatchControlScreen() {
     if (version > 0 && !dirty) void load(true);
   }, [version, dirty, load]);
 
-  const pool = roster ? Number(roster.match.prizePool) : 0;
+  // Budget = cash actually collected for the seats that were paid for.
+  const pool = roster
+    ? collectedPool({ entryFee: roster.match.entryFee, slotsBooked: roster.match.slotsBooked })
+    : 0;
   const perKill = roster ? Number(roster.match.perKillPrize) : 0;
-  const rules = roster?.prizeRules ?? DEFAULT_PRIZE_RULES;
 
   // Real payout gate (status enum lives in the roster payload as a string).
   const payoutOpen = roster
@@ -183,9 +189,8 @@ export function MatchControlScreen() {
     if (!roster) return 0;
     const edit = edits[participant.userId] ?? EMPTY_EDIT;
     if (edit.dq) return 0;
-    const rank = Number(edit.rank);
     const kills = Number(edit.kills || 0);
-    return computePrize(pool, perKill, Number.isInteger(rank) && rank > 0 ? rank : null, kills, rules);
+    return computePrize(perKill, kills);
   };
 
   const participants = roster?.participants ?? [];
@@ -237,7 +242,7 @@ export function MatchControlScreen() {
     () => eligible.reduce((sum, participant) => sum + previewOf(participant), 0),
     // previewOf depends on edits/pool/perKill → listed explicitly
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [eligible, edits, pool, perKill, rules]
+    [eligible, edits, pool, perKill]
   );
 
   const rankedCount = awards.filter((award) => !award.isDisqualified && award.rank != null).length;
@@ -267,7 +272,9 @@ export function MatchControlScreen() {
     setActionError('');
     setBanner('');
     try {
-      const result = await api.matches.payout(roster.match.id, awards, mode === 'complete');
+      const result = await stepUp.run('paying out prizes', () =>
+        api.matches.payout(roster.match.id, awards, mode === 'complete')
+      );
       setPayoutResult(result);
       setConfirm(null);
       setDirty(false);
@@ -367,7 +374,7 @@ export function MatchControlScreen() {
         <button
           type="button"
           onClick={() => navigate('/matches')}
-          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> All matches
         </button>
@@ -382,7 +389,7 @@ export function MatchControlScreen() {
         <button
           type="button"
           onClick={() => navigate('/matches')}
-          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> All matches
         </button>
@@ -404,12 +411,33 @@ export function MatchControlScreen() {
 
   const headline = roster.match.matchNumber != null ? `#${roster.match.matchNumber} ${humanize(roster.match.mapType)} • ${humanize(roster.match.matchType)}` : roster.match.title;
 
+  /**
+   * Kickoff has passed and the sweep parked the match in STARTING_SOON: nothing
+   * is live for the players until this button is pressed. Kept here as well as in
+   * Manage Matches, because the scorer screen is what staff have open at kickoff.
+   */
+  const awaitingStart = roster.match.status === 'STARTING_SOON';
+
+  const startMatch = async () => {
+    setStarting(true);
+    setActionError('');
+    try {
+      await api.manage.goLive(roster.match.id);
+      setBanner('Match is LIVE — players can enter and the scorer is open.');
+      await load(true);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'Could not start the match');
+    } finally {
+      setStarting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <button
         type="button"
         onClick={() => navigate('/matches')}
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> All matches
       </button>
@@ -417,10 +445,20 @@ export function MatchControlScreen() {
       <SectionHeader
         eyebrow="Phase 4 · Live scorer"
         title={headline}
-        subtitle={`${formatIST(roster.match.matchTime)} • ${roster.match.slotsBooked}/${roster.match.totalSlots} seats • ₹${Number(roster.match.entryFee)} entry • ₹${pool} pool • ₹${perKill}/kill`}
+        subtitle={`${formatIST(roster.match.matchTime)} • ${roster.match.slotsBooked}/${roster.match.totalSlots} seats • ₹${Number(roster.match.entryFee)} entry • ₹${pool} collected • ₹${perKill}/kill`}
         action={
           <>
             <StatusBadge status={roster.match.status} />
+            {awaitingStart && (
+              <AppButton
+                size="sm"
+                icon={<Play className="h-4 w-4" />}
+                loading={starting}
+                onClick={() => void startMatch()}
+              >
+                Start match now
+              </AppButton>
+            )}
             <AppButton
               variant="secondary"
               size="sm"
@@ -491,7 +529,7 @@ export function MatchControlScreen() {
             >
               WhatsApp
             </a>
-            <AppButton size="sm" variant="secondary" onClick={() => navigate('/matches/publish')}>
+            <AppButton size="sm" variant="secondary" onClick={() => navigate(`/manage?publish=${roster.match.id}`)}>
               Update room
             </AppButton>
           </div>
@@ -506,7 +544,7 @@ export function MatchControlScreen() {
           { label: 'Paid', value: `${roster.summary.paid}/${roster.summary.total}`, icon: CheckCircle2 },
           { label: 'Entry collected', value: money(Number(roster.summary.totalEntryCollected)), icon: ListChecks },
           { label: 'Prizes paid', value: money(Number(roster.summary.totalPrizePaid)), icon: Trophy },
-          { label: 'Prize pool', value: money(pool), icon: ShieldAlert },
+          { label: 'Collected', value: money(pool), icon: ShieldAlert },
         ].map(({ label, value, icon: Icon }) => (
           <GlassCard key={label} flat className="p-3">
             <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
@@ -607,22 +645,22 @@ export function MatchControlScreen() {
                           </span>
                         )}
                         {participant.isBanned && (
-                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-300">
+                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-700 dark:text-rose-300">
                             Match ban
                           </span>
                         )}
                         {participant.accountBanned && (
-                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-300">
+                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-700 dark:text-rose-300">
                             Account ban
                           </span>
                         )}
                         {edit.dq && (
-                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-amber-800 dark:text-amber-300">
                             DQ
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-[12px] text-slate-400">
+                      <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
                         {participant.playerCode ?? '—'} • {participant.phoneNumber} • FF UID{' '}
                         <span className="font-mono text-slate-600 dark:text-slate-300">{participant.inGameUid ?? 'missing'}</span>
                       </p>
@@ -635,10 +673,10 @@ export function MatchControlScreen() {
                               title={flag.detail}
                               className={`rounded-md border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${
                                 flag.code === 'SAME_DEVICE' || flag.code === 'SAME_DEVICE_CROSS' || flag.code === 'ACCOUNT_BANNED'
-                                  ? 'border-rose-400/30 bg-rose-500/10 text-rose-600 dark:text-rose-300'
+                                  ? 'border-rose-400/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
                                   : flag.code === 'NO_FF_UID' || flag.code === 'UID_MISMATCH'
-                                    ? 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300'
-                                    : 'border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] text-slate-400'
+                                    ? 'border-amber-400/30 bg-amber-400/10 text-amber-800 dark:text-amber-300'
+                                    : 'border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] text-slate-600 dark:text-slate-400'
                               }`}
                             >
                               {flag.code.replace(/_/g, ' ')}
@@ -650,7 +688,7 @@ export function MatchControlScreen() {
 
                     <div className="text-right">
                       <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Reward</p>
-                      <p className={`text-[14px] font-black ${banned ? 'text-slate-600 dark:text-slate-400 line-through' : paid ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                      <p className={`text-[14px] font-black ${banned ? 'text-slate-600 dark:text-slate-400 line-through' : paid ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-300'}`}>
                         {paid ? money(paidAmount) : money(preview)}
                       </p>
                     </div>
@@ -735,7 +773,7 @@ export function MatchControlScreen() {
                   )}
 
                   {banned && (
-                    <p className="mt-2 text-[12px] font-semibold text-rose-600 dark:text-rose-300">
+                    <p className="mt-2 text-[12px] font-semibold text-rose-700 dark:text-rose-300">
                       Excluded from payout — unban first if this player should be paid.
                     </p>
                   )}
@@ -751,20 +789,20 @@ export function MatchControlScreen() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[12px] font-black">
-              Payout preview: <span className={overBudget ? 'text-rose-600 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}>{money(totalPreview)}</span>{' '}
+              Payout preview: <span className={overBudget ? 'text-rose-700 dark:text-rose-300' : 'text-amber-800 dark:text-amber-300'}>{money(totalPreview)}</span>{' '}
               <span className="font-bold text-slate-600 dark:text-slate-400">of {money(pool)} pool</span>
             </p>
-            <p className="mt-0.5 text-[12px] text-slate-400">
+            <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">
               {rankedCount} ranked • {unrankedCount} kills-only • {dqCount} DQ • {roster.summary.paid} already paid
               {roster.summary.banned > 0 ? ` • ${roster.summary.banned} banned (excluded)` : ''}
             </p>
             {overBudget && (
-              <p className="mt-1 text-[12.5px] font-bold text-rose-600 dark:text-rose-300">
-                Preview is above the prize pool — lower ranks/kills before saving.
+              <p className="mt-1 text-[12.5px] font-bold text-rose-700 dark:text-rose-300">
+                Preview is above the entry fees collected — lower the kills before saving.
               </p>
             )}
             {!payoutOpen && (
-              <p className="mt-1 text-[12.5px] font-bold text-slate-400">
+              <p className="mt-1 text-[12.5px] font-bold text-slate-600 dark:text-slate-400">
                 Payout is closed for status {humanize(roster.match.status)}.
               </p>
             )}
@@ -808,7 +846,7 @@ export function MatchControlScreen() {
         title={confirm === 'complete' ? 'Save results & complete this match?' : 'Save results without completing?'}
         description={
           confirm === 'complete'
-            ? 'Verified kills and ranks are locked, every ranked player is paid from the prize pool, and the match becomes COMPLETED (it disappears from the players\' Live section immediately). This cannot be undone.'
+            ? 'Verified kills and ranks are locked, every ranked player is paid for their kills, and the match becomes COMPLETED (it disappears from the players\' Live section immediately). This cannot be undone.'
             : 'Results are saved and prizes paid, but the match stays in its current status so you can keep editing.'
         }
         confirmLabel={confirm === 'complete' ? 'Yes, save & pay' : 'Save results'}
@@ -820,7 +858,7 @@ export function MatchControlScreen() {
         <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] p-3 text-[12px]">
           <p className="flex justify-between">
             <span className="text-slate-600 dark:text-slate-400">Total to pay</span>
-            <span className="font-black text-amber-700 dark:text-amber-300">{money(totalPreview)}</span>
+            <span className="font-black text-amber-800 dark:text-amber-300">{money(totalPreview)}</span>
           </p>
           <p className="flex justify-between">
             <span className="text-slate-600 dark:text-slate-400">Players</span>
@@ -837,7 +875,7 @@ export function MatchControlScreen() {
             <span className="font-bold">{roster.summary.paid}</span>
           </p>
           {actionError && (
-            <p className="pt-1 text-[12.5px] font-bold text-rose-600 dark:text-rose-300">{actionError}</p>
+            <p className="pt-1 text-[12.5px] font-bold text-rose-700 dark:text-rose-300">{actionError}</p>
           )}
         </div>
       </ConfirmDialog>
@@ -859,7 +897,7 @@ export function MatchControlScreen() {
         {payoutResult && (
           <div className="space-y-2">
             {payoutResult.breakdown.length === 0 ? (
-              <p className="text-[12px] text-slate-400">Everything was already paid — nothing new was credited.</p>
+              <p className="text-[12px] text-slate-600 dark:text-slate-400">Everything was already paid — nothing new was credited.</p>
             ) : (
               <ul className="divide-y divide-slate-200 dark:divide-white/[0.06] rounded-xl border border-slate-200 dark:border-white/10">
                 {payoutResult.breakdown.map((row) => {
@@ -868,9 +906,9 @@ export function MatchControlScreen() {
                     <li key={row.userId} className="flex items-center justify-between gap-2 px-3 py-2 text-[13px]">
                       <span className="min-w-0 truncate font-bold">
                         {participant ? displayName(participant) : row.userId}
-                        {row.isDisqualified && <span className="ml-1 text-rose-600 dark:text-rose-300">(DQ)</span>}
+                        {row.isDisqualified && <span className="ml-1 text-rose-700 dark:text-rose-300">(DQ)</span>}
                       </span>
-                      <span className="shrink-0 font-black text-amber-700 dark:text-amber-300">{money(row.prizePaid)}</span>
+                      <span className="shrink-0 font-black text-amber-800 dark:text-amber-300">{money(row.prizePaid)}</span>
                     </li>
                   );
                 })}
@@ -878,7 +916,7 @@ export function MatchControlScreen() {
             )}
 
             {payoutResult.skipped.length > 0 && (
-              <p className="text-[12.5px] text-slate-400">
+              <p className="text-[12.5px] text-slate-600 dark:text-slate-400">
                 Skipped: {payoutResult.skipped.length} (already paid — never paid twice).
               </p>
             )}
@@ -894,7 +932,7 @@ export function MatchControlScreen() {
             ? `Manage ban — ${displayName(banTarget)}`
             : `Ban ${banTarget ? displayName(banTarget) : 'player'}`
         }
-        description="Match ban only affects this match. Account ban logs the player out instantly on the next request (server-side session kill)."
+        description="Match ban only affects this match. Account ban logs the player out instantly on the next request (server-side session kill). Whether a banned player gets the entry fee back is controlled by the coin switch on their row in Manage Matches — glowing = refunded, plain = ban only."
         onClose={() => setBanTarget(null)}
         busy={banBusy}
         footer={

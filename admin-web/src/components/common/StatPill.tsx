@@ -17,7 +17,7 @@ interface StatPillProps {
 }
 
 const TONE: Record<Tone, { dark: string; light: string }> = {
-  gold: { dark: 'text-amber-300 bg-amber-400/10 border-amber-400/20', light: 'text-amber-700 bg-amber-50 border-amber-200' },
+  gold: { dark: 'text-amber-300 bg-amber-400/10 border-amber-400/20', light: 'text-amber-800 bg-amber-50 border-amber-200' },
   cyan: { dark: 'text-cyan-300 bg-cyan-400/10 border-cyan-400/20', light: 'text-cyan-700 bg-cyan-50 border-cyan-200' },
   rose: { dark: 'text-rose-300 bg-rose-400/10 border-rose-400/20', light: 'text-rose-700 bg-rose-50 border-rose-200' },
   emerald: { dark: 'text-emerald-300 bg-emerald-400/10 border-emerald-400/20', light: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
@@ -56,7 +56,7 @@ export function StatPill({
           <ChevronRight
             className={cx(
               'h-4 w-4 transition-transform group-hover:translate-x-0.5',
-              'text-slate-400'
+              'text-slate-600 dark:text-slate-400'
             )}
           />
         )}
@@ -83,13 +83,13 @@ export function StatPill({
         <p
           className={cx(
             'mt-1.5 text-[12.5px] font-bold leading-tight',
-            isDark ? 'text-slate-400' : 'text-slate-600'
+            isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600'
           )}
         >
           {label}
         </p>
         {hint && (
-          <p className={cx('mt-0.5 text-[11.5px]', 'text-slate-400')}>{hint}</p>
+          <p className={cx('mt-0.5 text-[11.5px]', 'text-slate-600 dark:text-slate-400')}>{hint}</p>
         )}
       </div>
     </>

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { ApiError, api } from '../../lib/api';
 import { useToast } from '../../components/common/Toast';
+import { useStepUp } from '../../context/StepUpContext';
 import { GlassCard } from '../../components/common/GlassCard';
 import { SectionHeader } from '../../components/common/SectionHeader';
 import { AppButton } from '../../components/common/AppButton';
@@ -23,15 +24,8 @@ import { FormDialog } from '../../components/common/FormDialog';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { formatIST, humanize } from '../../lib/format';
 import { Field, InlineError, InfoNote, TextInput, Toggle } from '../matches/MatchFormBits';
-import { PERMISSION_LABELS } from '../../lib/permissions';
+import { PERMISSION_KEYS, PERMISSION_LABELS } from '../../lib/permissions';
 import type { AdminAccessKey, IssuedAccessKey, PermissionKey } from '../../types';
-
-const PERMISSION_KEYS: PermissionKey[] = [
-  'canCreateMatch',
-  'canUpdateRoomId',
-  'canDistributePrize',
-  'canManageWallet',
-];
 
 type Busy = { id: string; action: 'revoke' | 'regenerate' } | null;
 
@@ -42,6 +36,7 @@ function whatsappKeyUrl(name: string, email: string, key: string): string {
 
 export function StaffScreen() {
   const toast = useToast();
+  const stepUp = useStepUp();
 
   const [keys, setKeys] = useState<AdminAccessKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,12 +49,14 @@ export function StaffScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [perms, setPerms] = useState<Record<PermissionKey, boolean>>({
-    canCreateMatch: true,
-    canUpdateRoomId: true,
-    canDistributePrize: false,
-    canManageWallet: false,
-  });
+  /**
+   * The owner asked that a fresh permission key starts with EVERY section
+   * included (create match, manage match, final payout, real money, room,
+   * wallet). Anything not needed is one tap away from being switched off.
+   */
+  const [perms, setPerms] = useState<Record<PermissionKey, boolean>>(
+    () => Object.fromEntries(PERMISSION_KEYS.map((key) => [key, true])) as Record<PermissionKey, boolean>,
+  );
   const [issuing, setIssuing] = useState(false);
 
   // One-time reveal
@@ -92,12 +89,8 @@ export function StaffScreen() {
     setName('');
     setEmail('');
     setPhone('');
-    setPerms({
-      canCreateMatch: true,
-      canUpdateRoomId: true,
-      canDistributePrize: false,
-      canManageWallet: false,
-    });
+    // Every section starts ON when a new key is generated.
+    setPerms(Object.fromEntries(PERMISSION_KEYS.map((key) => [key, true])) as Record<PermissionKey, boolean>);
     setActionError('');
     setIssueOpen(true);
   };
@@ -111,12 +104,14 @@ export function StaffScreen() {
     setIssuing(true);
     setActionError('');
     try {
-      const result = await api.accessKeys.issue({
-        name: name.trim(),
-        email: email.trim(),
-        phoneNumber: phone.trim(),
-        permissions: perms,
-      });
+      const result = await stepUp.run('issuing a staff key', () =>
+        api.accessKeys.issue({
+          name: name.trim(),
+          email: email.trim(),
+          phoneNumber: phone.trim(),
+          permissions: perms,
+        })
+      );
       setIssueOpen(false);
       setIssued(result);
       setIssuedFor({ name: name.trim(), email: email.trim() });
@@ -149,7 +144,9 @@ export function StaffScreen() {
     setBusy({ id: regenTarget.id, action: 'regenerate' });
     setActionError('');
     try {
-      const result = await api.accessKeys.regenerate(regenTarget.id);
+      const result = await stepUp.run('rotating a staff key', () =>
+        api.accessKeys.regenerate(regenTarget.id)
+      );
       setRegenTarget(null);
       setIssued(result);
       setIssuedFor({
@@ -353,9 +350,31 @@ export function StaffScreen() {
           </div>
 
           <div>
-            <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
-              Permissions
-            </p>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                Permissions — every section
+              </p>
+              <div className="flex items-center gap-2 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPerms(Object.fromEntries(PERMISSION_KEYS.map((key) => [key, true])) as Record<PermissionKey, boolean>)
+                  }
+                  className="text-emerald-700 underline dark:text-emerald-300"
+                >
+                  All on
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPerms(Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false])) as Record<PermissionKey, boolean>)
+                  }
+                  className="text-slate-500 underline dark:text-slate-400"
+                >
+                  All off
+                </button>
+              </div>
+            </div>
             <div className="space-y-1.5">
               {PERMISSION_KEYS.map((p) => (
                 <Toggle
@@ -395,7 +414,7 @@ export function StaffScreen() {
       >
         <div className="space-y-3">
           <div className="rounded-xl border border-[#FFD000]/50 bg-[#FFD000]/10 p-3">
-            <p className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+            <p className="text-[11px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
               Permission key
             </p>
             <p className="mt-1 break-all font-mono text-[15px] font-black tracking-wider">

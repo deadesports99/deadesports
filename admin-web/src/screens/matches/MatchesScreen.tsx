@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Swords,
   Trash2,
+  Users,
   Zap,
 } from 'lucide-react';
 import { ApiError, api } from '../../lib/api';
@@ -72,7 +73,8 @@ export function MatchesScreen() {
   const { version } = useRealtime();
 
   const canCreate = can(user, 'canCreateMatch');
-  const canRoom = can(user, 'canUpdateRoomId');
+  const canManage = can(user, 'canManageMatch') || canCreate;
+  const canRoom = can(user, 'canUpdateRoomId') || canManage;
 
   const [items, setItems] = useState<AdminTournament[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +121,11 @@ export function MatchesScreen() {
 
   const counts = useMemo(() => {
     const result: Record<MatchTab, number> = { LIVE: 0, UPCOMING: 0, HISTORY: 0 };
-    for (const match of items) result[tabOf(match.status)] += 1;
+    for (const match of items) {
+      // Submitted = handed to the Final Payout desk: it is no longer LIVE.
+      if (match.payoutSubmittedAt && tabOf(match.status) === 'LIVE') continue;
+      result[tabOf(match.status)] += 1;
+    }
     return result;
   }, [items]);
 
@@ -127,6 +133,7 @@ export function MatchesScreen() {
     const query = search.trim().toLowerCase();
     const filtered = items.filter((match) => {
       if (tabOf(match.status) !== tab) return false;
+      if (tab === 'LIVE' && match.payoutSubmittedAt) return false;
       if (!query) return true;
       return [
         match.matchNumber != null ? String(match.matchNumber) : '',
@@ -153,11 +160,14 @@ export function MatchesScreen() {
     setSweepNote('');
     try {
       const result = await api.matches.sweep();
+      const awaiting = result.awaitingStart?.length ?? 0;
       setSweepNote(
-        `Sweep done • ${result.wentLive.length} match(es) went LIVE, ${result.movedToReview.length} moved to review`
+        `Sweep done • ${awaiting} match(es) reached kickoff (waiting for "Go live"), ${result.movedToReview.length} moved to review`
       );
       toast.success(
-        `${result.wentLive.length} LIVE • ${result.movedToReview.length} moved to review`
+        awaiting > 0
+          ? `${awaiting} waiting to start • ${result.movedToReview.length} moved to review`
+          : `${result.movedToReview.length} moved to review`
       );
       await load(true);
     } catch (err) {
@@ -309,8 +319,8 @@ export function MatchesScreen() {
                 onClick={() => setTab(id)}
                 className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-black transition-colors ${
                   tab === id
-                    ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-700 dark:text-amber-300'
-                    : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                    ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-800 dark:text-amber-300'
+                    : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -385,77 +395,102 @@ export function MatchesScreen() {
                         <p className="text-[13.5px] font-black">{matchHeadline(match)}</p>
                         <StatusBadge status={match.status} />
                         {match.status === 'UNDER_REVIEW' && (
-                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                          <span className="rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide text-amber-800 dark:text-amber-300">
                             Results pending
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-[12.5px] text-slate-400">
+                      <p className="mt-1 text-[12.5px] text-slate-600 dark:text-slate-400">
                         {formatIST(match.matchTime)} • {formatCountdown(match.matchTime)}
                       </p>
                     </div>
 
                     <div className="text-right">
                       <p className="text-[12px] font-black">
-                        ₹{Number(match.prizePool)} <span className="text-[11.5px] font-bold text-slate-600 dark:text-slate-400">pool</span>
+                        ₹{Number(match.entryFee)} <span className="text-[11.5px] font-bold text-slate-600 dark:text-slate-400">entry</span>
                       </p>
-                      <p className="text-[12px] text-slate-400">
+                      <p className="text-[12px] text-slate-600 dark:text-slate-400">
                         ₹{Number(match.entryFee)} entry • ₹{Number(match.perKillPrize ?? 0)}/kill
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11.5px] font-bold">
-                    <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] px-1.5 py-0.5 text-slate-600 dark:text-slate-300">
+                    <span className="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
                       {seatsLabel(match)}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/matches/${match.id}/players`)}
+                      title="Every joined player, earliest join first"
+                      className="inline-flex items-center gap-1 rounded-md border border-cyan-400/50 bg-cyan-400/10 px-1.5 py-0.5 text-cyan-800 underline decoration-dotted decoration-1 underline-offset-2 hover:bg-cyan-400/20 dark:text-cyan-200"
+                    >
+                      <Users className="h-3 w-3" />
+                      {match.slotsBooked > 0 ? `View all ${match.slotsBooked} joined` : 'View all joined'}
+                    </button>
                     <span
                       className={`rounded-md border px-1.5 py-0.5 ${
                         match.isListedNow === false
-                          ? 'border-slate-500/30 bg-slate-500/10 text-slate-400'
+                          ? 'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-400'
                           : 'border-cyan-400/25 bg-cyan-400/[0.07] text-cyan-700 dark:text-cyan-300'
                       }`}
                       title={visibilityLabel(match)}
                     >
                       👁 {match.isListedNow === false ? visibilityLabel(match) : 'Listed now'}
                     </span>
-                    <span
-                      className={`rounded-md border px-1.5 py-0.5 ${
-                        room === 'live'
-                          ? 'border-emerald-400/25 bg-emerald-400/[0.07] text-emerald-700 dark:text-emerald-300'
-                          : room === 'hidden'
-                            ? 'border-amber-400/25 bg-amber-400/[0.07] text-amber-700 dark:text-amber-300'
-                            : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400'
-                      }`}
-                    >
-                      {room === 'live' ? '🔑 Room live' : room === 'hidden' ? '🔑 Room hidden' : '🔑 No room'}
-                    </span>
-                    {match.roomRevealedAt && (
+                    {match.status === 'LIVE' ? (
+                      <span className="rounded-md border border-emerald-400/25 bg-emerald-400/[0.07] px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300">
+                        Live • {match.slotsBooked}/{match.totalSlots} joined
+                      </span>
+                    ) : (
+                      <span
+                        className={`rounded-md border px-1.5 py-0.5 ${
+                          room === 'live'
+                            ? 'border-emerald-400/25 bg-emerald-400/[0.07] text-emerald-700 dark:text-emerald-300'
+                            : room === 'hidden'
+                              ? 'border-amber-400/25 bg-amber-400/[0.07] text-amber-800 dark:text-amber-300'
+                              : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {room === 'live' ? '🔑 Room live' : room === 'hidden' ? '🔑 Room hidden' : '🔑 No room'}
+                      </span>
+                    )}
+                    {match.status !== 'LIVE' && match.roomRevealedAt && (
                       <span className="rounded-md border border-emerald-400/20 bg-emerald-400/[0.05] px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300">
                         Revealed {formatIST(match.roomRevealedAt)}
                       </span>
                     )}
                   </div>
 
-                  <p className="mt-1.5 text-[12px] text-slate-600 dark:text-slate-400">{roomStateLabel(match)}</p>
+                  <p className="mt-1.5 text-[12px] text-slate-600 dark:text-slate-400">
+                    {match.status === 'LIVE'
+                      ? 'Scoring live — open View status for every joined player and their kills.'
+                      : roomStateLabel(match)}
+                  </p>
 
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {payoutReady && (
                       <AppButton
                         size="sm"
                         variant={match.status === 'LIVE' ? 'primary' : 'secondary'}
-                        icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+                        icon={
+                          match.status === 'LIVE' ? (
+                            <Eye className="h-3.5 w-3.5" />
+                          ) : (
+                            <ClipboardCheck className="h-3.5 w-3.5" />
+                          )
+                        }
                         onClick={() => navigate(`/matches/${match.id}`)}
                       >
-                        {match.status === 'LIVE' ? 'End & score' : 'Open roster'}
+                        {match.status === 'LIVE' ? 'View status' : 'Open roster'}
                       </AppButton>
                     )}
-                    {canRoom && (
+                    {canRoom && match.status !== 'LIVE' && (
                       <AppButton
                         size="sm"
                         variant="secondary"
                         icon={<Radio className="h-3.5 w-3.5" />}
-                        onClick={() => navigate(`/matches/publish?match=${match.id}`)}
+                        onClick={() => navigate(`/manage?publish=${match.id}`)}
                       >
                         Publish room
                       </AppButton>
@@ -480,7 +515,7 @@ export function MatchesScreen() {
                         Clone
                       </AppButton>
                     )}
-                    {canCreate && cancellable && (
+                    {canManage && cancellable && (
                       <AppButton
                         size="sm"
                         variant="danger"
@@ -654,7 +689,7 @@ export function MatchesScreen() {
                       className={`h-11 px-2 text-[12.5px] font-black sm:h-10 ${
                         cloneSchedule.meridiem === meridiem
                           ? 'bg-[#FFD000] text-slate-950'
-                          : 'text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                       }`}
                     >
                       {meridiem}
@@ -665,7 +700,7 @@ export function MatchesScreen() {
             </Field>
           </div>
 
-          <p className="rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] px-3 py-2 text-[12.5px] text-slate-400">
+          <p className="rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] px-3 py-2 text-[12.5px] text-slate-600 dark:text-slate-400">
             New kickoff: <b className="text-slate-950 dark:text-white">{draftPreview(cloneSchedule)} IST</b> •{' '}
             {isDraftInFuture(cloneSchedule) ? `starts in ${formatCountdown(scheduleToIso(cloneSchedule))}` : 'must be in the future'}
           </p>
@@ -680,7 +715,7 @@ export function MatchesScreen() {
         title="Cancel match & refund everyone?"
         description={
           cancelTarget
-            ? `${cancelTarget.title} — ${formatIST(cancelTarget.matchTime)}. Every seated player is refunded ₹${Number(cancelTarget.entryFee)} to the balance they paid from. This cannot be undone.`
+            ? `${cancelTarget.title} — ${formatIST(cancelTarget.matchTime)}. Every seated player is refunded ₹${Number(cancelTarget.entryFee)} to the balance they paid from — banned players are skipped unless their refund switch is ON. This cannot be undone.`
             : undefined
         }
         confirmLabel="Cancel & refund all"
@@ -698,7 +733,7 @@ export function MatchesScreen() {
             />
           </Field>
           {actionError && <InlineError>{actionError}</InlineError>}
-          <p className="flex items-start gap-1.5 text-[12.5px] text-amber-700 dark:text-amber-300">
+          <p className="flex items-start gap-1.5 text-[12.5px] text-amber-800 dark:text-amber-300">
             <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {cancelTarget ? `${cancelTarget.slotsBooked} player(s) will be refunded and notified.` : ''}
           </p>

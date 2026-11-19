@@ -16,7 +16,7 @@ export function RoleBadge({ user, compact = false }: { user: AdminUser | null; c
         owner
           ? isDark
             ? 'border-amber-400/30 bg-amber-400/10 text-amber-300'
-            : 'border-amber-300 bg-amber-50 text-amber-700'
+            : 'border-amber-300 bg-amber-50 text-amber-800'
           : isDark
             ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-300'
             : 'border-cyan-300 bg-cyan-50 text-cyan-700'

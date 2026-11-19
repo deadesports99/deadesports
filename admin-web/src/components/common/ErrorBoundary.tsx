@@ -26,7 +26,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
         <div className="flex min-h-screen items-center justify-center bg-[#050B14] px-6 text-center text-white">
           <div className="max-w-sm">
             <p className="text-sm font-black">Something went wrong</p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
               The console hit an unexpected error. Reload to continue — your session cookie is safe.
             </p>
             <button

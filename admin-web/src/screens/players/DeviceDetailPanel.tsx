@@ -107,7 +107,7 @@ export function DeviceDetailPanel({
       <button
         type="button"
         onClick={onClose}
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-400 hover:text-slate-950 dark:hover:text-white"
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> All devices
       </button>

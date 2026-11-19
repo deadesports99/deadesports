@@ -196,12 +196,11 @@ export interface ApiTournament {
   matchType: 'SOLO' | 'DUO' | 'SQUAD';
   mapType: 'BERMUDA' | 'PURGATORY' | 'KALAHARI' | 'ALPINE' | 'NEXTERRA';
   entryFee: string;
-  prizePool: string;
   perKillPrize: string | null;
   totalSlots: number;
   slotsBooked: number;
   matchTime: string;
-  status: 'DRAFT' | 'UPCOMING' | 'OPEN' | 'SLOTS_FULL' | 'ROOM_REVEALED' | 'LIVE' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
+  status: 'DRAFT' | 'UPCOMING' | 'OPEN' | 'SLOTS_FULL' | 'ROOM_REVEALED' | 'STARTING_SOON' | 'LIVE' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
   mySlot: { slotNumber: number; teamId: string | null } | null;
   isListedNow?: boolean | null;
   roomUnlocked?: boolean | null;
@@ -262,6 +261,7 @@ export const tournaments = {
   /** Room ID & Password — only a confirmed slot holder (or staff) gets them. */
   room: (id: string) =>
     request<{ roomId: string; roomPassword: string; roomUnlocked: boolean }>(`/tournaments/${id}/room`),
+
 };
 
 export interface ApiPaymentOrder {
@@ -312,8 +312,62 @@ export interface ApiPlayerStats {
   bestRank: number | null;
 }
 
+// ── My Matches ───────────────────────────────────────────────────────────
+
+export type ApiMyMatchBucket = 'all' | 'upcoming' | 'live' | 'completed' | 'cancelled';
+
+export interface ApiMyMatch {
+  id: string;
+  matchNumber: number | null;
+  title: string;
+  gameMode: 'BATTLE_ROYALE' | 'CLASH_SQUAD';
+  matchType: 'SOLO' | 'DUO' | 'SQUAD';
+  mapType: 'BERMUDA' | 'PURGATORY' | 'KALAHARI' | 'ALPINE' | 'NEXTERRA';
+  matchTime: string;
+  status: string;
+  phase: 'upcoming' | 'live' | 'completed' | 'cancelled';
+  entryFee: number;
+  perKillPrize: number;
+  slotNumber: number;
+  joinedAt: string;
+  inGameNameSnapshot: string | null;
+  inGameUidSnapshot: string | null;
+  isBannedFromMatch: boolean;
+  banReason: string | null;
+  roomUnlocked: boolean;
+  room: { roomId: string | null; roomPassword: string | null } | null;
+  result: {
+    rank: number | null;
+    kills: number;
+    prizeWon: number;
+    isApproved: boolean;
+    isDisqualified: boolean;
+    disqualifyReason: string | null;
+  } | null;
+  refunded: boolean;
+  refundAmount: number;
+  net: number | null;
+}
+
+export interface ApiMyMatchesPage {
+  items: ApiMyMatch[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+  summary: ApiPlayerStats & {
+    upcomingCount: number;
+    liveCount: number;
+    completedCount: number;
+    cancelledCount: number;
+  };
+}
+
 export const player = {
   stats: () => request<ApiPlayerStats>('/players/me/stats'),
+
+  /** Own match history — every seat, its result, refund and room state. */
+  matches: (bucket: ApiMyMatchBucket = 'all', page = 1, limit = 20) =>
+    request<ApiMyMatchesPage>(
+      `/players/me/matches?bucket=${encodeURIComponent(bucket)}&page=${page}&limit=${limit}`
+    ),
 
   /** Players can fix their Free Fire identity without contacting support. */
   updateGameProfile: (inGameName: string, inGameUid: string) =>

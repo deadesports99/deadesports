@@ -118,7 +118,7 @@ export function AddCashModal({
   return createPortal(
     <div
       className={cx(
-        'fixed inset-0 z-[70] flex flex-col justify-end backdrop-blur-sm transition-all animate-in fade-in duration-200',
+        'fixed inset-0 z-[70] flex flex-col justify-end backdrop-blur-sm animate-in fade-in duration-200',
         isDark ? 'bg-black/80' : 'bg-slate-900/40'
       )}
       onClick={onClose}
@@ -126,7 +126,7 @@ export function AddCashModal({
       <div
         onClick={(e) => e.stopPropagation()}
         className={cx(
-          'max-h-[90%] overflow-y-auto rounded-t-[28px] border-t p-4 pb-8 shadow-2xl max-w-lg mx-auto w-full transition-all',
+          'max-h-[90%] overflow-y-auto rounded-t-[28px] border-t p-4 pb-8 shadow-2xl max-w-lg mx-auto w-full animate-in slide-in-from-bottom-8 duration-300',
           isDark
             ? 'border-white/15 bg-slate-900/98 text-white'
             : 'border-slate-200 bg-white text-slate-900 shadow-2xl shadow-slate-900/15'

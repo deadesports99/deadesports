@@ -20,6 +20,8 @@ interface MatchSheetProps {
   joining?: boolean;
   /** Entry closes 1 minute before kickoff. */
   joinClosed?: boolean;
+  /** Every seat is booked and this player is not seated — show "Slot Full". */
+  slotsFull?: boolean;
   /**
    * The organiser already published the custom room. `hasCredentials` = the
    * player is seated and may read the Room ID & Password now;
@@ -48,6 +50,7 @@ export function MatchSheet({  theme,
   joinError,
   joining = false,
   joinClosed = false,
+  slotsFull = false,
   hasCredentials = false,
   roomPending = false,
   room = null,
@@ -83,7 +86,7 @@ export function MatchSheet({  theme,
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         className={cx(
-          'max-h-[88%] overflow-y-auto rounded-t-[28px] border-t p-4 shadow-2xl max-w-lg mx-auto w-full transition-all',
+          'max-h-[88%] overflow-y-auto rounded-t-[28px] border-t p-4 pb-safe shadow-2xl max-w-lg mx-auto w-full animate-in slide-in-from-bottom-8 duration-300',
           isDark
             ? 'border-white/15 bg-slate-900/95 text-white'
             : 'border-slate-300 bg-white/95 text-slate-950'
@@ -153,7 +156,7 @@ export function MatchSheet({  theme,
           </div>
         </div>
 
-        {/* Prize Pool breakdown */}
+        {/* Per-kill payout for this room */}
         <div
           className={cx(
             'mt-2 grid grid-cols-2 gap-2 rounded-xl border p-3',
@@ -161,15 +164,15 @@ export function MatchSheet({  theme,
           )}
         >
           <div>
-            <span className="text-[10px] font-bold uppercase text-slate-400">Prize Pool</span>
-            <p className={cx('mt-1 text-lg font-black', isDark ? 'text-white' : 'text-slate-950')}>
-              {formatINR(match.prizePool)}
-            </p>
-          </div>
-          <div className="text-right">
             <span className="text-[10px] font-bold uppercase text-slate-400">Per Kill</span>
             <p className={cx('mt-1 text-lg font-black', isDark ? 'text-white' : 'text-slate-950')}>
               {match.perKill ? formatINR(match.perKill) : 'Win Only'}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Seats Left</span>
+            <p className={cx('mt-1 text-lg font-black', isDark ? 'text-white' : 'text-slate-950')}>
+              {Math.max(0, match.totalSlots - match.filledSlots)}
             </p>
           </div>
         </div>
@@ -319,13 +322,13 @@ export function MatchSheet({  theme,
         {/* Join button CTA */}
         <button
           type="button"
-          disabled={joined || joining || joinClosed || (!identityOk && balance >= match.entryFee) || balance < match.entryFee}
+          disabled={joined || joining || joinClosed || slotsFull || (!identityOk && balance >= match.entryFee) || balance < match.entryFee}
           onClick={() => onJoin({ inGameName: ign.trim(), inGameUid: uid.trim() })}
           className={cx(
             'mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-black shadow-lg transition-all active:scale-[0.96]',
             joined
               ? 'bg-emerald-500 text-white'
-              : joinClosed
+              : joinClosed || slotsFull
               ? 'cursor-not-allowed bg-slate-300 text-slate-600'
               : balance >= match.entryFee
               ? 'bg-[#FFD000] text-slate-950 shadow-amber-400/20 hover:bg-[#FFDA29] disabled:opacity-60'
@@ -336,6 +339,8 @@ export function MatchSheet({  theme,
             <>
               <CheckCircle2 className="h-4 w-4" /> Slot Already Secured
             </>
+          ) : slotsFull ? (
+            'Slot Full — all seats booked'
           ) : joinClosed ? (
             'Entry closed — joining stops 1 min before start'
           ) : joining ? (
@@ -346,7 +351,7 @@ export function MatchSheet({  theme,
             'Add Cash to Join'
           )}
         </button>
-        {!joined && !joinClosed && (
+        {!joined && !joinClosed && !slotsFull && (
           <p
             className={cx(
               'mt-1.5 flex items-start justify-center gap-1 text-center text-[10px] font-semibold',

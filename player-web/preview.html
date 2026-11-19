@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Spartan Esports Arena — Final Modular Demo</title>
+  <title>Spartan Arena — Preview</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -1428,7 +1428,7 @@
         setJoinedIds((ids) => [...ids, match.id]);
         if (match.id === HERO_MATCH.id) setHeroJoined(true);
         setMatches((items) => items.map((item) => item.id === match.id ? { ...item, filledSlots: Math.min(item.totalSlots, item.filledSlots + 1) } : item));
-        addTransaction({ id: `tx-${Date.now()}`, title: `Tournament Entry: ${match.title}`, amount: match.entryFee, isCredit: false, category: 'Entries', badgeText: 'Entry Fee', badgeTone: 'slate', time: 'Just now', reference: `EGA-${Math.floor(1000000 + Math.random() * 9000000)}` });
+        addTransaction({ id: `tx-${Date.now()}`, title: `Tournament Entry: ${match.title}`, amount: match.entryFee, isCredit: false, category: 'Entries', badgeText: 'Entry Fee', badgeTone: 'slate', time: 'Just now', reference: `SPA-${Math.floor(1000000 + Math.random() * 9000000)}` });
         setSelectedMatch(null);
         showToast(`Slot confirmed for ${match.title} • -${formatINR(match.entryFee)}`);
       };
@@ -1491,7 +1491,7 @@
             <div className={cx('pointer-events-none fixed inset-x-0 top-0 h-56 z-0', isDark ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(0,194,255,0.22),rgba(15,23,42,0.85)_65%,transparent)]' : 'bg-[radial-gradient(ellipse_at_top_right,rgba(56,189,248,0.25),rgba(241,245,249,0.7)_65%,transparent)]')} />
             <AppHeader
               theme={theme}
-              title={activeTab === 'tournaments' ? 'Free Fire Arena' : activeTab === 'wallet' ? 'Arena Wallet' : 'Player Profile'}
+              title={activeTab === 'tournaments' ? 'Spartan Arena' : activeTab === 'wallet' ? 'Spartan Wallet' : 'Player Profile'}
               subtitle={activeTab === 'tournaments' ? 'Verified esports organiser' : activeTab === 'wallet' ? 'Instant prize & entry ledger' : 'Season 6 • Verified competitor'}
               balance={balance}
               onAddFunds={() => { setActiveTab('wallet'); setWalletMode('add'); }}

@@ -36,7 +36,7 @@ export function SectionHeader({ title, subtitle, action, className, eyebrow }: S
           {title}
         </h2>
         {subtitle && (
-          <p className={cx('mt-0.5 text-xs', isDark ? 'text-slate-400' : 'text-slate-600')}>
+          <p className={cx('mt-0.5 text-xs', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
             {subtitle}
           </p>
         )}

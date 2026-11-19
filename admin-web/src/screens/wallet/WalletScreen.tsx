@@ -13,6 +13,7 @@ import { ApiError, api } from '../../lib/api';
 import { useSession } from '../../context/SessionContext';
 import { useRealtime } from '../../context/RealtimeContext';
 import { useToast } from '../../components/common/Toast';
+import { useStepUp } from '../../context/StepUpContext';
 import { GlassCard } from '../../components/common/GlassCard';
 import { SectionHeader } from '../../components/common/SectionHeader';
 import { AppButton } from '../../components/common/AppButton';
@@ -52,6 +53,7 @@ function playerLabel(player: { inGameName: string | null; phoneNumber: string })
 export function WalletScreen() {
   const { user } = useSession();
   const toast = useToast();
+  const stepUp = useStepUp();
   const { version } = useRealtime();
 
   const [tab, setTab] = useState<Tab>('withdrawals');
@@ -61,6 +63,16 @@ export function WalletScreen() {
   const [withdrawals, setWithdrawals] = useState<AdminWithdrawal[]>([]);
   const [deposits, setDeposits] = useState<AdminDeposit[]>([]);
   const [payments, setPayments] = useState<AdminPaymentsResult | null>(null);
+
+  /**
+   * Four-eyes rule (server enforces it too): a request that pays the signed-in
+   * staff member must be reviewed by somebody else. The buttons stay hidden so
+   * nobody has to discover this through a 403.
+   */
+  const isOwnRequest = useCallback(
+    (ownerId: string | undefined) => Boolean(user?.id && ownerId && ownerId === user.id),
+    [user?.id],
+  );
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -122,6 +134,11 @@ export function WalletScreen() {
 
   const approveWithdrawal = async () => {
     if (!approveW || busyId) return;
+    if (isOwnRequest(approveW.player.id)) {
+      toast.error('You cannot approve a withdrawal that pays your own account');
+      setApproveW(null);
+      return;
+    }
     if (utr.trim().length < 6) {
       setActionError('UTR number must be at least 6 characters.');
       return;
@@ -129,7 +146,10 @@ export function WalletScreen() {
     setBusyId(approveW.id);
     setActionError('');
     try {
-      await api.wallet.approveWithdrawal(approveW.id, utr.trim());
+      // Marking a payout as paid needs a fresh code — a stolen cookie cannot.
+      await stepUp.run('approving a withdrawal', () =>
+        api.wallet.approveWithdrawal(approveW.id, utr.trim())
+      );
       toast.success(`${formatINR(Number(approveW.amount), 2)} marked paid`);
       setApproveW(null);
       setUtr('');
@@ -143,6 +163,11 @@ export function WalletScreen() {
 
   const rejectWithdrawal = async () => {
     if (!rejectW || busyId) return;
+    if (isOwnRequest(rejectW.player.id)) {
+      toast.error('You cannot review a withdrawal that pays your own account');
+      setRejectW(null);
+      return;
+    }
     if (reason.trim().length < 3) {
       setActionError('Enter a rejection reason (at least 3 characters).');
       return;
@@ -164,6 +189,11 @@ export function WalletScreen() {
 
   const approveDeposit = async () => {
     if (!approveD || busyId) return;
+    if (isOwnRequest(approveD.player.id)) {
+      toast.error('You cannot approve a deposit into your own account');
+      setApproveD(null);
+      return;
+    }
     setBusyId(approveD.id);
     setActionError('');
     try {
@@ -180,6 +210,11 @@ export function WalletScreen() {
 
   const rejectDeposit = async () => {
     if (!rejectD || busyId) return;
+    if (isOwnRequest(rejectD.player.id)) {
+      toast.error('You cannot review a deposit into your own account');
+      setRejectD(null);
+      return;
+    }
     if (reason.trim().length < 3) {
       setActionError('Enter a rejection reason (at least 3 characters).');
       return;
@@ -293,7 +328,7 @@ export function WalletScreen() {
       )}
       {error && (
         <GlassCard flat className="p-4">
-          <p className="text-[12.5px] font-bold text-rose-600 dark:text-rose-300">{error}</p>
+          <p className="text-[12.5px] font-bold text-rose-700 dark:text-rose-300">{error}</p>
           <AppButton size="sm" variant="secondary" className="mt-2" onClick={() => void load()}>
             Try again
           </AppButton>
@@ -314,7 +349,7 @@ export function WalletScreen() {
             className={
               'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[12px] font-black transition-colors ' +
               (tab === id
-                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-700 dark:text-amber-300'
+                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-800 dark:text-amber-300'
                 : 'border-slate-200 bg-white text-slate-600 hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400 dark:hover:text-white')
             }
           >
@@ -368,31 +403,37 @@ export function WalletScreen() {
                   </div>
                   <StatusBadge status={w.status} />
                   {w.status === 'PENDING' ? (
-                    <div className="flex items-center gap-1.5">
-                      <AppButton
-                        size="sm"
-                        disabled={!canManage || busyId === w.id}
-                        onClick={() => {
-                          setApproveW(w);
-                          setUtr('');
-                          setActionError('');
-                        }}
-                      >
-                        Approve
-                      </AppButton>
-                      <AppButton
-                        size="sm"
-                        variant="danger"
-                        disabled={!canManage || busyId === w.id}
-                        onClick={() => {
-                          setRejectW(w);
-                          setReason('');
-                          setActionError('');
-                        }}
-                      >
-                        Reject
-                      </AppButton>
-                    </div>
+                    isOwnRequest(w.player.id) ? (
+                      <p className="max-w-[220px] rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 py-1 text-[11.5px] font-bold leading-snug text-amber-800 dark:text-amber-200">
+                        Your own request — another admin must approve it
+                      </p>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <AppButton
+                          size="sm"
+                          disabled={!canManage || busyId === w.id}
+                          onClick={() => {
+                            setApproveW(w);
+                            setUtr('');
+                            setActionError('');
+                          }}
+                        >
+                          Approve
+                        </AppButton>
+                        <AppButton
+                          size="sm"
+                          variant="danger"
+                          disabled={!canManage || busyId === w.id}
+                          onClick={() => {
+                            setRejectW(w);
+                            setReason('');
+                            setActionError('');
+                          }}
+                        >
+                          Reject
+                        </AppButton>
+                      </div>
+                    )
                   ) : (
                     <p className="w-full text-[12px] text-slate-600 dark:text-slate-400 sm:w-auto">
                       {w.utrNumber ? `UTR ${w.utrNumber}` : w.rejectionNote || '—'}
@@ -428,30 +469,36 @@ export function WalletScreen() {
                   </div>
                   <StatusBadge status={d.status} />
                   {d.status === 'PENDING' ? (
-                    <div className="flex items-center gap-1.5">
-                      <AppButton
-                        size="sm"
-                        disabled={!canManage || busyId === d.id}
-                        onClick={() => {
-                          setApproveD(d);
-                          setActionError('');
-                        }}
-                      >
-                        Approve
-                      </AppButton>
-                      <AppButton
-                        size="sm"
-                        variant="danger"
-                        disabled={!canManage || busyId === d.id}
-                        onClick={() => {
-                          setRejectD(d);
-                          setReason('');
-                          setActionError('');
-                        }}
-                      >
-                        Reject
-                      </AppButton>
-                    </div>
+                    isOwnRequest(d.player.id) ? (
+                      <p className="max-w-[220px] rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 py-1 text-[11.5px] font-bold leading-snug text-amber-800 dark:text-amber-200">
+                        Your own request — another admin must approve it
+                      </p>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <AppButton
+                          size="sm"
+                          disabled={!canManage || busyId === d.id}
+                          onClick={() => {
+                            setApproveD(d);
+                            setActionError('');
+                          }}
+                        >
+                          Approve
+                        </AppButton>
+                        <AppButton
+                          size="sm"
+                          variant="danger"
+                          disabled={!canManage || busyId === d.id}
+                          onClick={() => {
+                            setRejectD(d);
+                            setReason('');
+                            setActionError('');
+                          }}
+                        >
+                          Reject
+                        </AppButton>
+                      </div>
+                    )
                   ) : (
                     <p className="w-full text-[12px] text-slate-600 dark:text-slate-400 sm:w-auto">
                       {d.rejectionNote || 'Credited'}
@@ -518,7 +565,7 @@ export function WalletScreen() {
                       Sync
                     </AppButton>
                     {p.failureReason && (
-                      <p className="w-full text-[12px] text-rose-600 dark:text-rose-300">{p.failureReason}</p>
+                      <p className="w-full text-[12px] text-rose-700 dark:text-rose-300">{p.failureReason}</p>
                     )}
                   </li>
                 ))}

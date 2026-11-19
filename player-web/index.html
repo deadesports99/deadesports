@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Spartan Esports Arena — Free Fire Tournament</title>
-    <meta name="description" content="Join Free Fire tournaments, pay entry with UPI and win real cash on Spartan Arena." />
+    <title>Spartan Arena</title>
+    <meta name="description" content="Spartan Arena — join Free Fire tournaments, pay entry with UPI and win real cash." />
     <meta name="theme-color" content="#050B14" />
 
     <!-- App logo / icons -->
@@ -42,10 +42,94 @@
     </script>
     <style>
       * { -webkit-tap-highlight-color: transparent; }
-      body { margin: 0; padding: 0; background-color: #050B14; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #050B14;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+        overscroll-behavior-y: none;
+      }
       ::-webkit-scrollbar { width: 4px; height: 4px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 9999px; }
+
+      /* Hide the horizontal scrollbar on the game rail / chip rows */
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .no-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+      /* Safe area helpers for iOS notch / home indicator */
+      .pb-safe { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
+      .pt-safe { padding-top: calc(0.875rem + env(safe-area-inset-top, 0px)); }
+
+      /* --- Entry animations (stand-in for tailwindcss-animate, which the CDN lacks) --- */
+      @keyframes sc-enter {
+        from {
+          opacity: var(--sc-enter-opacity, 1);
+          transform: translate3d(var(--sc-enter-x, 0px), var(--sc-enter-y, 0px), 0)
+            scale(var(--sc-enter-scale, 1));
+        }
+        to {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1);
+        }
+      }
+
+      .animate-in {
+        animation-name: sc-enter;
+        animation-duration: var(--sc-enter-duration, 220ms);
+        animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        animation-fill-mode: both;
+        will-change: opacity, transform;
+      }
+
+      .fade-in { --sc-enter-opacity: 0; }
+      .zoom-in-95 { --sc-enter-scale: 0.95; }
+      .zoom-in-97 { --sc-enter-scale: 0.97; }
+      .slide-in-from-bottom-2 { --sc-enter-y: 8px; }
+      .slide-in-from-bottom-4 { --sc-enter-y: 16px; }
+      .slide-in-from-bottom-8 { --sc-enter-y: 32px; }
+      .slide-in-from-top-2 { --sc-enter-y: -8px; }
+
+      .duration-150 { --sc-enter-duration: 150ms; }
+      .duration-200 { --sc-enter-duration: 200ms; }
+      .duration-300 { --sc-enter-duration: 300ms; }
+
+      /* Staggered list entrance */
+      @keyframes sc-rise {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .sc-rise { animation: sc-rise 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+      /* Skeleton shimmer for loading placeholders */
+      @keyframes sc-shimmer {
+        0% { background-position: -220px 0; }
+        100% { background-position: 220px 0; }
+      }
+      .sc-shimmer {
+        background-image: linear-gradient(
+          90deg,
+          rgba(255,255,255,0.04) 0%,
+          rgba(255,255,255,0.10) 50%,
+          rgba(255,255,255,0.04) 100%
+        );
+        background-size: 220px 100%;
+        background-repeat: no-repeat;
+        animation: sc-shimmer 1.4s ease-in-out infinite;
+      }
+
+      /* Respect users who ask the OS for less motion */
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.001ms !important;
+        }
+      }
     </style>
   </head>
   <body class="bg-[#050B14] text-white">

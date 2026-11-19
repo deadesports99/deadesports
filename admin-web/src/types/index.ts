@@ -9,11 +9,19 @@ export type Theme = 'dark' | 'light';
 
 export type Role = 'USER' | 'ADMIN' | 'SUB_ADMIN';
 
-/** The four permission flags stored on `User` (live, changed by the owner). */
+/** One flag per admin-console SECTION (live, changed by the owner). */
 export interface Permissions {
+  /** Create Match — new match, clone, visibility window. */
   canCreateMatch: boolean;
+  /** Manage Matches — board, kills, room, go live, submit. */
+  canManageMatch: boolean;
+  /** Publish room — Room ID / password + reveal timing. */
   canUpdateRoomId: boolean;
+  /** Final Payout desk — see submitted matches and money totals. */
+  canViewPayout: boolean;
+  /** Release REAL money — prizes, seat refunds. */
   canDistributePrize: boolean;
+  /** Wallet — deposits, withdrawals, online payments. */
   canManageWallet: boolean;
 }
 
@@ -44,6 +52,7 @@ export type TournamentStatus =
   | 'OPEN'
   | 'SLOTS_FULL'
   | 'ROOM_REVEALED'
+  | 'STARTING_SOON'
   | 'LIVE'
   | 'UNDER_REVIEW'
   | 'COMPLETED'
@@ -67,7 +76,6 @@ export interface AdminTournament {
   matchType: MatchType;
   mapType: MapType;
   entryFee: string;
-  prizePool: string;
   perKillPrize: string | null;
   totalSlots: number;
   slotsBooked: number;
@@ -87,6 +95,8 @@ export interface AdminTournament {
   isRoomReady?: boolean | null;
   /** Staff-only: present once credentials exist. */
   room?: MatchRoomCredentials | null;
+  /** Set when the admin pressed Submit — the match moved to the Final Payout desk. */
+  payoutSubmittedAt?: string | null;
   mySlotNumber?: number | null;
   createdAt?: string;
 }
@@ -141,12 +151,10 @@ export interface MatchRoster {
     status: string;
     matchTime: string;
     entryFee: string;
-    prizePool: string;
     perKillPrize: string;
     totalSlots: number;
     slotsBooked: number;
   };
-  prizeRules: { '1': number; '2': number; '3': number };
   participants: RosterParticipant[];
   summary: {
     total: number;
@@ -191,6 +199,9 @@ export interface PayoutAwardsResult {
 
 export interface SweepResult {
   ranAt: string;
+  /** Kickoff arrived: waiting for the organiser to press "Go live". */
+  awaitingStart: Array<{ id: string; title: string; matchTime: string }>;
+  /** @deprecated always empty — the clock can no longer start a match. */
   wentLive: Array<{ id: string; title: string; matchTime: string }>;
   movedToReview: Array<{ id: string; title: string; matchTime: string }>;
 }
@@ -223,6 +234,10 @@ export interface CancelMatchResult {
   status: TournamentStatus;
   refundedPlayers: number;
   totalRefunded: number;
+  /** Banned seats left unpaid on purpose (their refund switch is OFF). */
+  skippedBanned?: number;
+  /** Seats already refunded earlier — never paid twice. */
+  skippedAlreadyRefunded?: number;
 }
 
 export interface Paged<T> {
@@ -305,8 +320,6 @@ export interface SettlementSummary {
   totalPrizesPaid: number;
   prizeCount: number;
   netOrganizerProfit: number;
-  platformCut: number;
-  commissionRate: number;
 }
 
 export interface SettlementTransaction {
@@ -550,8 +563,6 @@ export interface TenantSettings {
   upiName: string;
   supportWhatsapp: string;
   minDeposit: number;
-  /** Platform cut on every match, in percent (0-50). Players get the rest. */
-  commissionRate: number;
   allowPhoneAuth: boolean;
   allowGoogleAuth: boolean;
 }
@@ -591,7 +602,6 @@ export interface ManageMatchRow {
   status: string;
   entryFee: number;
   perKillPrize: number;
-  prizePool: number;
   totalSlots: number;
   joined: number;
   banned: number;
@@ -600,12 +610,71 @@ export interface ManageMatchRow {
   matchTime: string;
   roomId: string | null;
   roomPassword: string | null;
+  /** Credentials saved, whether or not players can see them yet. */
+  hasRoomCredentials: boolean;
+  /** Saved + revealed: every seated player already has the code. */
   roomPublished: boolean;
+  /** Set when the admin pressed Submit — the match moved to the Final Payout desk. */
+  payoutSubmittedAt?: string | null;
+}
+
+export type PayoutFilterTab = 'pending' | 'paid' | 'all';
+
+/** One row of the Final Payout desk (a submitted, scored match + its money). */
+export interface PayoutInboxRow {
+  id: string;
+  matchNumber: number | null;
+  title: string;
+  gameMode: string;
+  matchType: string;
+  mapType: string;
+  status: string;
+  matchTime: string;
+  entryFee: number;
+  perKillPrize: number;
+  totalSlots: number;
+  joined: number;
+  banned: number;
+  finished: number;
+  kills: number;
+  /** entryFee x seats sold. */
+  collected: number;
+  /** Money handed back (seat + banned-seat refunds, net of reversals). */
+  refunded: number;
+  /** Prize money already credited by earlier partial payouts. */
+  paid: number;
+  /** Still owed at the current scoreboard (kills x perKill). */
+  payoutDue: number;
+  payoutSubmittedAt: string;
+  roomId: string | null;
+  roomPassword: string | null;
+  hasRoomCredentials: boolean;
+  roomPublished: boolean;
+}
+
+export interface PayoutInbox {
+  rows: PayoutInboxRow[];
+  counts: { pending: number; paid: number; all: number };
+  totals: {
+    collected: number;
+    refunded: number;
+    paid: number;
+    payoutDue: number;
+    /** collected - refunded - paid - payoutDue (negative = you top up). */
+    balance: number;
+  };
 }
 
 export interface ManageMatchListResult {
   matches: ManageMatchRow[];
-  counts: { live: number; upcoming: number; closed: number; all: number };
+  counts: {
+    live: number;
+    upcoming: number;
+    closed: number;
+    all: number;
+    /** Kickoff passed, waiting for the admin to press "Start match now". */
+    awaitingStart: number;
+  };
 }
 
 /** One player on the live scoreboard. `kills` is the only payout input. */
@@ -619,6 +688,13 @@ export interface ManageBoardPlayer {
   isEliminated: boolean;
   isBanned: boolean;
   banReason: string | null;
+  /** Account-wide ban — player is logged out everywhere, not just this match. */
+  accountBanned?: boolean;
+  /**
+   * Entry fee already returned on this seat (0 = nothing returned).
+   * On a banned seat this is the coin switch state: > 0 = refund ON.
+   */
+  refunded?: number;
   joinedAt: string;
   paid: number;
 }
@@ -630,4 +706,38 @@ export interface ManageBoard {
   totalKills: number;
   maxKills: number;
   payoutPreview: number;
+}
+
+/**
+ * One signed-in browser for the current admin account.
+ *
+ * `current` marks the browser reading the list; `active` is false for rows that
+ * were signed out or ran past the absolute cap (kept for a short history).
+ */
+export interface AdminSessionInfo {
+  id: string;
+  current: boolean;
+  userAgent: string | null;
+  ip: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  revokedReason: string | null;
+  active: boolean;
+}
+
+/** One row of the owner-visible admin activity trail. */
+export interface AdminAuditRow {
+  id: string;
+  actorId: string | null;
+  actorRole: string | null;
+  actorName: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  meta: Record<string, unknown> | null;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
 }

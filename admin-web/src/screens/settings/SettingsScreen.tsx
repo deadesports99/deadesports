@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, RefreshCw, Save, Settings2 } from 'lucide-react';
 import { ApiError, api } from '../../lib/api';
 import { useToast } from '../../components/common/Toast';
+import { useStepUp } from '../../context/StepUpContext';
 import { GlassCard } from '../../components/common/GlassCard';
 import { SectionHeader } from '../../components/common/SectionHeader';
 import { AppButton } from '../../components/common/AppButton';
 import { LoadingState } from '../../components/common/LoadingState';
 import { Field, InfoNote, InlineError, TextInput, Toggle } from '../matches/MatchFormBits';
+import { SecurityPanel } from './SecurityPanel';
 import type { TenantSettings } from '../../types';
 
 type Draft = {
@@ -16,7 +18,6 @@ type Draft = {
   minDeposit: string;
   allowPhoneAuth: boolean;
   allowGoogleAuth: boolean;
-  allowEmailAuth: boolean;
 };
 
 function toDraft(settings: TenantSettings): Draft {
@@ -27,12 +28,12 @@ function toDraft(settings: TenantSettings): Draft {
     minDeposit: String(settings.minDeposit),
     allowPhoneAuth: settings.allowPhoneAuth,
     allowGoogleAuth: settings.allowGoogleAuth,
-    allowEmailAuth: settings.allowEmailAuth,
   };
 }
 
 export function SettingsScreen() {
   const toast = useToast();
+  const stepUp = useStepUp();
 
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -83,7 +84,7 @@ export function SettingsScreen() {
       setFormError('Minimum deposit must be a whole number between ₹1 and ₹1,00,000.');
       return;
     }
-    if (!draft.allowPhoneAuth && !draft.allowGoogleAuth && !draft.allowEmailAuth) {
+    if (!draft.allowPhoneAuth && !draft.allowGoogleAuth) {
       setFormError('At least one login method must stay on, otherwise nobody can sign in.');
       return;
     }
@@ -91,15 +92,16 @@ export function SettingsScreen() {
     setSaving(true);
     setError('');
     try {
-      const saved = await api.settings.update({
+      const payload = {
         upiId: draft.upiId.trim(),
         upiName: draft.upiName.trim(),
         supportWhatsapp: draft.supportWhatsapp.trim(),
         minDeposit,
         allowPhoneAuth: draft.allowPhoneAuth,
         allowGoogleAuth: draft.allowGoogleAuth,
-        allowEmailAuth: draft.allowEmailAuth,
-      });
+      };
+      // Money-destination change: the server demands a fresh sign-in code.
+      const saved = await stepUp.run('changing collection settings', () => api.settings.update(payload));
       setSettings(saved);
       setDraft(toDraft(saved));
       toast.success('Settings saved — live in the Player app immediately');
@@ -196,12 +198,6 @@ export function SettingsScreen() {
                     label="Google"
                     hint="Google sign-in in the player app."
                   />
-                  <Toggle
-                    checked={draft.allowEmailAuth}
-                    onChange={(value) => update('allowEmailAuth', value)}
-                    label="Email OTP"
-                    hint="Player signs in with an email address."
-                  />
                 </div>
               </div>
             </div>
@@ -215,7 +211,7 @@ export function SettingsScreen() {
                 <span className="font-mono text-[11.5px]">{api.tenantId.slice(0, 8)}…</span>
               </div>
               <div className="flex items-center gap-2">
-                {dirty && <span className="text-[12px] font-bold text-amber-700 dark:text-amber-300">Unsaved changes</span>}
+                {dirty && <span className="text-[12px] font-bold text-amber-800 dark:text-amber-300">Unsaved changes</span>}
                 <AppButton
                   icon={<Save className="h-4 w-4" />}
                   loading={saving}
@@ -241,11 +237,18 @@ export function SettingsScreen() {
           <div className="lg:col-span-2">
             <InfoNote>
               Owner-only screen. Staff accounts never see this route, and the server rejects the
-              update without the ADMIN role.
+              update without the ADMIN role. Changing the UPI ID asks for a fresh email code.
             </InfoNote>
           </div>
         </div>
       )}
+
+      <SectionHeader
+        eyebrow="Security"
+        title="Session & activity"
+        subtitle="Where you are signed in, and what happened on this account recently."
+      />
+      <SecurityPanel />
     </div>
   );
 }

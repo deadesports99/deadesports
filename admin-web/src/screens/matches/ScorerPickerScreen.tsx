@@ -104,8 +104,8 @@ export function ScorerPickerScreen() {
               onClick={() => setTab('LIVE')}
               className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-black transition-colors ${
                 tab === 'LIVE'
-                  ? 'border-rose-400/50 bg-rose-500/15 text-rose-600 dark:text-rose-300'
-                  : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                  ? 'border-rose-400/50 bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                  : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <Zap className="h-3.5 w-3.5" /> Live
@@ -116,8 +116,8 @@ export function ScorerPickerScreen() {
               onClick={() => setTab('REVIEW')}
               className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-black transition-colors ${
                 tab === 'REVIEW'
-                  ? 'border-amber-400/50 bg-amber-400/15 text-amber-700 dark:text-amber-300'
-                  : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                  ? 'border-amber-400/50 bg-amber-400/15 text-amber-800 dark:text-amber-300'
+                  : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02] text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <History className="h-3.5 w-3.5" /> Unscored backlog
@@ -169,7 +169,7 @@ export function ScorerPickerScreen() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-black">{matchHeadline(match)}</p>
-                    <p className="mt-0.5 text-[12px] text-slate-400">{formatIST(match.matchTime)}</p>
+                    <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">{formatIST(match.matchTime)}</p>
                   </div>
                   <StatusBadge status={match.status} />
                 </div>
@@ -178,10 +178,10 @@ export function ScorerPickerScreen() {
                   <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] px-1.5 py-0.5 text-slate-600 dark:text-slate-300">
                     {seatsLabel(match)}
                   </span>
-                  <span className="rounded-md border border-amber-400/25 bg-amber-400/[0.07] px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
-                    {money(Number(match.prizePool))} pool
+                  <span className="rounded-md border border-amber-400/25 bg-amber-400/[0.07] px-1.5 py-0.5 text-amber-800 dark:text-amber-300">
+                    {money(Number(match.entryFee))} entry
                   </span>
-                  <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] px-1.5 py-0.5 text-slate-400">
+                  <span className="rounded-md border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] px-1.5 py-0.5 text-slate-600 dark:text-slate-400">
                     ₹{Number(match.perKillPrize ?? 0)}/kill
                   </span>
                 </div>
@@ -204,10 +204,10 @@ export function ScorerPickerScreen() {
       )}
 
       <GlassCard flat className="p-4">
-        <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-slate-400">
+        <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-400">
           <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-300" />
-          One canonical payout flow: the match roster. Ranks 1–3 share the pool (50/30/20%), kills pay the
-          per-kill rate, and already-paid players are never paid twice.
+          One canonical payout flow: the match roster. Every confirmed kill pays the per-kill rate, and
+          already-paid players are never paid twice.
         </p>
       </GlassCard>
     </div>

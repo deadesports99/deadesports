@@ -519,7 +519,7 @@ export function SettingsScreen({
       {/* App Version Info Footnote */}
       <div className="pt-1 text-center">
         <p className={cx('text-[11px] font-semibold tracking-wide', isDark ? 'text-slate-500' : 'text-slate-400')}>
-          Spartan Esports Arena • v2.4.0 (Build 104)
+          Spartan Arena • v2.4.0 (Build 104)
         </p>
       </div>
 
@@ -527,7 +527,7 @@ export function SettingsScreen({
       {/* READ-ONLY ACCOUNT INFO MODAL (NO FREE FIRE ID EDITING ALLOWED) */}
       {/* ============================================================== */}
       {accountModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150">
           <div
             className={cx(
               'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',
@@ -615,7 +615,7 @@ export function SettingsScreen({
       {/* FAIR PLAY & ANTI-CHEAT RULES MODAL                             */}
       {/* ============================================================== */}
       {fairPlayModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150">
           <div
             className={cx(
               'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',
@@ -700,7 +700,7 @@ export function SettingsScreen({
       {/* ABOUT & DISCLAIMER MODAL                                        */}
       {/* ============================================================== */}
       {aboutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150">
           <div
             className={cx(
               'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',
@@ -779,7 +779,7 @@ export function SettingsScreen({
       {/* PRIVACY POLICY MODAL                                           */}
       {/* ============================================================== */}
       {privacyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150">
           <div
             className={cx(
               'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',
@@ -868,7 +868,7 @@ export function SettingsScreen({
       {/* DELETE ACCOUNT MODAL                                           */}
       {/* ============================================================== */}
       {deleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150">
           <div
             className={cx(
               'w-full max-w-sm rounded-2xl border p-5 shadow-2xl transition-all',

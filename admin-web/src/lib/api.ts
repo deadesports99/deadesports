@@ -1,8 +1,10 @@
 import type {
   AdminAccessKey,
+  AdminAuditRow,
   AdminDeposit,
   AdminPaymentsResult,
   AdminPlayersResult,
+  AdminSessionInfo,
   AdminTournament,
   AdminUser,
   AdminWithdrawal,
@@ -22,6 +24,8 @@ import type {
   Paged,
   PayoutAwardInput,
   PayoutAwardsResult,
+  PayoutFilterTab,
+  PayoutInbox,
   RoomPublishResult,
   RoomRevealResult,
   SweepResult,
@@ -60,24 +64,73 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The server refused a money/settings action until the admin re-confirms with a
+ * fresh sign-in code (the step-up gate). The UI answers this with a modal, then
+ * retries the exact same call — the proof token is attached automatically.
+ */
+export class StepUpRequiredError extends ApiError {
+  action: string;
+
+  constructor(message: string, action: string) {
+    super(message, 403, { code: 'STEP_UP_REQUIRED', action });
+    this.name = 'StepUpRequiredError';
+    this.action = action;
+  }
+}
+
+/**
+ * Short-lived step-up proof, kept in memory only.
+ *
+ * Never persisted: it expires in ~10 minutes and a stolen localStorage copy
+ * would be a second, quieter way to move money.
+ */
+let stepUpProof: { token: string; expiresAt: number } | null = null;
+
+export function readStepUpProof(): string | null {
+  if (!stepUpProof) return null;
+  if (stepUpProof.expiresAt <= Date.now()) {
+    stepUpProof = null;
+    return null;
+  }
+  return stepUpProof.token;
+}
+
+export function storeStepUpProof(token: string, expiresInSeconds: number): void {
+  // 30s safety margin so the proof never expires mid-request.
+  stepUpProof = { token, expiresAt: Date.now() + Math.max(0, expiresInSeconds - 30) * 1000 };
+}
+
+export function clearStepUpProof(): void {
+  stepUpProof = null;
+}
+
 interface RequestOptions extends RequestInit {
   /** Skip the global 401 → login redirect (used by the login screen itself). */
   skipAuthRedirect?: boolean;
+  /** Sensitive action — attach the step-up proof and surface the step-up gate. */
+  stepUp?: boolean;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { skipAuthRedirect, ...init } = options;
+  const { skipAuthRedirect, stepUp, ...init } = options;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    ...((init.headers as Record<string, string> | undefined) ?? {}),
+  };
+  if (stepUp) {
+    const proof = readStepUpProof();
+    if (proof) headers['X-Step-Up-Token'] = proof;
+  }
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
       ...init,
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        ...(init.headers ?? {}),
-      },
+      headers,
     });
   } catch {
     throw new ApiError('Network error — check your connection and try again', 0);
@@ -95,10 +148,18 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok || payload?.success === false) {
+    const details = payload?.data;
+    if (details?.code === 'STEP_UP_REQUIRED') {
+      clearStepUpProof();
+      throw new StepUpRequiredError(
+        payload?.message ?? 'Confirm this action with a sign-in code',
+        String(details.action ?? 'this action')
+      );
+    }
     throw new ApiError(
       payload?.message ?? `Request failed (${response.status})`,
       payload?.statusCode ?? response.status,
-      payload?.data
+      details
     );
   }
 
@@ -141,6 +202,46 @@ export const auth = {
   logout: () => request<undefined>('/auth/admin/logout', { method: 'POST', skipAuthRedirect: true }),
 };
 
+// ── Step-up confirmation (money / settings) ─────────────────────────────
+
+/** The 6-digit code is mailed to the signed-in admin's own inbox. */
+export const stepUp = {
+  request: () =>
+    request<{ email: string; expiresInSeconds: number; debugOtp?: string }>(
+      '/auth/admin/step-up/request',
+      { method: 'POST', body: '{}' }
+    ),
+
+  verify: async (email: string, otp: string) => {
+    const result = await request<{ stepUpToken: string; expiresInSeconds: number }>(
+      '/auth/admin/step-up/verify',
+      { method: 'POST', body: JSON.stringify({ email, otp }) }
+    );
+    storeStepUpProof(result.stepUpToken, result.expiresInSeconds);
+    return result;
+  },
+};
+
+// ── Security: signed-in browsers + audit trail ───────────────────────────
+
+export const security = {
+  sessions: () =>
+    request<{ sessions: AdminSessionInfo[]; count: number }>('/admin/security/sessions'),
+
+  revokeSession: (id: string) =>
+    request<undefined>(`/admin/security/sessions/${id}/revoke`, { method: 'POST' }),
+
+  revokeOtherSessions: () =>
+    request<{ revoked: number }>('/admin/security/sessions/revoke-others', { method: 'POST' }),
+
+  /** Kills every session of this account, including this browser. */
+  revokeAllSessions: () =>
+    request<{ revoked: number }>('/admin/security/sessions/revoke-all', { method: 'POST' }),
+
+  audit: (limit = 20) =>
+    request<{ rows: AdminAuditRow[]; count: number }>(`/admin/security/audit?limit=${limit}`),
+};
+
 // ── Matches ─────────────────────────────────────────────────────────────
 
 export interface CreateMatchInput {
@@ -148,7 +249,6 @@ export interface CreateMatchInput {
   matchType: 'SOLO' | 'DUO' | 'SQUAD';
   mapType: 'BERMUDA' | 'PURGATORY' | 'KALAHARI' | 'ALPINE' | 'NEXTERRA';
   entryFee: number;
-  prizePool: number;
   perKillPrize?: number;
   matchTime: string;
   totalSlots?: number;
@@ -254,6 +354,7 @@ export const matches = {
     request<PayoutAwardsResult>(`/admin/matches/${id}/payout`, {
       method: 'POST',
       body: JSON.stringify({ awards, completeMatch }),
+      stepUp: true,
     }),
 
   banParticipant: (
@@ -309,6 +410,7 @@ export const wallet = {
     request<{ message: string }>(`/admin/wallet/withdrawals/${id}/approve`, {
       method: 'POST',
       body: JSON.stringify({ utrNumber }),
+      stepUp: true,
     }),
 
   rejectWithdrawal: (id: string, reason: string) =>
@@ -422,7 +524,9 @@ export interface IssueAccessInput {
   phoneNumber: string;
   permissions: {
     canCreateMatch?: boolean;
+    canManageMatch?: boolean;
     canUpdateRoomId?: boolean;
+    canViewPayout?: boolean;
     canDistributePrize?: boolean;
     canManageWallet?: boolean;
   };
@@ -432,12 +536,16 @@ export const accessKeys = {
   list: () => request<{ keys: AdminAccessKey[]; count: number }>('/admin/access'),
 
   issue: (input: IssueAccessInput) =>
-    request<IssuedAccessKey>('/admin/access', { method: 'POST', body: JSON.stringify(input) }),
+    request<IssuedAccessKey>('/admin/access', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      stepUp: true,
+    }),
 
   revoke: (id: string) => request<null>(`/admin/access/${id}/revoke`, { method: 'POST' }),
 
   regenerate: (id: string) =>
-    request<IssuedAccessKey>(`/admin/access/${id}/regenerate`, { method: 'POST' }),
+    request<IssuedAccessKey>(`/admin/access/${id}/regenerate`, { method: 'POST', stepUp: true }),
 };
 
 // ── Runtime tenant settings (owner only) ────────────────────────────────
@@ -449,6 +557,7 @@ export const settings = {
     request<TenantSettings>('/admin/tenant/settings', {
       method: 'PATCH',
       body: JSON.stringify(input),
+      stepUp: true,
     }),
 };
 
@@ -514,6 +623,16 @@ export const manage = {
       body: JSON.stringify({ reason: reason?.trim() || undefined }),
     }),
 
+  /**
+   * Banned seat money switch (coin icon): true = entry fee back to the player,
+   * false = ban only (takes a refund back if one was already given).
+   */
+  setBanRefund: (matchId: string, userId: string, refund: boolean) =>
+    request<ManageBoard>(`/admin/matches/${matchId}/participants/${userId}/ban-refund`, {
+      method: 'PATCH',
+      body: JSON.stringify({ refund }),
+    }),
+
   ban: (matchId: string, userId: string, isBanned: boolean, reason?: string) =>
     request<unknown>(`/admin/matches/${matchId}/participants/${userId}/ban`, {
       method: 'PATCH',
@@ -535,15 +654,35 @@ export const manage = {
       body: JSON.stringify({ reason }),
     }),
 
-  payout: (matchId: string, awards: PayoutAwardInput[], completeMatch = true) =>
+  payout: (matchId: string, awards: PayoutAwardInput[], completeMatch = true, allowOverPool = false) =>
     request<PayoutAwardsResult>(`/admin/matches/${matchId}/payout`, {
       method: 'POST',
-      body: JSON.stringify({ awards, completeMatch }),
+      body: JSON.stringify({ awards, completeMatch, allowOverPool }),
+      stepUp: true,
     }),
+
+  /**
+   * Hand a scored match to the Final Payout desk. No money moves — the match
+   * leaves the live control room and waits there for the OTP payout.
+   */
+  submitForPayout: (matchId: string) =>
+    request<{ tournamentId: string; payoutSubmittedAt: string; alreadySubmitted: boolean }>(
+      `/admin/matches/${matchId}/submit`,
+      { method: 'POST' },
+    ),
+
+  /** Final Payout desk: submitted matches + the money totals for each. */
+  payoutInbox: (filter: PayoutFilterTab = 'pending', q?: string) => {
+    const params = new URLSearchParams({ filter });
+    if (q?.trim()) params.set('q', q.trim());
+    return request<PayoutInbox>(`/admin/matches/payouts/inbox?${params.toString()}`);
+  },
 };
 
 export const api = {
   auth,
+  stepUp,
+  security,
   matches,
   wallet,
   players,

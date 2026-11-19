@@ -4,7 +4,6 @@ import {
   ArrowUpFromLine,
   Banknote,
   Download,
-  Percent,
   RefreshCw,
   ShieldCheck,
   Swords,
@@ -188,12 +187,6 @@ export function SettlementScreen() {
                 note: s.netOrganizerProfit >= 0 ? 'profit' : 'loss',
                 icon: Banknote,
               },
-              {
-                label: `Platform cut ${s.commissionRate}%`,
-                value: formatINR(s.platformCut),
-                note: 'on net margin',
-                icon: Percent,
-              },
             ].map(({ label, value, note, icon: Icon }) => (
               <GlassCard key={label} flat className="p-3">
                 <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
@@ -204,7 +197,7 @@ export function SettlementScreen() {
                   className={
                     'mt-1 text-[15px] font-black leading-none ' +
                     (label === 'Net margin' && s.netOrganizerProfit < 0
-                      ? 'text-rose-600 dark:text-rose-300'
+                      ? 'text-rose-700 dark:text-rose-300'
                       : '')
                   }
                 >
@@ -266,7 +259,7 @@ export function SettlementScreen() {
                             'py-2 text-right text-[12px] font-black ' +
                             (tx.type === 'CREDIT'
                               ? 'text-emerald-700 dark:text-emerald-300'
-                              : 'text-rose-600 dark:text-rose-300')
+                              : 'text-rose-700 dark:text-rose-300')
                           }
                         >
                           {tx.type === 'CREDIT' ? '+' : '−'}

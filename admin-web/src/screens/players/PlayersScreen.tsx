@@ -276,7 +276,7 @@ export function PlayersScreen() {
             className={
               'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[12px] font-black transition-colors ' +
               (view === id
-                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-700 dark:text-amber-300'
+                ? 'border-[#FFD000]/60 bg-[#FFD000]/15 text-amber-800 dark:text-amber-300'
                 : 'border-slate-200 bg-white text-slate-600 hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400 dark:hover:text-white')
             }
           >
@@ -408,7 +408,7 @@ export function PlayersScreen() {
                           <span
                             key={signal.code}
                             title={signal.detail}
-                            className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
+                            className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
                           >
                             {signal.label} +{signal.weight}
                           </span>
@@ -416,7 +416,7 @@ export function PlayersScreen() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-[20px] font-black leading-none text-rose-600 dark:text-rose-300">
+                      <p className="text-[20px] font-black leading-none text-rose-700 dark:text-rose-300">
                         {row.score}
                       </p>
                       <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">risk score</p>
@@ -556,7 +556,7 @@ export function PlayersScreen() {
                       <p
                         className={
                           'text-[18px] font-black leading-none ' +
-                          (device.alertCount > 0 ? 'text-rose-600 dark:text-rose-300' : 'text-slate-400')
+                          (device.alertCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-600 dark:text-slate-400')
                         }
                       >
                         {device.alertCount}

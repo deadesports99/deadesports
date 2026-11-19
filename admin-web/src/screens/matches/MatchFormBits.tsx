@@ -62,7 +62,7 @@ export function Field({
       <span
         className={cx(
           'mb-1 block text-[11.5px] font-black uppercase tracking-[0.14em]',
-          isDark ? 'text-slate-400' : 'text-slate-600'
+          isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600'
         )}
       >
         {label}
@@ -71,7 +71,7 @@ export function Field({
       {error ? (
         <span className="mt-1 block text-[12.5px] font-semibold text-rose-400">{error}</span>
       ) : hint ? (
-        <span className={cx('mt-1 block text-[12.5px]', isDark ? 'text-slate-400' : 'text-slate-600')}>{hint}</span>
+        <span className={cx('mt-1 block text-[12.5px]', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>{hint}</span>
       ) : null}
     </label>
   );
@@ -146,7 +146,7 @@ export function Toggle({
       <span className="min-w-0">
         <span className={cx('block text-[12px] font-bold', isDark ? 'text-slate-100' : 'text-slate-900')}>{label}</span>
         {hint && (
-          <span className={cx('mt-0.5 block text-[12.5px] leading-snug', isDark ? 'text-slate-400' : 'text-slate-600')}>
+          <span className={cx('mt-0.5 block text-[12.5px] leading-snug', isDark ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600')}>
             {hint}
           </span>
         )}

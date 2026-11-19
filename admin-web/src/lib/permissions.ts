@@ -1,8 +1,7 @@
 import {
+  Banknote,
   Gamepad2,
   LayoutDashboard,
-  ListChecks,
-  Radio,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -14,7 +13,7 @@ import {
 import type { AdminUser, PermissionKey } from '../types';
 
 /**
- * Permission model — mirrors the four booleans on `User` exactly.
+ * Permission model — mirrors the section flags on `User` exactly.
  *
  * ADMIN (owner) bypasses every flag server-side, so the UI does the same.
  * Staff permissions are read live from the DB on every request, which means
@@ -22,11 +21,23 @@ import type { AdminUser, PermissionKey } from '../types';
  */
 
 export const PERMISSION_LABELS: Record<PermissionKey, { label: string; hint: string }> = {
-  canCreateMatch: { label: 'Create matches', hint: 'New match, clone, cancel & refund' },
+  canCreateMatch: { label: 'Create match', hint: 'New match, clone & visibility window' },
+  canManageMatch: { label: 'Manage match', hint: 'Board, kills, room, go live & submit' },
   canUpdateRoomId: { label: 'Publish room', hint: 'Room ID / password + reveal timing' },
-  canDistributePrize: { label: 'Payout prizes', hint: 'Live scorer, roster results, DQ & bans' },
+  canViewPayout: { label: 'Final payout (view)', hint: 'See submitted matches & money totals' },
+  canDistributePrize: { label: 'Pay real money', hint: 'Release prizes, seat refunds & DQ' },
   canManageWallet: { label: 'Manage wallet', hint: 'Deposits, withdrawals & online payments' },
 };
+
+/** Every section, in the order the owner console lists them. */
+export const PERMISSION_KEYS: PermissionKey[] = [
+  'canCreateMatch',
+  'canManageMatch',
+  'canUpdateRoomId',
+  'canViewPayout',
+  'canDistributePrize',
+  'canManageWallet',
+];
 
 export type Access = PermissionKey | 'owner' | 'any';
 
@@ -69,9 +80,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/', label: 'Dashboard', shortLabel: 'Home', icon: LayoutDashboard, access: 'any', mobile: true },
       { to: '/matches', label: 'Matches', icon: Gamepad2, access: 'any', mobile: true },
       { to: '/matches/create', label: 'Create Match', icon: Swords, access: 'canCreateMatch' },
-      { to: '/matches/publish', label: 'Publish Room', icon: Radio, access: 'canUpdateRoomId' },
-      { to: '/manage', label: 'Manage Matches', shortLabel: 'Manage', icon: SlidersHorizontal, access: 'canCreateMatch', mobile: true },
-      { to: '/roster', label: 'Live Scorer', shortLabel: 'Scorer', icon: ListChecks, access: 'canDistributePrize' },
+      { to: '/manage', label: 'Manage Matches', shortLabel: 'Manage', icon: SlidersHorizontal, access: 'canManageMatch', mobile: true },
+      { to: '/payouts', label: 'Final Payout', shortLabel: 'Payout', icon: Banknote, access: 'canViewPayout', mobile: true },
     ],
   },
   {
@@ -105,8 +115,11 @@ export const ROUTE_ACCESS: Array<{ pattern: RegExp; access: Access }> = [
   { pattern: /^\/matches\/create$/, access: 'canCreateMatch' },
   { pattern: /^\/matches\/publish$/, access: 'canUpdateRoomId' },
   { pattern: /^\/matches\/[^/]+$/, access: 'any' },
-  { pattern: /^\/roster/, access: 'canDistributePrize' },
-  { pattern: /^\/scorer/, access: 'canDistributePrize' },
+  { pattern: /^\/manage/, access: 'canManageMatch' },
+  { pattern: /^\/payouts/, access: 'canViewPayout' },
+  // Legacy links; both redirect to /payouts, which enforces its own access.
+  { pattern: /^\/roster/, access: 'any' },
+  { pattern: /^\/scorer/, access: 'any' },
   { pattern: /^\/wallet\/settlement$/, access: 'owner' },
   { pattern: /^\/wallet/, access: 'canManageWallet' },
   { pattern: /^\/players/, access: 'owner' },
