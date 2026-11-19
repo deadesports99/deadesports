@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,6 +84,10 @@ fun MatchCard(
 
     val isFull = tournament.remainingSlots <= 0
     val isLive = tournament.status == TournamentStatus.LIVE
+    // A live match cannot be joined, so its CTA becomes "View All" (the public
+    // joined list) instead of the dead "Watch live" label. The seat-line link is
+    // hidden for live matches — the same action would otherwise appear twice.
+    val liveViewAll = isLive && !joined
     // Kickoff passed but the organiser has not started the match: the seat is
     // booked, the room may not even exist yet, and NOTHING is live. The card
     // says "starting shortly — please wait" instead of pretending to be live.
@@ -220,20 +225,20 @@ fun MatchCard(
                             color = DemoColors.TextSecondary,
                         )
                         // seats ke bagal me hi "View all" — public join list.
-                        // A bordered chip instead of bare text so the tap target is
-                        // obvious and big enough for a thumb on a full-size phone.
-                        if (tournament.slotsBooked > 0) {
+                        // Simple text link (owner preference): plain cyan + underline,
+                        // no chip/border, so the seat line stays calm.
+                        // Live matches move this into the CTA (see below).
+                        if (tournament.slotsBooked > 0 && !isLive) {
                             Text(
-                                "View all",
+                                "· View all",
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(DemoColors.Cyan.copy(alpha = 0.12f))
-                                    .border(1.dp, DemoColors.Cyan.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                    .clip(RoundedCornerShape(4.dp))
                                     .clickable(onClick = onViewPlayers)
-                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                                    .padding(horizontal = 3.dp, vertical = 1.dp),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
                                 color = DemoColors.Cyan,
+                                textDecoration = TextDecoration.Underline,
                             )
                         }
                     }
@@ -268,15 +273,17 @@ fun MatchCard(
             }
 
             // CTA colours are the truth: gold = joinable, green = seated,
-            // grey = dead (full / live / already watching).
+            // grey = dead (full / starting soon), cyan = live (View All).
             val ctaBackground = when {
                 joined -> DemoColors.Success
-                isLive || isFull || startingSoon -> DemoColors.Track
+                liveViewAll -> DemoColors.Cyan.copy(alpha = 0.16f)
+                isFull || startingSoon -> DemoColors.Track
                 else -> DemoColors.Gold
             }
             val ctaTextColor = when {
                 joined -> Color.White
-                isLive || isFull || startingSoon -> DemoColors.TextMuted
+                liveViewAll -> DemoColors.Cyan
+                isFull || startingSoon -> DemoColors.TextMuted
                 else -> DemoColors.OnGold
             }
             Box(
@@ -284,12 +291,19 @@ fun MatchCard(
                     .clip(RoundedCornerShape(8.dp))
                     .background(ctaBackground)
                     .border(
-                        // A published room gets a gold ring so it reads as "open me".
-                        width = if (joined && roomReady) 1.dp else 0.dp,
-                        color = if (joined && roomReady) DemoColors.Gold else Color.Transparent,
+                        // A published room gets a gold ring so it reads as "open me";
+                        // the live "View All" keeps a cyan ring so it looks pressable.
+                        width = if ((joined && roomReady) || liveViewAll) 1.dp else 0.dp,
+                        color = when {
+                            joined && roomReady -> DemoColors.Gold
+                            liveViewAll -> DemoColors.Cyan.copy(alpha = 0.5f)
+                            else -> Color.Transparent
+                        },
                         shape = RoundedCornerShape(8.dp),
                     )
-                    .clickable(enabled = actionEnabled, onClick = onOpen)
+                    .clickable(enabled = actionEnabled || liveViewAll) {
+                        if (liveViewAll) onViewPlayers() else onOpen()
+                    }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
@@ -300,7 +314,8 @@ fun MatchCard(
                         // Seated players keep their normal "Joined ✓" — the delay
                         // is already said above, the button stays honest.
                         joined -> "Joined ✓"
-                        isLive -> "Watch live"
+                        // Live: seats are locked, so offer the joined list.
+                        isLive -> "View All"
                         isFull -> "Slot Full"
                         else -> "Join • ₹${formatMoney(tournament.entryFeeValue)}"
                     },
