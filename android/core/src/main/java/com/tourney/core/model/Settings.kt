@@ -18,6 +18,11 @@ data class TenantSettings(
     /** Player sign-in methods. Email/OTP sign-in has been removed from the app. */
     @Json(name = "allowPhoneAuth") val allowPhoneAuth: Boolean = true,
     @Json(name = "allowGoogleAuth") val allowGoogleAuth: Boolean = true,
+    /**
+     * Server-side reward-module kill switch. Absent key = no opinion (the APK's
+     * build flag decides); `false` hides the module without a new release.
+     */
+    val features: Map<String, Boolean> = emptyMap(),
 ) {
     /** Never render a blank payee name. */
     val payeeName: String get() = upiName.ifBlank { brandName }

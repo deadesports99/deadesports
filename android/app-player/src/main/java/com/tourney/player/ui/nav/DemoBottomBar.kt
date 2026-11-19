@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Wallet
@@ -35,10 +36,17 @@ import com.tourney.player.ui.theme.DemoColors
 
 private val DemoRadiusPill: RoundedCornerShape = RoundedCornerShape(percent = 50)
 
-/** The four tabs at the bottom of every top-level screen. */
+/**
+ * The tabs at the bottom of every top-level screen.
+ *
+ * `REWARDS` is the reward module hub (daily bonus · tasks · referral) and is
+ * rendered only when `FeatureFlags.earnHub` is true — an APK built without those
+ * modules shows the classic four-tab bar.
+ */
 enum class DemoTab(val route: String, val label: String, val icon: ImageVector) {
     MATCHES("feed", "Tournaments", Icons.Filled.SportsEsports),
     MY_MATCHES("my-matches", "My Matches", Icons.Filled.History),
+    REWARDS("rewards", "Rewards", Icons.Filled.Redeem),
     WALLET("wallet", "Wallet", Icons.Filled.Wallet),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
 }
@@ -52,7 +60,14 @@ enum class DemoTab(val route: String, val label: String, val icon: ImageVector) 
  * - label: `text-[10px]`, active `font-black text-white`, inactive `font-medium text-slate-400`
  */
 @Composable
-fun DemoBottomBar(currentRoute: String?, onSelect: (DemoTab) -> Unit) {
+fun DemoBottomBar(
+    currentRoute: String?,
+    onSelect: (DemoTab) -> Unit,
+    showRewards: Boolean = false,
+    /** Gold dot on the Rewards tab when something is claimable right now. */
+    rewardsBadge: Boolean = false,
+) {
+    val tabs = DemoTab.entries.filter { it != DemoTab.REWARDS || showRewards }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -74,7 +89,7 @@ fun DemoBottomBar(currentRoute: String?, onSelect: (DemoTab) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            DemoTab.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 val selected = currentRoute == tab.route
                 val iconScale by animateFloatAsState(
                     targetValue = if (selected) 1.05f else 1f,
@@ -106,6 +121,18 @@ fun DemoBottomBar(currentRoute: String?, onSelect: (DemoTab) -> Unit) {
                                 .size(20.dp)
                                 .scale(iconScale),
                         )
+                        if (tab == DemoTab.REWARDS && rewardsBadge) {
+                            // 6dp gold dot: presence, not a counter — a number here
+                            // reads like unread chat messages.
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 6.dp, end = 13.dp)
+                                    .size(6.dp)
+                                    .clip(DemoRadiusPill)
+                                    .background(DemoColors.Gold),
+                            )
+                        }
                     }
 
                     Text(

@@ -9,7 +9,11 @@ import com.tourney.core.model.FcmTokenRequest
 import com.tourney.core.model.FcmTokenResponse
 import com.tourney.core.model.JoinRequest
 import com.tourney.core.model.JoinedPlayersResponse
+import com.tourney.core.model.ApplyReferralRequest
 import com.tourney.core.model.MatchStatusResponse
+import com.tourney.core.model.RewardClaimAck
+import com.tourney.core.model.ReferralInfo
+import com.tourney.core.model.RewardsSummary
 import com.tourney.core.model.JoinResult
 import com.tourney.core.model.LoginRequest
 import com.tourney.core.model.GoogleAuthRequest
@@ -120,6 +124,26 @@ interface TourneyApi {
     /** Profile tab: update player's Free Fire IGN and UID. */
     @PATCH("players/me/game-profile")
     suspend fun updateGameProfile(@Body request: UpdateGameProfileRequest): ApiEnvelope<User>
+
+    // ─── Rewards: referral · daily bonus · tasks ─────────────────────────
+    /** The whole Rewards tab in one call (each block optional per server flags). */
+    @GET("rewards/summary")
+    suspend fun rewardsSummary(): ApiEnvelope<RewardsSummary>
+
+    /** One claim per IST day; 409 when already claimed. */
+    @POST("rewards/daily-bonus/claim")
+    suspend fun claimDailyBonus(): ApiEnvelope<RewardClaimAck>
+
+    /** Credit a completed task; 409 when already claimed. */
+    @POST("rewards/tasks/{id}/claim")
+    suspend fun claimTask(@Path("id") id: String): ApiEnvelope<RewardClaimAck>
+
+    @GET("rewards/referral")
+    suspend fun referralInfo(): ApiEnvelope<ReferralInfo>
+
+    /** Attach an inviter's code (one time per account). */
+    @POST("rewards/referral/apply")
+    suspend fun applyReferralCode(@Body request: ApplyReferralRequest): ApiEnvelope<ReferralInfo>
 
     // ─── Wallet ──────────────────────────────────────────────────────────
     @GET("wallet")

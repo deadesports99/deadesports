@@ -350,7 +350,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun loadSettings() {
         viewModelScope.launch {
             settingsUi = try {
-                UiState.Success(apiCall { api.tenantSettings(tenantId = config.tenantId) })
+                val fresh = apiCall { api.tenantSettings(tenantId = config.tenantId) }
+                // Reward modules can be hidden server-side without a new APK.
+                FeatureFlags.applyServerFlags(fresh.features)
+                UiState.Success(fresh)
             } catch (e: ApiException) {
                 UiState.Error(e.message)
             } catch (e: Exception) {

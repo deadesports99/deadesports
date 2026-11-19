@@ -15,10 +15,10 @@
   "min_deposit": 10,
   "support_whatsapp": "919999900001",
   "features": {
-    "referral": false,
-    "daily_bonus": false,
-    "tasks": false,
-    "earn_hub": false,
+    "referral": true,
+    "daily_bonus": true,
+    "tasks": true,
+    "earn_hub": true,
     "rewards_push": false
   }
 }

@@ -1,8 +1,14 @@
 package com.tourney.player
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -27,6 +33,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.tourney.player.ui.matches.JoinedPlayersScreen
+import com.tourney.player.ui.rewards.ReferralScreen
+import com.tourney.player.ui.rewards.RewardsHubScreen
 import com.tourney.player.ui.matches.MatchStatusScreen
 import com.tourney.player.ui.matches.MatchesScreen
 import com.tourney.player.ui.matches.MyMatchesScreen
@@ -36,6 +44,9 @@ import com.tourney.player.ui.nav.DemoBottomBar
 private enum class PlayerTab(val route: String) {
     MATCHES("feed"),
     MY_MATCHES("my-matches"),
+
+    /** Reward hub (daily bonus · tasks · referral) — only when the flag is on. */
+    REWARDS("rewards"),
     WALLET("wallet"),
     SETTINGS("settings"),
 }
@@ -66,6 +77,9 @@ fun PlayerNavHost(
 ) {
     val navController = rememberNavController()
     val matchViewModel: MatchViewModel = viewModel()
+    // One Rewards view model for the tab and the referral push screen, so a claim
+    // on either screen refreshes the badge in the bottom bar.
+    val rewardsViewModel: com.tourney.player.ui.rewards.RewardsViewModel = viewModel()
     // Own player id, so the scoreboard can pull "your" row out of the table.
     val sessionUserId by playerViewModel.sessionFlow.collectAsState(
         initial = com.tourney.core.datastore.SessionState(),
@@ -94,16 +108,54 @@ fun PlayerNavHost(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    // The Rewards tab is a build-time (and server-gated) module: absent from the
+    // bar when this APK was compiled without it.
+    val showRewardsTab = com.tourney.player.FeatureFlags.earnHub
+    val rewardsSummary = (rewardsViewModel.state as? UiState.Success)?.data
+    val rewardsBadge = showRewardsTab && (rewardsSummary?.hasAnyClaim == true)
+
+    // Probe once per app open (and after a claim anywhere) so the dot is honest.
+    LaunchedEffect(showRewardsTab, sessionUserId.isLoggedIn) {
+        if (showRewardsTab && sessionUserId.isLoggedIn) rewardsViewModel.refresh(showLoading = false)
+    }
+
     // Bottom bar only on top-level tabs; push screens (slots/room) hide it.
     val showBottomBar = currentRoute in PlayerTab.entries.map { it.route }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            // Demo theme instead of the M3 default (light grey pill): a reward
+            // credit is good news, so it reads gold on the dark card surface.
+            SnackbarHost(snackbarHostState) { data ->
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(com.tourney.player.ui.theme.DemoRadius.Field))
+                        .background(com.tourney.player.ui.theme.DemoColors.Card)
+                        .border(
+                            1.dp,
+                            com.tourney.player.ui.theme.DemoColors.Gold.copy(alpha = 0.4f),
+                            RoundedCornerShape(com.tourney.player.ui.theme.DemoRadius.Field),
+                        )
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        data.visuals.message,
+                        fontSize = com.tourney.player.ui.theme.DemoText.Small,
+                        fontWeight = FontWeight.Black,
+                        color = com.tourney.player.ui.theme.DemoColors.TextPrimary,
+                    )
+                }
+            }
+        },
         bottomBar = {
             if (showBottomBar) {
-                DemoBottomBar(currentRoute = currentRoute) { tab ->
-                    navController.switchTab(tab.route)
-                }
+                DemoBottomBar(
+                    currentRoute = currentRoute,
+                    onSelect = { tab -> navController.switchTab(tab.route) },
+                    showRewards = showRewardsTab,
+                    rewardsBadge = rewardsBadge,
+                )
             }
         },
     ) { innerPadding ->
@@ -133,6 +185,22 @@ fun PlayerNavHost(
                         },
                         onBrowseTournaments = { navController.switchTab(PlayerTab.MATCHES.route) },
                     )
+                }
+                if (showRewardsTab) {
+                    composable(PlayerTab.REWARDS.route) {
+                        RewardsHubScreen(
+                            onOpenReferral = { navController.navigate("rewards/referral") },
+                            onToast = { message -> playerNavToast = message },
+                            viewModel = rewardsViewModel,
+                        )
+                    }
+                    composable("rewards/referral") {
+                        ReferralScreen(
+                            onBack = { navController.popBackStack() },
+                            onToast = { message -> playerNavToast = message },
+                            viewModel = rewardsViewModel,
+                        )
+                    }
                 }
                 composable(PlayerTab.WALLET.route) {
                     // Money moves while this tab is closed (prize paid, seat
