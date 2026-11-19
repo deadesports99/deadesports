@@ -48,6 +48,10 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 
         val config = ClientConfig.load(applicationContext)
 
+        // Debug-only proof of which reward modules this APK was built with
+        // (referral / daily bonus / tasks). See tools/features.ps1.
+        FeatureFlags.logBuildState()
+
         // Appearance is a persisted preference: read it before the first frame so a
         // Light-mode player never sees a dark flash while DataStore warms up.
         val savedThemeMode =

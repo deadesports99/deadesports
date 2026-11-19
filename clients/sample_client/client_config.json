@@ -29,5 +29,12 @@
   },
   "assets": {
     "app_icon": "icons/app_icon.png"
+  },
+  "features": {
+    "referral": false,
+    "daily_bonus": false,
+    "tasks": false,
+    "earn_hub": false,
+    "rewards_push": false
   }
 }

@@ -38,6 +38,33 @@ val clientAppName = (clientCfg["app_name"] as? String) ?: "Spartan Arena"
 val clientVersionName = (clientCfg["version_name"] as? String) ?: "1.0.0"
 val clientVersionCode = (clientCfg["version_code"] as? Number)?.toInt() ?: 1
 
+// ─── REWARD MODULE FLAGS (build time, one-click) ─────────────────────────
+//
+// Per-client on/off switches for Referral / Daily Bonus / Tasks / Earn hub.
+// Resolution order, highest wins:
+//   1. -Pfeature.<key>=true|false on the Gradle command line (CI, quick tests)
+//   2. "features": { "<key>": true } inside client_config.json (toggle with
+//      tools/features.ps1 -Feature referral -On)
+//   3. false — a module is OFF unless the build explicitly opts in
+//
+// A false value is a compile-time constant, so R8 can drop the unused screens.
+val featuresCfg = (clientCfg["features"] as? Map<*, *>) ?: emptyMap<Any, Any>()
+fun featureFlag(key: String, default: Boolean = false): Boolean {
+    val cli = providers.gradleProperty("feature.$key").orNull?.trim()?.lowercase()
+    if (cli != null) return cli == "true" || cli == "on" || cli == "1"
+    val json = featuresCfg[key] as? Boolean
+    return json ?: default
+}
+val featureReferral = featureFlag("referral")
+val featureDailyBonus = featureFlag("daily_bonus")
+val featureTasks = featureFlag("tasks")
+val featureEarnHub = featureFlag("earn_hub", featureReferral || featureDailyBonus || featureTasks)
+val featureRewardsPush = featureFlag("rewards_push")
+logger.lifecycle(
+    "[features] referral=$featureReferral daily_bonus=$featureDailyBonus " +
+        "tasks=$featureTasks earn_hub=$featureEarnHub push=$featureRewardsPush",
+)
+
 // Production builds can override the bundled API URL without editing or
 // committing client branding: ./gradlew ... -PapiBaseUrl=https://api.example.com/api/v1
 val apiBaseUrlOverride = providers.gradleProperty("apiBaseUrl")
@@ -80,6 +107,13 @@ android {
         // App label comes straight from the client config.
         resValue("string", "app_name", clientAppName)
 
+        // Reward modules baked into this APK (read by FeatureFlags.kt).
+        buildConfigField("boolean", "FEATURE_REFERRAL", "$featureReferral")
+        buildConfigField("boolean", "FEATURE_DAILY_BONUS", "$featureDailyBonus")
+        buildConfigField("boolean", "FEATURE_TASKS", "$featureTasks")
+        buildConfigField("boolean", "FEATURE_EARN_HUB", "$featureEarnHub")
+        buildConfigField("boolean", "FEATURE_REWARDS_PUSH", "$featureRewardsPush")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -102,6 +136,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // Required by buildConfigField (the reward-module flags).
+        buildConfig = true
     }
 
     // Use the generated directory as the complete asset source so the

@@ -13,5 +13,12 @@
   "upi_id": "thunderesports@okaxis",
   "upi_name": "Spartan Arena",
   "min_deposit": 10,
-  "support_whatsapp": "919999900001"
+  "support_whatsapp": "919999900001",
+  "features": {
+    "referral": false,
+    "daily_bonus": false,
+    "tasks": false,
+    "earn_hub": false,
+    "rewards_push": false
+  }
 }
