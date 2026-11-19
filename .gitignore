@@ -56,6 +56,10 @@ dev-server.pid
 tmp_uitest/
 tmp_screens/
 tmp_emu/
+tmp_roomshots/
+tmp_*.log
+tmp_*.xml
+tmp_gurl.txt
 *.bak-hermes
 {
 backend/scripts_join_after_publish.mts
@@ -67,6 +71,9 @@ deliverables/
 .env*.bak_*
 .env.bak_*
 .local-db-backup/
+# Local database dumps (client data — never commit)
+backups/
+backups-*/
 
 # One-line service-account JSON for the Render dashboard (never commit)
 fcm-one-line.txt
