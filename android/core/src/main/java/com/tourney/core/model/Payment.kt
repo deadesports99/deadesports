@@ -82,50 +82,6 @@ data class VerifyPaymentResponse(
     val isCaptured: Boolean get() = status == "CAPTURED"
 }
 
-/** Player info shown on an admin payment row. */
-@JsonClass(generateAdapter = true)
-data class PaymentPlayer(
-    val id: String = "",
-    val name: String? = null,
-    @Json(name = "inGameName") val inGameName: String? = null,
-    @Json(name = "inGameUid") val inGameUid: String? = null,
-    @Json(name = "phoneNumber") val phoneNumber: String = "",
-) {
-    /** Best label for the admin list. */
-    val label: String get() = inGameName?.takeIf { it.isNotBlank() } ?: name?.takeIf { it.isNotBlank() } ?: "Unknown player"
-}
-
-/** One online payment order in the admin console. */
-@JsonClass(generateAdapter = true)
-data class AdminPaymentOrder(
-    val id: String,
-    @Json(name = "amountPaise") val amountPaise: Int = 0,
-    @Json(name = "amountRupees") val amountRupees: Double = 0.0,
-    val currency: String = "INR",
-    val provider: String = "mock",
-    val status: String = "CREATED",
-    @Json(name = "providerOrderId") val providerOrderId: String? = null,
-    @Json(name = "providerPaymentId") val providerPaymentId: String? = null,
-    @Json(name = "failureReason") val failureReason: String? = null,
-    @Json(name = "createdAt") val createdAt: String = "",
-    @Json(name = "capturedAt") val capturedAt: String? = null,
-    val player: PaymentPlayer = PaymentPlayer(),
-) {
-    val isDemo: Boolean get() = provider == "mock"
-    val needsAttention: Boolean get() = status == "CREATED" || status == "PENDING" || status == "EXPIRED"
-}
-
-/** Money summary shown above the admin online-payments list. */
-@JsonClass(generateAdapter = true)
-data class PaymentMoneySummary(
-    @Json(name = "collectedTodayRupees") val collectedTodayRupees: Double = 0.0,
-    @Json(name = "collectedTotalRupees") val collectedTotalRupees: Double = 0.0,
-    @Json(name = "capturedCount") val capturedCount: Int = 0,
-    @Json(name = "pendingCount") val pendingCount: Int = 0,
-    @Json(name = "failedCount") val failedCount: Int = 0,
-    @Json(name = "demoMode") val demoMode: Boolean = false,
-)
-
 @JsonClass(generateAdapter = true)
 data class PaymentPagination(
     val page: Int = 1,
@@ -134,23 +90,6 @@ data class PaymentPagination(
     @Json(name = "totalPages") val totalPages: Int = 1,
 )
 
-@JsonClass(generateAdapter = true)
-data class AdminPaymentsResponse(
-    val payments: List<AdminPaymentOrder> = emptyList(),
-    val summary: PaymentMoneySummary = PaymentMoneySummary(),
-    val pagination: PaymentPagination = PaymentPagination(),
-)
-
-/** POST /admin/wallet/payments/{id}/sync result. */
-@JsonClass(generateAdapter = true)
-data class ReconcilePaymentResponse(
-    @Json(name = "orderId") val orderId: String = "",
-    val status: String = "",
-    @Json(name = "gatewayStatus") val gatewayStatus: String? = null,
-    @Json(name = "alreadySettled") val alreadySettled: Boolean = false,
-    @Json(name = "balanceAfter") val balanceAfter: Double? = null,
-    @Json(name = "creditedPaise") val creditedPaise: Int? = null,
-)
 
 /** One row of GET /payments/my — the player's own top-up history. */
 @JsonClass(generateAdapter = true)

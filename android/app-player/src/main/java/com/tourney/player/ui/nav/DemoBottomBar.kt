@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Wallet
@@ -34,9 +35,10 @@ import com.tourney.player.ui.theme.DemoColors
 
 private val DemoRadiusPill: RoundedCornerShape = RoundedCornerShape(percent = 50)
 
-/** The three tabs the demo shows at the bottom of every screen. */
+/** The four tabs at the bottom of every top-level screen. */
 enum class DemoTab(val route: String, val label: String, val icon: ImageVector) {
     MATCHES("feed", "Tournaments", Icons.Filled.SportsEsports),
+    MY_MATCHES("my-matches", "My Matches", Icons.Filled.History),
     WALLET("wallet", "Wallet", Icons.Filled.Wallet),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
 }

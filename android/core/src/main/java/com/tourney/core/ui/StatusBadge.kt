@@ -29,6 +29,8 @@ fun StatusBadge(
             Triple("ROOM OUT", Color(0xFF01579B), Color.White)
         }
         TournamentStatus.LIVE -> Triple("LIVE", Color(0xFFB71C1C), Color.White)
+        // Kickoff passed, organiser has not started the match yet.
+        TournamentStatus.STARTING_SOON -> Triple("STARTING SOON", Color(0xFFE65100), Color.White)
         TournamentStatus.UNDER_REVIEW -> Triple("REVIEW", Color(0xFF4A148C), Color.White)
         TournamentStatus.COMPLETED -> Triple("COMPLETED", Color(0xFF263238), Color.White)
         TournamentStatus.CANCELLED -> Triple("CANCELLED", Color(0xFF616161), Color.White)

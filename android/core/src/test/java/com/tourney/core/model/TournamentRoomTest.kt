@@ -29,7 +29,6 @@ class TournamentRoomTest {
         matchType = MatchType.SOLO,
         mapType = MapType.BERMUDA,
         entryFee = "10",
-        prizePool = "100",
         matchTime = kickoff.toString(),
         status = status,
         mySlot = mySlot,

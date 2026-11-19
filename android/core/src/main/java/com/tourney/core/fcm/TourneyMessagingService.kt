@@ -18,12 +18,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * FCM engine — high-priority alerts for ROOM_REVEALED / PRIZE_WON / MATCH_CANCELLED.
+ * FCM engine — high-priority alerts for ROOM_REVEALED / MATCH_CANCELLED.
  *
  * - onNewToken: caches the device token in DataStore and syncs it to
  *   POST /auth/fcm-token so the backend can address this install.
  * - onMessageReceived: builds a channel-per-type notification with a
- *   deep-link PendingIntent (RoomScreen / ScoreboardScreen via MainActivity).
+ *   deep-link PendingIntent (RoomScreen / My Matches via MainActivity).
  *
  * Graceful without Firebase config: if no google-services.json is present,
  * FCM simply never delivers and the app is unaffected.
@@ -109,28 +109,24 @@ class TourneyMessagingService : FirebaseMessagingService() {
 
     private fun channelFor(type: String): String = when (type) {
         "ROOM_REVEALED" -> "ff_room_alerts"
-        "PRIZE_WON" -> "ff_prize_alerts"
         "MATCH_CANCELLED" -> "ff_refund_alerts"
         else -> "ff_general_alerts"
     }
 
     private fun channelName(type: String): String = when (type) {
         "ROOM_REVEALED" -> "Room Released"
-        "PRIZE_WON" -> "Prizes & Payouts"
         "MATCH_CANCELLED" -> "Refunds"
         else -> "Tournament Alerts"
     }
 
     private fun defaultTitle(type: String): String = when (type) {
-        "ROOM_REVEALED" -> "🏟 Room ID Released!"
-        "PRIZE_WON" -> "💰 Prize Credited!"
-        "MATCH_CANCELLED" -> "❌ Match Cancelled"
+        "ROOM_REVEALED" -> "Room ID Released"
+        "MATCH_CANCELLED" -> "Match Cancelled"
         else -> "Tournament Alert"
     }
 
     private fun notificationId(type: String): Int = when (type) {
         "ROOM_REVEALED" -> 1001
-        "PRIZE_WON" -> 1002
         "MATCH_CANCELLED" -> 1003
         else -> 1000
     }

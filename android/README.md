@@ -7,7 +7,7 @@ White-label Free Fire tournament platform — native Android client apps built o
 
 | Module | App | Purpose |
 | --- | --- | --- |
-| `:app-player` | Player APK | Tournament Feed, 48-slot picker, T-15 min Room ID countdown, wallet, Official Spectator Scoreboard (Phase 2 screens) |
+| `:app-player` | Player APK | Tournament Feed, 48-slot picker, T-15 min Room ID countdown, wallet, My Matches result strip (rank / kills / prize) |
 | `:core` | Shared library | White-label theming (`ClientConfig`/`Theme`), domain models, DataStore `SessionManager`, `AppButton`/`GlassCard` UI kit |
 
 ## Toolchain (verified builds)
@@ -39,9 +39,9 @@ Every client gets the same 3 files edited — **zero Kotlin changes**:
 
 ```jsonc
 {
-  "client_name": "Thunder eSports",      // tenant branding
+  "client_name": "Spartan Arena",        // tenant branding
   "application_id": "com.thunderesports.player", // unique Play identity per client
-  "app_name": "Thunder eSports",         // launcher label
+  "app_name": "Spartan Arena",           // launcher label
   "primary_color": "#FF5722",            // theme primary
   "button_color": "#FF7043",
   "accent_color": "#FFB300",
@@ -58,10 +58,10 @@ Live proof from Phase 1: changed only the player config → 19 s incremental reb
 ## Anti-fraud architecture alignment (boss demand)
 
 - **Zero screenshot policy:** `:app-player` contains NO screenshot/image-picker/upload
-  UI (grep-verified) — results come from the official **Staff Spectator Scoreboard**.
+  UI (grep-verified) — results appear on the match card as rank / kills / prize.
 - **Dynamic role dashboards:** `SessionManager` caches JWT + role + permission booleans
-  in DataStore → admin app renders the exact cards a SUB_ADMIN is allowed, instantly,
-  offline, cold-start.
+  in DataStore → the browser admin console renders the exact cards a SUB_ADMIN is
+  allowed, instantly, cold-start.
 - **Per-client Play identity:** distinct package names per account = decentralized Play
   Console accounts (see `../plan/PLAYSTORE_WHITELABEL_RESEARCH.md`); "Free Fire" never
   appears in app names — Garena trademark.
@@ -82,15 +82,15 @@ Live proof from Phase 1: changed only the player config → 19 s incremental reb
 ## Phase 2 (Done) — Full UI Flows + Retrofit API Layer
 
 - `:core` networking: `TourneyApi` (12 endpoints), `AuthInterceptor` (Bearer from DataStore cache), `ApiClient` singleton (base URL + tenant from `client_config.json`), Moshi **codegen** DTOs (R8-safe, zero reflection), generic `ApiEnvelope<T>` + `ApiException` (parses `secondsUntilReveal` from the room-lock 403).
-- `:app-player` screens: Login/Register (phone + IGN + UID), Tournament Feed (map/type badges, slot progress), 48-Seat Slot Picker (squad team-code create/join, leader code share + copy), Timed Room ID (T-15 countdown → copy creds), Official Spectator Scoreboard (hacker red banners), Wallet (deposit/winning + ledger history).
+- `:app-player` screens: Login/Register (phone + IGN + UID), Tournament Feed (map/type badges, slot progress), 48-Seat Slot Picker (squad team-code create/join, leader code share + copy), Timed Room ID (T-15 countdown → copy creds), My Matches result strip (rank / kills / prize), Wallet (deposit/winning + ledger history).
 - Backend addition: `GET /api/v1/wallet` (balances + double-entry ledger) to serve the WalletScreen.
 - Builds verified: debug APK, R8 release 846 KB, zero errors.
 
 ## Phase 3 (Done) — FCM Push + UPI Withdrawals + Realtime
 
-- **FCM engine** (`:core/fcm/TourneyMessagingService`): high-priority channels for `ROOM_REVEALED` / `PRIZE_WON` / `MATCH_CANCELLED`; `onNewToken` syncs to `POST /auth/fcm-token`; notification tap deep-links to Room/Scoreboard. Backend `fcm.service.ts` (firebase-admin, graceful no-creds) fires alerts on room publish, payout, cancel.
+- **FCM engine** (`:core/fcm/TourneyMessagingService`): high-priority channels for `ROOM_REVEALED` / `PRIZE_WON` / `MATCH_CANCELLED`; `onNewToken` syncs to `POST /auth/fcm-token`; notification tap deep-links to Room/My Matches. Backend `fcm.service.ts` (firebase-admin, graceful no-creds) fires alerts on room publish, payout, cancel.
 - **Player withdrawals**: `WithdrawalModal` (UPI `handle@bank` regex, min ₹50, ≤ winning balance, `deviceId` fraud signal) → `POST /wallet/withdraw`; pending/approved/rejected shown in the ledger.
-- **Admin approvals**: `AdminWalletScreen` gated by `canManageWallet` — list (IGN/UID/phone/amount/UPI), Approve (UTR) / Reject & auto-refund.
+- **Admin approvals**: admin console Wallet screen gated by `canManageWallet` — list (IGN/UID/phone/amount/UPI), Approve (UTR) / Reject & auto-refund.
 - **Realtime slots**: 5s lifecycle-aware polling in `SlotPickerScreen` + `GlowProgressBar` pulsing when ≥ 40/48 full.
 - **`SlideToJoinButton`**: drag thumb, 80% threshold, haptic ticks + success buzz, shimmer prompt, auto-reset.
 - Backend: `WithdrawalRequest` model + 5 endpoints, e2e-verified (withdraw/approve/reject/refund math exact, 403s correct).

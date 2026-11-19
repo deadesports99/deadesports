@@ -226,8 +226,9 @@ fun RoomDetailsSheet(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "The organiser publishes the Room ID & Password when the custom room is " +
-                                "ready. Keeping this open — it checks again automatically.",
+                            "Kickoff time has passed — the organiser is starting this match. " +
+                                "The Room ID & Password appear here the moment they are published; " +
+                                "keeping this open checks again automatically.",
                             fontSize = DemoText.Micro,
                             color = DemoColors.TextMuted,
                             textAlign = TextAlign.Center,

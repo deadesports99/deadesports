@@ -70,13 +70,6 @@ class PaymentModelTest {
     }
 
     @Test
-    fun `admin row falls back from in-game name to name to unknown`() {
-        assertEquals("FF Sniper", PaymentPlayer(inGameName = "FF Sniper", name = "Rahul").label)
-        assertEquals("Rahul", PaymentPlayer(inGameName = "  ", name = "Rahul").label)
-        assertEquals("Unknown player", PaymentPlayer().label)
-    }
-
-    @Test
     fun `history rows explain their status in one word`() {
         assertEquals("Paid", PlayerPayment(status = "CAPTURED").label)
         assertEquals("Pending", PlayerPayment(status = "CREATED").label)

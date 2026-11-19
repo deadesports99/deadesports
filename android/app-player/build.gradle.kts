@@ -27,13 +27,13 @@ val clientCfg = if (clientConfigFile.exists()) {
     JsonSlurper().parse(clientConfigFile) as Map<*, *>
 } else {
     mapOf(
-        "client_name" to "Thunder eSports",
+        "client_name" to "Spartan Arena",
         "application_id" to "com.tourney.player",
-        "app_name" to "Thunder eSports",
+        "app_name" to "Spartan Arena",
     )
 }
 val clientAppId = (clientCfg["application_id"] as? String) ?: "com.tourney.player"
-val clientAppName = (clientCfg["app_name"] as? String) ?: "Thunder eSports"
+val clientAppName = (clientCfg["app_name"] as? String) ?: "Spartan Arena"
 // Optional per-client release versioning (falls back to the repo defaults).
 val clientVersionName = (clientCfg["version_name"] as? String) ?: "1.0.0"
 val clientVersionCode = (clientCfg["version_code"] as? Number)?.toInt() ?: 1

@@ -34,9 +34,9 @@ data class ClientConfig(
     companion object {
         /** Fallback used when assets/client_config.json is missing (dev safety net). */
         val DEFAULT = ClientConfig(
-            clientName = "Thunder eSports",
+            clientName = "Spartan Arena",
             applicationId = "com.thunderesports.player",
-            appName = "Thunder eSports",
+            appName = "Spartan Arena",
             tenantId = "22f27d39-f104-41b8-a435-befab60349ae",
             apiBaseUrl = "http://localhost:5000/api/v1",
             primaryColorHex = "#FF5722",
@@ -46,7 +46,7 @@ data class ClientConfig(
             fontStyle = "default",
             enableDarkMode = true,
             upiId = "thunderesports@okaxis",
-            upiName = "Thunder eSports",
+            upiName = "Spartan Arena",
             minDeposit = 10,
             supportWhatsapp = "",
         )

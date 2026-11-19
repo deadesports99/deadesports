@@ -107,6 +107,9 @@ private fun isLobbyMatch(t: Tournament): Boolean {
         TournamentStatus.UPCOMING,
         TournamentStatus.SLOTS_FULL,
         TournamentStatus.ROOM_REVEALED,
+        // Kickoff passed, organiser has not started it yet: the player must
+        // still see their match (and the "starting shortly" notice).
+        TournamentStatus.STARTING_SOON,
         TournamentStatus.LIVE,
     )
 }
@@ -123,7 +126,7 @@ fun MatchesScreen(
     viewModel: PlayerViewModel,
     onOpenWallet: () -> Unit,
     onOpenRoom: (String) -> Unit,
-    onOpenScoreboard: (String) -> Unit,
+    onOpenPlayers: (String) -> Unit,
     onToast: (String) -> Unit,
 ) {
     var selectedFilter by rememberSaveable { mutableStateOf(FEED_FILTERS.first()) }
@@ -313,8 +316,8 @@ fun MatchesScreen(
                 item {
                     LoadingCard(
                         if (selectedFilter == LIVE_FILTER) {
-                            "No match is LIVE right now. A match moves here the moment it kicks off — " +
-                                "check Upcoming for the ones you can still join."
+                            "No match is LIVE right now. A match moves here the moment the organiser " +
+                                "starts it — check Upcoming for the ones you can still join."
                         } else {
                             "No open matches right now. New scrims show up here the moment the organiser creates them."
                         },
@@ -331,15 +334,20 @@ fun MatchesScreen(
                     tournament = tournament,
                     joined = joined,
                     roomReady = roomReady,
+                    onViewPlayers = { onOpenPlayers(tournament.id) },
                     onOpen = {
                         if (joined) {
                             if (roomReady) {
                                 // Old "Custom Room" layout, now a bottom sheet.
                                 roomSheetMatch = tournament
+                            } else if (tournament.isAwaitingStart) {
+                                // Kickoff passed: open the room sheet so the player
+                                // can watch it unlock instead of a dead end.
+                                roomSheetMatch = tournament
                             } else if (tournament.roomUnlocked == true) {
                                 onOpenRoom(tournament.id)
                             } else {
-                                onOpenScoreboard(tournament.id)
+                                onToast("Result declared — see My Matches for your rank, kills and prize")
                             }
                         } else {
                             // Not seated → only the Join sheet, never room details.

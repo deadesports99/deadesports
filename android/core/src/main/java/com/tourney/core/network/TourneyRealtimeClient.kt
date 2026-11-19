@@ -28,7 +28,6 @@ sealed interface RealtimeEvent {
         val fillFraction: Float,
         val status: String? = null,
         /** Present from newer servers; null keeps older events usable. */
-        val prizePool: String? = null,
     ) : RealtimeEvent
 
     data class WalletUpdated(
@@ -229,7 +228,6 @@ object TourneyRealtimeClient {
                                 totalSlots = data.optInt("totalSlots", 48),
                                 fillFraction = data.optDouble("fillFraction", 0.0).toFloat(),
                                 status = data.optString("status").takeIf { it.isNotBlank() },
-                                prizePool = data.optString("prizePool").takeIf { it.isNotBlank() },
                             )
                             _events.tryEmit(event)
                         }

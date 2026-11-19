@@ -11,7 +11,13 @@ enum class MatchType { SOLO, DUO, SQUAD }
 enum class MapType { BERMUDA, PURGATORY, KALAHARI, ALPINE, NEXTERRA }
 
 enum class TournamentStatus {
-    DRAFT, UPCOMING, OPEN, SLOTS_FULL, ROOM_REVEALED, LIVE, UNDER_REVIEW, COMPLETED, CANCELLED,
+    DRAFT, UPCOMING, OPEN, SLOTS_FULL, ROOM_REVEALED,
+    /**
+     * Kickoff time has passed but the organiser has NOT started the match yet.
+     * Players see "starting shortly / please wait" — never "LIVE".
+     */
+    STARTING_SOON,
+    LIVE, UNDER_REVIEW, COMPLETED, CANCELLED,
 }
 
 /** Tournament summary as returned by GET /tournaments & GET /tournaments/:id. */
@@ -26,7 +32,6 @@ data class Tournament(
     @Json(name = "matchType") val matchType: MatchType,
     @Json(name = "mapType") val mapType: MapType,
     @Json(name = "entryFee") val entryFee: String,       // Decimal arrives as string
-    @Json(name = "prizePool") val prizePool: String,
     @Json(name = "perKillPrize") val perKillPrize: String? = null,
     @Json(name = "totalSlots") val totalSlots: Int = 48,
     @Json(name = "matchTime") val matchTime: String,     // ISO-8601
@@ -51,9 +56,14 @@ data class Tournament(
     @Json(name = "roomUnlocked") val roomUnlocked: Boolean? = null,
 ) {
     val entryFeeValue: Double get() = entryFee.toDoubleOrNull() ?: 0.0
-    val prizePoolValue: Double get() = prizePool.toDoubleOrNull() ?: 0.0
     val perKillValue: Double get() = (perKillPrize ?: "0").toDoubleOrNull() ?: 0.0
     val remainingSlots: Int get() = (totalSlots - slotsBooked).coerceAtLeast(0)
+
+    /**
+     * Kickoff has arrived but the organiser has not pressed "Go live".
+     * The card shows "starting shortly — please wait" instead of a countdown.
+     */
+    val isAwaitingStart: Boolean get() = status == TournamentStatus.STARTING_SOON
 
     /** Human map label, e.g. "Bermuda". */
     val mapLabel: String
@@ -258,32 +268,6 @@ data class JoinResult(
     @Json(name = "tournamentStatus") val tournamentStatus: String,
 )
 
-/** POST /tournaments — create match (requires canCreateMatch). */
-@JsonClass(generateAdapter = true)
-data class CreateTournamentRequest(
-    /** Optional — backend auto-generates "<Map> <Type> #N". */
-    val title: String? = null,
-    @Json(name = "gameMode") val gameMode: GameMode,
-    @Json(name = "matchType") val matchType: MatchType,
-    @Json(name = "mapType") val mapType: MapType,
-    @Json(name = "entryFee") val entryFee: Double,
-    @Json(name = "prizePool") val prizePool: Double,
-    @Json(name = "perKillPrize") val perKillPrize: Double? = null,
-    @Json(name = "matchTime") val matchTime: String,     // ISO-8601, future
-    @Json(name = "totalSlots") val totalSlots: Int? = 48,
-    /** null = list immediately; N = show players only in the last N hours. */
-    @Json(name = "visibilityHours") val visibilityHours: Int? = null,
-    /** Room ID & Password auto-reveal: N minutes before match start (default 15). */
-    @Json(name = "roomRevealMinutes") val roomRevealMinutes: Int? = null,
-)
-
-/** PATCH /tournaments/:id/visibility — admin tunes the player-feed window. */
-@JsonClass(generateAdapter = true)
-data class UpdateVisibilityRequest(
-    /** null = list immediately; N = show players only in the last N hours. */
-    @Json(name = "visibilityHours") val visibilityHours: Int? = null,
-)
-
 /** Room credentials payload (GET /tournaments/:id/room success; staff-only on details). */
 @JsonClass(generateAdapter = true)
 data class RoomCredentials(
@@ -302,51 +286,3 @@ data class RoomCredentials(
     @Json(name = "warning") val warning: String? = null,
 )
 
-/** PATCH /tournaments/:id/room — publish custom room ID + password. */
-@JsonClass(generateAdapter = true)
-data class PublishRoomRequest(
-    @Json(name = "roomId") val roomId: String,
-    @Json(name = "roomPassword") val roomPassword: String,
-    /** true = reveal to players immediately instead of waiting for the window. */
-    @Json(name = "revealNow") val revealNow: Boolean? = null,
-)
-
-/** PATCH /tournaments/:id/room-reveal — admin decides WHEN players see the room. */
-@JsonClass(generateAdapter = true)
-data class RoomRevealRequest(
-    /** Auto-reveal window in minutes before match start (1..10080). */
-    @Json(name = "roomRevealMinutes") val roomRevealMinutes: Int? = null,
-    /** Reveal to players immediately (requires published credentials). */
-    @Json(name = "revealNow") val revealNow: Boolean? = null,
-)
-
-/** POST /tournaments/:id/finish — admin ends the match and pays the winner by FF UID. */
-@JsonClass(generateAdapter = true)
-data class FinishMatchRequest(
-    @Json(name = "winnerUid") val winnerUid: String,
-    @Json(name = "winnerKills") val winnerKills: Int? = null,
-)
-
-/** Winner block returned by POST /tournaments/:id/finish. */
-@JsonClass(generateAdapter = true)
-data class FinishMatchWinner(
-    @Json(name = "userId") val userId: String = "",
-    @Json(name = "playerCode") val playerCode: String? = null,
-    val name: String? = null,
-    @Json(name = "inGameName") val inGameName: String? = null,
-    @Json(name = "inGameUid") val inGameUid: String? = null,
-    val rank: Int = 1,
-    val kills: Int = 0,
-    @Json(name = "rankPrize") val rankPrize: Double = 0.0,
-    @Json(name = "killPrize") val killPrize: Double = 0.0,
-    val prize: Double = 0.0,
-)
-
-/** POST /tournaments/:id/finish response. */
-@JsonClass(generateAdapter = true)
-data class FinishMatchResult(
-    @Json(name = "tournamentId") val tournamentId: String = "",
-    val status: String = "",
-    @Json(name = "totalPaid") val totalPaid: Double = 0.0,
-    val winner: FinishMatchWinner? = null,
-)

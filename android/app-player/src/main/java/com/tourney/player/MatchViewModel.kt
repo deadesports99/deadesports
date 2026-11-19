@@ -10,7 +10,6 @@ import com.tourney.core.model.ApiException
 import com.tourney.core.model.JoinRequest
 import com.tourney.core.model.JoinResult
 import com.tourney.core.model.RoomCredentials
-import com.tourney.core.model.ScoreboardResponse
 import com.tourney.core.model.SlotEntry
 import com.tourney.core.model.SlotsResponse
 import com.tourney.core.network.ApiClient
@@ -34,7 +33,7 @@ sealed interface RoomState {
 
 /**
  * Per-tournament operations: seat grid, atomic join (squad codes), timed room
- * credentials, and the official spectator scoreboard.
+ * credentials.
  */
 class MatchViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -222,20 +221,4 @@ class MatchViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ─── Official scoreboard ─────────────────────────────────────────────
-    var scoreboardUi by mutableStateOf<UiState<ScoreboardResponse>>(UiState.Idle)
-        private set
-
-    fun loadScoreboard(tournamentId: String) {
-        scoreboardUi = UiState.Loading
-        viewModelScope.launch {
-            try {
-                scoreboardUi = UiState.Success(apiCall { api.tournamentResults(tournamentId) })
-            } catch (e: ApiException) {
-                scoreboardUi = UiState.Error(e.message)
-            } catch (e: Exception) {
-                scoreboardUi = UiState.Error("Network error — is the server running?")
-            }
-        }
-    }
 }

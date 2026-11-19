@@ -1,7 +1,7 @@
 {
-  "client_name": "Thunder eSports",
+  "client_name": "Spartan Arena",
   "application_id": "com.thunderesports.player",
-  "app_name": "Thunder eSports",
+  "app_name": "Spartan Arena",
   "primary_color": "#FF5722",
   "button_color": "#FF7043",
   "accent_color": "#FFB300",
@@ -11,7 +11,7 @@
   "api_base_url": "http://localhost:5000/api/v1",
   "tenant_id": "53a09545-e6e2-4cf5-a5c2-7ef18b276a52",
   "upi_id": "thunderesports@okaxis",
-  "upi_name": "Thunder eSports",
+  "upi_name": "Spartan Arena",
   "min_deposit": 10,
   "support_whatsapp": "919999900001"
 }

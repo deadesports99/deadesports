@@ -240,7 +240,7 @@ fun JoinMatchSheet(
                 )
             }
 
-            // ── Prize pool / per kill ─────────────────────────────────────────
+            // ── Per kill / seats left ────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .padding(top = 6.dp)
@@ -251,18 +251,18 @@ fun JoinMatchSheet(
                     .padding(horizontal = 8.dp, vertical = 7.dp),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("PRIZE POOL", fontSize = DemoText.Micro, fontWeight = FontWeight.Bold, color = DemoColors.TextMuted)
+                    Text("PER KILL", fontSize = DemoText.Micro, fontWeight = FontWeight.Bold, color = DemoColors.TextMuted)
                     Text(
-                        "₹${formatMoney(tournament.prizePoolValue)}",
+                        if (tournament.perKillValue > 0) "₹${formatMoney(tournament.perKillValue)}" else "Win Only",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Black,
                         color = DemoColors.TextPrimary,
                     )
                 }
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                    Text("PER KILL", fontSize = DemoText.Micro, fontWeight = FontWeight.Bold, color = DemoColors.TextMuted)
+                    Text("SEATS LEFT", fontSize = DemoText.Micro, fontWeight = FontWeight.Bold, color = DemoColors.TextMuted)
                     Text(
-                        if (tournament.perKillValue > 0) "₹${formatMoney(tournament.perKillValue)}" else "Win Only",
+                        "${tournament.remainingSlots}",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Black,
                         color = DemoColors.TextPrimary,

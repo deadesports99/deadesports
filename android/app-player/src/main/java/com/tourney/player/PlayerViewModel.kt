@@ -90,7 +90,6 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                                     status = newStatus,
                                     // Keep the pool in step with the seat count; a
                                     // missing field means an older server.
-                                    prizePool = event.prizePool ?: item.prizePool,
                                 )
                             } else {
                                 item
@@ -488,7 +487,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ─── Completed history (past scoreboards stay browsable) ─────────────
+    // ─── Completed history (past results stay on the card) ───────────────
     var completedUi by mutableStateOf<UiState<TournamentListResponse>>(UiState.Idle)
         private set
 

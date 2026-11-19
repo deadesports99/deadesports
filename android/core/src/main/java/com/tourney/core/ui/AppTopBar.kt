@@ -1,6 +1,5 @@
 package com.tourney.core.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,21 +18,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tourney.core.R
 import com.tourney.core.theme.LocalClientConfig
 
 /**
  * White-label top bar: optional back action, brand title (client name) and an
- * optional wallet balance chip (players see balances, staff see none).
- *
- * `showBrandBadge` shows the brand mark with the admin badge — used only by the
- * staff app so the admin surface is obvious at a glance.
+ * optional wallet balance chip.
  */
 @Composable
 fun AppTopBar(
@@ -41,7 +33,6 @@ fun AppTopBar(
     balanceChip: String? = null,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    showBrandBadge: Boolean = false,
     actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     Surface(
@@ -64,14 +55,6 @@ fun AppTopBar(
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
-            }
-            if (showBrandBadge) {
-                Image(
-                    painter = painterResource(id = R.drawable.brand_logo_admin),
-                    contentDescription = "Staff app",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(36.dp),
-                )
             }
             Text(
                 text = title,

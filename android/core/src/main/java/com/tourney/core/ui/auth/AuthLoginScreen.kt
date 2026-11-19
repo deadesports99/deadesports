@@ -63,11 +63,6 @@ fun AuthLoginScreen(
     onContinue: () -> Unit,
     onGoogle: () -> Unit,
     googleEnabled: Boolean,
-    /**
-     * Optional extra entry point under the primary actions (e.g. "Sign in with Email OTP").
-     * Null keeps the screen exactly as it was, so the admin app is unaffected.
-     */
-    footer: (@Composable () -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -239,11 +234,6 @@ fun AuthLoginScreen(
                             )
                         },
                     )
-                }
-
-                if (footer != null) {
-                    Spacer(Modifier.height(12.dp))
-                    footer()
                 }
 
                 Spacer(Modifier.height(24.dp))

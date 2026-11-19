@@ -28,7 +28,7 @@ import com.tourney.player.ui.auth.SpartanAuthScreen
 /**
  * Player app entry — routes Login/Register vs the main tabbed experience
  * based on the DataStore session (reactively). Also consumes FCM deep links
- * (tap on a push notification jumps straight to Room / Scoreboard).
+ * (tap on a push notification jumps straight to Room / My Matches).
  */
 class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 

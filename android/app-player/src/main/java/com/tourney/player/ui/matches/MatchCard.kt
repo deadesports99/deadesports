@@ -72,15 +72,24 @@ fun MatchCard(
      * player knows the code has arrived and that tapping opens it.
      */
     roomReady: Boolean = false,
+    /**
+     * Opens the public "who joined" list. Rendered as a small link on the seat
+     * line so a player can see the seats filling up before booking.
+     */
+    onViewPlayers: () -> Unit = {},
 ) {
     val fillFraction = if (tournament.totalSlots <= 0) 0f
     else (tournament.slotsBooked.toFloat() / tournament.totalSlots).coerceIn(0f, 1f)
 
     val isFull = tournament.remainingSlots <= 0
     val isLive = tournament.status == TournamentStatus.LIVE
+    // Kickoff passed but the organiser has not started the match: the seat is
+    // booked, the room may not even exist yet, and NOTHING is live. The card
+    // says "starting shortly — please wait" instead of pretending to be live.
+    val startingSoon = tournament.isAwaitingStart
     // A full or kicked-off match cannot be joined, so neither the card nor the
     // CTA reacts to taps — except for a seated player, who still opens the room.
-    val actionEnabled = joined || (!isFull && !isLive)
+    val actionEnabled = joined || (!isFull && !isLive && !startingSoon)
 
     Column(
         modifier = modifier
@@ -124,6 +133,7 @@ fun MatchCard(
             MatchCountdown(
                 matchTimeIso = tournament.matchTime,
                 isLive = isLive,
+                startingSoon = startingSoon,
             )
         }
 
@@ -139,6 +149,11 @@ fun MatchCard(
             maxLines = 1,
             modifier = Modifier.padding(top = 5.dp),
         )
+
+        // ── Delay notice: intentionally just one small word under the status ──
+        // The old amber "Starting shortly — please wait" panel made the card
+        // heavy; the owner wants a calm card, so the whole message now lives
+        // inside the countdown column ("STARTING SHORTLY" + "please wait").
 
         // ── Prize pool / per kill / entry fee strip ─────────────────────
         // Same as the demo's `grid grid-cols-3` with `border-x` on the middle
@@ -158,11 +173,6 @@ fun MatchCard(
             // width, so each rule sits equally far from the text on both sides.
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            StatColumn(
-                label = "Prize Pool",
-                value = "₹${formatMoney(tournament.prizePoolValue)}",
-            )
-            StatRule()
             StatColumn(
                 label = "Per Kill",
                 value = if (tournament.perKillValue > 0) "₹${formatMoney(tournament.perKillValue)}" else "Win Only",
@@ -209,6 +219,23 @@ fun MatchCard(
                             fontWeight = FontWeight.Bold,
                             color = DemoColors.TextSecondary,
                         )
+                        // seats ke bagal me hi "View all" — public join list.
+                        // A bordered chip instead of bare text so the tap target is
+                        // obvious and big enough for a thumb on a full-size phone.
+                        if (tournament.slotsBooked > 0) {
+                            Text(
+                                "View all",
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(DemoColors.Cyan.copy(alpha = 0.12f))
+                                    .border(1.dp, DemoColors.Cyan.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                    .clickable(onClick = onViewPlayers)
+                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = DemoColors.Cyan,
+                            )
+                        }
                     }
                     val remaining = tournament.remainingSlots
                     Text(
@@ -244,12 +271,12 @@ fun MatchCard(
             // grey = dead (full / live / already watching).
             val ctaBackground = when {
                 joined -> DemoColors.Success
-                isLive || isFull -> DemoColors.Track
+                isLive || isFull || startingSoon -> DemoColors.Track
                 else -> DemoColors.Gold
             }
             val ctaTextColor = when {
                 joined -> Color.White
-                isLive || isFull -> DemoColors.TextMuted
+                isLive || isFull || startingSoon -> DemoColors.TextMuted
                 else -> DemoColors.OnGold
             }
             Box(
@@ -270,6 +297,8 @@ fun MatchCard(
                         // Seated + room published → the player must see that the
                         // custom room code is available now.
                         joined && roomReady -> "Room ID Ready"
+                        // Seated players keep their normal "Joined ✓" — the delay
+                        // is already said above, the button stays honest.
                         joined -> "Joined ✓"
                         isLive -> "Watch live"
                         isFull -> "Slot Full"
@@ -295,9 +324,10 @@ private const val LIVE_SOON_SECONDS = 15L * 60L
  *  > 1 hour  → "02:15:22"
  *  < 1 hour  → "14:59"
  *  last 15 min / live / started → red + pulsing dot
+ *  kickoff passed, not live yet → "STARTING SHORTLY" (amber, waiting on admin)
  */
 @Composable
-private fun MatchCountdown(matchTimeIso: String, isLive: Boolean) {
+private fun MatchCountdown(matchTimeIso: String, isLive: Boolean, startingSoon: Boolean = false) {
     var secondsLeft by remember(matchTimeIso) { mutableStateOf(remainingSeconds(matchTimeIso)) }
 
     LaunchedEffect(matchTimeIso) {
@@ -308,9 +338,13 @@ private fun MatchCountdown(matchTimeIso: String, isLive: Boolean) {
     }
 
     val started = secondsLeft <= 0L
+    // Kickoff reached but the match is not LIVE: the clock is meaningless now,
+    // the organiser's "Go live" is what starts the game.
+    val waiting = !isLive && (startingSoon || started)
     val urgent = !isLive && !started && secondsLeft <= LIVE_SOON_SECONDS
     val accent = when {
-        isLive || started || urgent -> DemoColors.Danger
+        waiting -> DemoColors.Warning
+        isLive || urgent -> DemoColors.Danger
         else -> DemoColors.Gold
     }
 
@@ -318,7 +352,7 @@ private fun MatchCountdown(matchTimeIso: String, isLive: Boolean) {
         Text(
             when {
                 isLive -> "MATCH"
-                started -> "KICKOFF"
+                waiting -> "MATCH STATUS"
                 else -> "MATCH STARTS IN"
             },
             fontSize = 8.sp,
@@ -332,8 +366,8 @@ private fun MatchCountdown(matchTimeIso: String, isLive: Boolean) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Pulsing dot only when it matters (live, or inside the last 15 min).
-            if (isLive || urgent) {
+            // Pulsing dot only when it matters (live, waiting, or in the last 15 min).
+            if (isLive || urgent || waiting) {
                 val pulse = rememberInfiniteTransition(label = "kickoffPulse")
                 val dotAlpha by pulse.animateFloat(
                     initialValue = 1f,
@@ -355,16 +389,38 @@ private fun MatchCountdown(matchTimeIso: String, isLive: Boolean) {
             Text(
                 when {
                     isLive -> "LIVE NOW"
-                    started -> "STARTING NOW"
+                    waiting -> "STARTING SHORTLY"
                     else -> formatCountdown(secondsLeft)
                 },
-                fontSize = 13.sp,
+                fontSize = if (waiting) 11.sp else 13.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.Monospace,
                 letterSpacing = 0.5.sp,
                 color = accent,
                 maxLines = 1,
             )
+        }
+        // Kickoff passed but the organiser has not started the match yet:
+        // a proper amber chip right under the status so it is readable at a
+        // glance (a tiny grey line was invisible on the dark card).
+        if (waiting) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 3.dp)
+                    .clip(RoundedCornerShape(DemoRadius.Pill))
+                    .background(DemoColors.Warning.copy(alpha = 0.18f))
+                    .border(1.dp, DemoColors.Warning.copy(alpha = 0.45f), RoundedCornerShape(DemoRadius.Pill))
+                    .padding(horizontal = 7.dp, vertical = 1.5.dp),
+            ) {
+                Text(
+                    "PLEASE WAIT",
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = DemoColors.Warning,
+                    letterSpacing = 0.7.sp,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }

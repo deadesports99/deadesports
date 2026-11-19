@@ -16,9 +16,9 @@ class FormattersTest {
     fun `money hides decimals for whole rupees and keeps two for paise`() {
         assertEquals("500", formatMoney(500.0))
         assertEquals("0", formatMoney(0.0))
-        assertEquals("1250", formatMoney(1250.0))
+        assertEquals("1,250", formatMoney(1250.0))
         assertEquals("0.50", formatMoney(0.5))
-        assertEquals("1234.50", formatMoney(1234.5))
+        assertEquals("1,234.50", formatMoney(1234.5))
         assertEquals("99.99", formatMoney(99.99))
         assertEquals("-5", formatMoney(-5.0))
     }
