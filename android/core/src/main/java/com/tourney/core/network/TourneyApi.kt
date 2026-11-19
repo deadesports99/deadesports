@@ -9,6 +9,7 @@ import com.tourney.core.model.FcmTokenRequest
 import com.tourney.core.model.FcmTokenResponse
 import com.tourney.core.model.JoinRequest
 import com.tourney.core.model.JoinedPlayersResponse
+import com.tourney.core.model.MatchStatusResponse
 import com.tourney.core.model.JoinResult
 import com.tourney.core.model.LoginRequest
 import com.tourney.core.model.GoogleAuthRequest
@@ -89,6 +90,10 @@ interface TourneyApi {
     // ─── Room (admin-controlled reveal) ──────────────────────────────────
     @GET("tournaments/{id}/room")
     suspend fun roomCredentials(@Path("id") id: String): ApiEnvelope<RoomCredentials>
+
+    /** Official spectator scoreboard: placement, verified kills and prize paid. */
+    @GET("tournaments/{id}/results")
+    suspend fun tournamentResults(@Path("id") id: String): ApiEnvelope<MatchStatusResponse>
 
     // ─── Phase 6: runtime tenant settings + player career stats ─────────
     /** Any user or guest: live UPI / payee / WhatsApp / min deposit / auth config. */

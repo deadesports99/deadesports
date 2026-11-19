@@ -23,7 +23,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tourney.core.model.MatchType
 import com.tourney.core.theme.ThemeMode
+import androidx.compose.runtime.collectAsState
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.tourney.player.ui.matches.JoinedPlayersScreen
+import com.tourney.player.ui.matches.MatchStatusScreen
 import com.tourney.player.ui.matches.MatchesScreen
 import com.tourney.player.ui.matches.MyMatchesScreen
 import com.tourney.player.ui.nav.DemoBottomBar
@@ -62,6 +66,10 @@ fun PlayerNavHost(
 ) {
     val navController = rememberNavController()
     val matchViewModel: MatchViewModel = viewModel()
+    // Own player id, so the scoreboard can pull "your" row out of the table.
+    val sessionUserId by playerViewModel.sessionFlow.collectAsState(
+        initial = com.tourney.core.datastore.SessionState(),
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     var playerNavToast by remember { mutableStateOf<String?>(null) }
 
@@ -109,6 +117,9 @@ fun PlayerNavHost(
                         onOpenWallet = { navController.switchTab(PlayerTab.WALLET.route) },
                         onOpenRoom = { id -> navController.navigate("room/$id") },
                         onOpenPlayers = { id -> navController.navigate("players/$id") },
+                        onOpenStatus = { id, number ->
+                            navController.navigate("status/$id?n=${number ?: -1}")
+                        },
                         onToast = { message -> playerNavToast = message },
                     )
                 }
@@ -117,6 +128,9 @@ fun PlayerNavHost(
                         viewModel = playerViewModel,
                         onOpenWallet = { navController.switchTab(PlayerTab.WALLET.route) },
                         onOpenRoom = { id -> navController.navigate("room/$id") },
+                        onOpenStatus = { id, number ->
+                            navController.navigate("status/$id?n=${number ?: -1}")
+                        },
                         onBrowseTournaments = { navController.switchTab(PlayerTab.MATCHES.route) },
                     )
                 }
@@ -164,6 +178,19 @@ fun PlayerNavHost(
                         tournamentId = id,
                         matchTitle = feed.firstOrNull { it.id == id }?.title,
                         onBack = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = "status/{id}?n={n}",
+                    arguments = listOf(navArgument("n") { defaultValue = "-1" }),
+                ) { entry ->
+                    val id = entry.arguments?.getString("id") ?: return@composable
+                    val number = entry.arguments?.getString("n")?.toIntOrNull()?.takeIf { it > 0 }
+                    MatchStatusScreen(
+                        tournamentId = id,
+                        myUserId = sessionUserId.userId,
+                        onBack = { navController.popBackStack() },
+                        matchNumberHint = number,
                     )
                 }
                 composable("room/{id}") { entry ->

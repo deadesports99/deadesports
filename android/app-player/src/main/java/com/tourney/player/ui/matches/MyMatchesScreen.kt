@@ -56,6 +56,7 @@ fun MyMatchesScreen(
     viewModel: PlayerViewModel,
     onOpenWallet: () -> Unit,
     onOpenRoom: (String) -> Unit,
+    onOpenStatus: (String, Int?) -> Unit,
     onBrowseTournaments: () -> Unit,
 ) {
     // First open loads the history; later opens just refresh what is already there.
@@ -204,6 +205,8 @@ fun MyMatchesScreen(
                 MyMatchCard(
                     match = match,
                     onRoom = { onOpenRoom(match.id) },
+                    // Live and settled matches both open the same scoreboard.
+                    onStatus = { onOpenStatus(match.id, match.matchNumber) },
                 )
             }
 

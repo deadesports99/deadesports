@@ -107,7 +107,18 @@ data class MyMatch(
 enum class MyMatchPhase { UPCOMING, LIVE, COMPLETED, CANCELLED }
 
 /** What the card's action button does — never "Join". */
-enum class MyMatchActionKind { ROOM, PENDING, NONE }
+enum class MyMatchActionKind {
+    /** Custom room published — opens the Room ID sheet. */
+    ROOM,
+
+    /** Read-only scoreboard: live placement, kills and the final prize split. */
+    STATUS,
+
+    /** Nothing the player can do yet (kickoff passed, result awaited…). */
+    PENDING,
+
+    NONE,
+}
 
 /** The status pill on a history card (colour is chosen by the screen). */
 enum class MyMatchTone { CYAN, AMBER, ROSE, EMERALD, GOLD, SLATE }
@@ -144,10 +155,18 @@ fun myMatchPill(match: MyMatch): MyMatchPill {
     }
 }
 
-/** The replacement for the lobby's Join button: a room sheet or a read-only status. */
+/**
+ * The replacement for the lobby's Join button: a room sheet, or **View Status**.
+ *
+ * Every match a player already paid for can be inspected — live (running
+ * placement + kills), settled (final rank / kills / prize) and cancelled
+ * (refund). Only a not-yet-started match without a room keeps a dead label,
+ * because there is nothing to show but "wait".
+ */
 fun myMatchAction(match: MyMatch): MyMatchAction {
-    if (match.isBannedFromMatch) return MyMatchAction("Banned from this match", MyMatchActionKind.PENDING)
-    if (match.result?.isDisqualified == true) return MyMatchAction("Disqualified", MyMatchActionKind.PENDING)
+    // A ban or a DQ is exactly the thing a player wants to read in detail.
+    if (match.isBannedFromMatch) return MyMatchAction("View Status", MyMatchActionKind.STATUS)
+    if (match.result?.isDisqualified == true) return MyMatchAction("View Status", MyMatchActionKind.STATUS)
 
     return when (match.phaseEnum) {
         MyMatchPhase.UPCOMING, MyMatchPhase.LIVE ->
@@ -155,17 +174,15 @@ fun myMatchAction(match: MyMatch): MyMatchAction {
                 match.canOpenRoom -> MyMatchAction("View Room ID", MyMatchActionKind.ROOM)
                 // Kickoff passed, organiser has not gone live yet: keep the seat open.
                 match.isAwaitingStart -> MyMatchAction("Please wait", MyMatchActionKind.PENDING)
-                match.phaseEnum == MyMatchPhase.LIVE -> MyMatchAction("Room awaited", MyMatchActionKind.PENDING)
+                match.phaseEnum == MyMatchPhase.LIVE -> MyMatchAction("View Status", MyMatchActionKind.STATUS)
                 else -> MyMatchAction("Joined — awaiting room", MyMatchActionKind.PENDING)
             }
 
-        MyMatchPhase.COMPLETED ->
-            if (match.result != null) MyMatchAction("Result declared", MyMatchActionKind.NONE)
-            else MyMatchAction("Result awaited", MyMatchActionKind.PENDING)
+        // Finished matches always keep their scoreboard reachable — before the
+        // payout (declared) and after it (paid, with every player's prize).
+        MyMatchPhase.COMPLETED -> MyMatchAction("View Status", MyMatchActionKind.STATUS)
 
-        MyMatchPhase.CANCELLED ->
-            if (match.refunded) MyMatchAction("Refunded ₹${formatMyMatchMoney(match.refundAmount)}", MyMatchActionKind.NONE)
-            else MyMatchAction("Match cancelled", MyMatchActionKind.NONE)
+        MyMatchPhase.CANCELLED -> MyMatchAction("View Status", MyMatchActionKind.STATUS)
     }
 }
 

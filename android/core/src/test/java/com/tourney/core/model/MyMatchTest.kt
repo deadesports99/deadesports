@@ -68,7 +68,9 @@ class MyMatchTest {
             result = MyMatchResult(rank = 1, kills = 6, prizeWon = 70.0, isApproved = true),
         )
         assertEquals(MyMatchPill("BOOYAH", MyMatchTone.GOLD), myMatchPill(booyah))
-        assertEquals(MyMatchActionKind.NONE, myMatchAction(booyah).kind)
+        // Finished matches keep their full scoreboard reachable.
+        assertEquals(MyMatchActionKind.STATUS, myMatchAction(booyah).kind)
+        assertEquals("View Status", myMatchAction(booyah).label)
 
         val fourth = match(
             phase = "completed",
@@ -80,7 +82,8 @@ class MyMatchTest {
         // No MatchResult row yet: never invent a rank or a prize.
         val pending = match(phase = "completed", status = "COMPLETED")
         assertEquals(MyMatchPill("RESULT PENDING", MyMatchTone.SLATE), myMatchPill(pending))
-        assertEquals(MyMatchActionKind.PENDING, myMatchAction(pending).kind)
+        // Declared-but-unpaid still opens the board (rows read "payout pending").
+        assertEquals(MyMatchActionKind.STATUS, myMatchAction(pending).kind)
         assertEquals(null, pending.net)
     }
 
@@ -92,21 +95,32 @@ class MyMatchTest {
             result = MyMatchResult(rank = 1, kills = 9, isDisqualified = true, disqualifyReason = "hacking"),
         )
         assertEquals(MyMatchPill("DISQUALIFIED", MyMatchTone.ROSE), myMatchPill(dq))
-        assertEquals(MyMatchActionKind.PENDING, myMatchAction(dq).kind)
+        assertEquals(MyMatchActionKind.STATUS, myMatchAction(dq).kind)
 
         val banned = match(banned = true)
         assertEquals(MyMatchPill("BANNED", MyMatchTone.ROSE), myMatchPill(banned))
-        assertEquals("Banned from this match", myMatchAction(banned).label)
+        assertEquals(MyMatchActionKind.STATUS, myMatchAction(banned).kind)
     }
 
     @Test
     fun `a cancelled match shows the refund that actually landed`() {
         val refunded = match(phase = "cancelled", status = "CANCELLED", refunded = true, refundAmount = 20.0, net = 0.0)
         assertEquals(MyMatchPill("REFUNDED", MyMatchTone.SLATE), myMatchPill(refunded))
-        assertEquals("Refunded ₹20", myMatchAction(refunded).label)
+        assertEquals(MyMatchActionKind.STATUS, myMatchAction(refunded).kind)
 
         val cancelled = match(phase = "cancelled", status = "CANCELLED")
         assertEquals(MyMatchPill("CANCELLED", MyMatchTone.SLATE), myMatchPill(cancelled))
+    }
+
+    @Test
+    fun `a live seat offers the status board even before the room is out`() {
+        val live = match(phase = "live", status = "LIVE")
+        assertEquals(MyMatchActionKind.STATUS, myMatchAction(live).kind)
+        assertEquals("View Status", myMatchAction(live).label)
+
+        // Room published wins: the code is the more urgent action.
+        val liveWithRoom = match(phase = "live", status = "LIVE", roomUnlocked = true, roomId = "44556677")
+        assertEquals(MyMatchActionKind.ROOM, myMatchAction(liveWithRoom).kind)
     }
 
     @Test

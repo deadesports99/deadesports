@@ -78,15 +78,21 @@ fun MatchCard(
      * line so a player can see the seats filling up before booking.
      */
     onViewPlayers: () -> Unit = {},
+    /**
+     * Opens the official scoreboard (placement + verified kills + prize). A live
+     * match cannot be joined, so its CTA offers the status instead of a dead CTA.
+     */
+    onViewStatus: () -> Unit = onViewPlayers,
 ) {
     val fillFraction = if (tournament.totalSlots <= 0) 0f
     else (tournament.slotsBooked.toFloat() / tournament.totalSlots).coerceIn(0f, 1f)
 
     val isFull = tournament.remainingSlots <= 0
     val isLive = tournament.status == TournamentStatus.LIVE
-    // A live match cannot be joined, so its CTA becomes "View All" (the public
-    // joined list) instead of the dead "Watch live" label. The seat-line link is
-    // hidden for live matches — the same action would otherwise appear twice.
+    // A live match cannot be joined, so its CTA becomes "View Status" (live
+    // placement, kills and prize so far) instead of the dead "Watch live" label.
+    // The seat-line "View all" link is hidden for live matches so the same idea
+    // does not appear twice.
     val liveViewAll = isLive && !joined
     // Kickoff passed but the organiser has not started the match: the seat is
     // booked, the room may not even exist yet, and NOTHING is live. The card
@@ -273,7 +279,7 @@ fun MatchCard(
             }
 
             // CTA colours are the truth: gold = joinable, green = seated,
-            // grey = dead (full / starting soon), cyan = live (View All).
+            // grey = dead (full / starting soon), cyan = live (View Status).
             val ctaBackground = when {
                 joined -> DemoColors.Success
                 liveViewAll -> DemoColors.Cyan.copy(alpha = 0.16f)
@@ -292,7 +298,7 @@ fun MatchCard(
                     .background(ctaBackground)
                     .border(
                         // A published room gets a gold ring so it reads as "open me";
-                        // the live "View All" keeps a cyan ring so it looks pressable.
+                        // the live "View Status" keeps a cyan ring so it looks pressable.
                         width = if ((joined && roomReady) || liveViewAll) 1.dp else 0.dp,
                         color = when {
                             joined && roomReady -> DemoColors.Gold
@@ -302,7 +308,7 @@ fun MatchCard(
                         shape = RoundedCornerShape(8.dp),
                     )
                     .clickable(enabled = actionEnabled || liveViewAll) {
-                        if (liveViewAll) onViewPlayers() else onOpen()
+                        if (liveViewAll) onViewStatus() else onOpen()
                     }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
@@ -314,8 +320,8 @@ fun MatchCard(
                         // Seated players keep their normal "Joined ✓" — the delay
                         // is already said above, the button stays honest.
                         joined -> "Joined ✓"
-                        // Live: seats are locked, so offer the joined list.
-                        isLive -> "View All"
+                        // Live: seats are locked, so offer the scoreboard.
+                        isLive -> "View Status"
                         isFull -> "Slot Full"
                         else -> "Join • ₹${formatMoney(tournament.entryFeeValue)}"
                     },

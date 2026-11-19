@@ -49,13 +49,16 @@ import com.tourney.player.ui.theme.DemoText
  *
  * Same visual language as the lobby's [MatchCard] — match number / map / mode
  * chips, IST stamp, money strip — but the bottom-right action is always a
- * **status**: "View Room ID", "Result declared", "Joined • Slot 7",
- * "Refunded ₹20". There is no Join button here; joining lives in the lobby.
+ * **status**: "View Room ID" for a published room, "View Status" for a live or
+ * finished match (opens [MatchStatusScreen]: placement, kills, prize per
+ * player), "Joined — awaiting room" while nothing exists yet. There is no Join
+ * button here; joining lives in the lobby.
  */
 @Composable
 fun MyMatchCard(
     match: MyMatch,
     onRoom: () -> Unit,
+    onStatus: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val pill = myMatchPill(match)
@@ -241,14 +244,30 @@ fun MyMatchCard(
                 )
             }
 
-            val enabled = action.kind == MyMatchActionKind.ROOM
+            // Two live actions only: open the code (gold) or open the board
+            // (cyan outline, so it never looks like a money/join action).
+            val canOpenRoom = action.kind == MyMatchActionKind.ROOM
+            val canOpenStatus = action.kind == MyMatchActionKind.STATUS
+            val enabled = canOpenRoom || canOpenStatus
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (enabled) DemoColors.Gold else DemoColors.Track)
+                    .background(
+                        when {
+                            canOpenRoom -> DemoColors.Gold
+                            canOpenStatus -> DemoColors.Cyan.copy(alpha = 0.16f)
+                            else -> DemoColors.Track
+                        },
+                    )
+                    .border(
+                        width = if (canOpenStatus) 1.dp else 0.dp,
+                        color = if (canOpenStatus) DemoColors.Cyan.copy(alpha = 0.5f) else Color.Transparent,
+                        shape = RoundedCornerShape(8.dp),
+                    )
                     .clickable(enabled = enabled) {
                         when (action.kind) {
                             MyMatchActionKind.ROOM -> onRoom()
+                            MyMatchActionKind.STATUS -> onStatus()
                             else -> Unit
                         }
                     }
@@ -258,7 +277,11 @@ fun MyMatchCard(
                     action.label,
                     fontSize = DemoText.Small,
                     fontWeight = FontWeight.Black,
-                    color = if (enabled) DemoColors.OnGold else DemoColors.TextMuted,
+                    color = when {
+                        canOpenRoom -> DemoColors.OnGold
+                        canOpenStatus -> DemoColors.Cyan
+                        else -> DemoColors.TextMuted
+                    },
                 )
             }
         }

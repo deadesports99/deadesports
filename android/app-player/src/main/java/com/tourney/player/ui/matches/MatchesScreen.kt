@@ -127,6 +127,7 @@ fun MatchesScreen(
     onOpenWallet: () -> Unit,
     onOpenRoom: (String) -> Unit,
     onOpenPlayers: (String) -> Unit,
+    onOpenStatus: (String, Int?) -> Unit,
     onToast: (String) -> Unit,
 ) {
     var selectedFilter by rememberSaveable { mutableStateOf(FEED_FILTERS.first()) }
@@ -335,6 +336,7 @@ fun MatchesScreen(
                     joined = joined,
                     roomReady = roomReady,
                     onViewPlayers = { onOpenPlayers(tournament.id) },
+                    onViewStatus = { onOpenStatus(tournament.id, tournament.matchNumber) },
                     onOpen = {
                         if (joined) {
                             if (roomReady) {
