@@ -18,6 +18,7 @@ import { resultRouter } from './routes/result.routes.js';
 import { tournamentRouter } from './routes/tournament.routes.js';
 import { tenantRouter, adminTenantRouter } from './routes/tenant.routes.js';
 import { playerRouter } from './routes/player.routes.js';
+import { adminRewardRouter, rewardRouter } from './routes/reward.routes.js';
 import { adminPlayerRouter } from './routes/adminPlayer.routes.js';
 import { adminMatchControlRouter, adminMatchRouter } from './routes/adminMatch.routes.js';
 import { paymentConfig } from './config/payment.js';
@@ -185,6 +186,10 @@ app.use('/api/v1/admin/tenant', adminTenantRouter);
 
 // Player profile stats (Android Phase 6)
 app.use('/api/v1/players', playerRouter);
+
+// Reward modules: referral · daily bonus · tasks (build-flag + server-flag gated)
+app.use('/api/v1/rewards', rewardRouter);
+app.use('/api/v1/admin/rewards', adminRewardRouter);
 
 // Owner-only player management (search + ban/unban)
 app.use('/api/v1/admin/players', adminPlayerRouter);

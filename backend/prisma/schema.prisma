@@ -24,6 +24,10 @@ model Tenant {
   allowPhoneAuth  Boolean @default(true)
   allowGoogleAuth Boolean @default(true)
   isActive        Boolean @default(true)
+  /// Reward-module kill switch per tenant: { "referral": true, "daily_bonus": … }
+  featureFlags    Json?
+  /// Daily-bonus ladder, referral amounts, task defaults (zod-validated on write).
+  rewardConfig    Json?
   createdAt       DateTime @default(now())
 
   users         User[]
@@ -339,6 +343,10 @@ enum Category {
   WINNING_PRIZE
   WITHDRAWAL
   REFUND
+  // Reward modules (non-withdrawable play money, credited to DEPOSIT balance)
+  REFERRAL_BONUS
+  DAILY_BONUS
+  TASK_REWARD
 }
 
 // 6. OFFICIAL MATCH RESULT & SPECTATOR VERIFICATION (No player screenshot upload needed)
@@ -506,4 +514,103 @@ model DeviceWatch {
 
   @@unique([tenantId, deviceId])
   @@index([tenantId, isActive, alertCount])
+}
+
+// ─── 10. REWARDS: referral · daily bonus · tasks ─────────────────────────
+// All three credit NON-WITHDRAWABLE play money to the DEPOSIT balance, each with
+// one WalletLedger row whose referenceId points back to the claim row below.
+
+model ReferralProfile {
+  id           String    @id @default(uuid())
+  tenantId     String
+  userId       String    @unique
+  code         String
+  /// Who invited this player (null = organic install).
+  referredById String?
+  referredAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([tenantId, code])
+  @@index([tenantId, referredById])
+}
+
+enum ReferralStatus {
+  PENDING
+  QUALIFIED
+  PAID
+  VOID
+}
+
+model ReferralEarning {
+  id           String         @id @default(uuid())
+  tenantId     String
+  referrerId   String
+  refereeId    String
+  amount       Decimal        @db.Decimal(10, 2)
+  friendAmount Decimal        @default(0) @db.Decimal(10, 2)
+  status       ReferralStatus @default(PENDING)
+  tournamentId String?
+  qualifiedAt  DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime       @default(now())
+
+  @@unique([referrerId, refereeId])
+  @@index([tenantId, status])
+  @@index([referrerId, createdAt])
+}
+
+model DailyBonusClaim {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  /// IST calendar day "2026-11-20" — the anti-double-claim key.
+  claimDay  String
+  streakDay Int
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, claimDay])
+  @@index([tenantId, claimDay])
+}
+
+enum TaskKind {
+  JOIN_MATCH
+  PLAY_MATCH
+  TOP10
+  FIRST_DEPOSIT
+  REFERRAL
+  FIRST_WIN
+}
+
+model TaskDefinition {
+  id           String   @id @default(uuid())
+  tenantId     String
+  code         String
+  title        String
+  description  String?
+  kind         TaskKind
+  targetCount  Int      @default(1)
+  rewardAmount Decimal  @db.Decimal(10, 2)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  /// null = one-time task, N = repeatable, once per N days (periodKey bucket).
+  cooldownDays Int?
+  createdAt    DateTime @default(now())
+
+  @@unique([tenantId, code])
+}
+
+model TaskClaim {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  taskId    String
+  /// "once" or a period bucket such as "2026-11-20" / "2026-W47".
+  periodKey String   @default("once")
+  progress  Int
+  amount    Decimal  @db.Decimal(10, 2)
+  claimedAt DateTime @default(now())
+
+  @@unique([userId, taskId, periodKey])
+  @@index([tenantId, claimedAt])
 }

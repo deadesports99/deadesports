@@ -1,6 +1,7 @@
 import { Prisma } from '../generated/prisma/client.js';
 import type { TournamentStatus } from '../generated/prisma/client.js';
 import { prisma } from '../config/prisma.js';
+import { qualifyReferralForPlayer } from './rewards/referral.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { AuthUser } from '../types/auth.js';
 import { clearTournamentRedis } from './slotLock.service.js';
@@ -748,6 +749,18 @@ export async function distributeTournamentPrizes(
 
   // 5) Wipe Redis seat state — tournament is closed.
   await clearTournamentRedis(tournamentId);
+
+  // 6) Referral qualification: paying out a match is the moment a friend becomes
+  //    a "real" player, so any PENDING invitation tied to these players can now
+  //    be promoted and paid. Never fails the payout — it runs after the money
+  //    transaction commits, one player at a time.
+  for (const entry of summary) {
+    try {
+      await qualifyReferralForPlayer(staffUser.tenantId, entry.userId, tournamentId);
+    } catch (error) {
+      console.warn('[Referral qualification failed]', entry.userId, error);
+    }
+  }
 
   return {
     tournamentId,

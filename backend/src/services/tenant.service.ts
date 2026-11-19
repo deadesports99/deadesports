@@ -22,6 +22,11 @@ export interface TenantSettingsView {
   minDeposit: number;
   allowPhoneAuth: boolean;
   allowGoogleAuth: boolean;
+  /**
+   * Reward-module kill switch: an APK can hide Referral / Daily Bonus / Tasks
+   * without being rebuilt. Empty object = "no opinion" (the APK decides).
+   */
+  features: Record<string, boolean>;
 }
 
 export interface UpdateTenantSettingsInput {
@@ -41,6 +46,7 @@ function toSettingsView(tenant: {
   minDeposit: number;
   allowPhoneAuth?: boolean | null;
   allowGoogleAuth?: boolean | null;
+  featureFlags?: unknown;
 }): TenantSettingsView {
   return {
     brandName: tenant.brandName,
@@ -50,7 +56,18 @@ function toSettingsView(tenant: {
     minDeposit: tenant.minDeposit ?? MIN_DEPOSIT_FLOOR,
     allowPhoneAuth: tenant.allowPhoneAuth ?? true,
     allowGoogleAuth: tenant.allowGoogleAuth ?? true,
+    features: toFeatureMap(tenant.featureFlags),
   };
+}
+
+/** Only boolean values survive; anything else is ignored (never trusted). */
+function toFeatureMap(raw: unknown): Record<string, boolean> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'boolean') out[key] = value;
+  }
+  return out;
 }
 
 // ─── PUBLIC (any logged-in user): the runtime branding + payment config ──
@@ -70,6 +87,7 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
       minDeposit: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
+      featureFlags: true,
     },
   });
   if (!tenant) throw ApiError.notFound('Tenant not found');
@@ -89,6 +107,7 @@ export async function updateTenantSettings(
       isActive: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
+      featureFlags: true,
     },
   });
   if (!tenant) throw ApiError.notFound('Tenant not found');
@@ -172,6 +191,7 @@ export async function updateTenantSettings(
       minDeposit: true,
       allowPhoneAuth: true,
       allowGoogleAuth: true,
+      featureFlags: true,
     },
   });
 
