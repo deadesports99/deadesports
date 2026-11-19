@@ -223,7 +223,7 @@ function buildFake(auditCount: number): FakePrisma {
   const now = Date.now();
   return new FakePrisma({
     tenants: [
-      { id: tenantId, subdomain: 'apex-ff', brandName: 'Apex FF', isActive: true, allowEmailAuth: true },
+      { id: tenantId, subdomain: 'apex-ff', brandName: 'Apex FF', isActive: true },
     ],
     users: [
       {

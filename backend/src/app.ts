@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { authRouter } from './routes/auth.routes.js';
 import { adminAuthRouter, adminAccessRouter } from './routes/adminAuth.routes.js';
+import { adminSecurityRouter } from './routes/adminSecurity.routes.js';
 import { adminWalletRouter } from './routes/adminWallet.routes.js';
 import { stripTrailingSlashes } from './utils/strings.js';
 import { healthRouter } from './routes/health.routes.js';
@@ -190,6 +191,9 @@ app.use('/api/v1/admin/players', adminPlayerRouter);
 
 // Owner-only staff permission keys (admin web onboarding)
 app.use('/api/v1/admin/access', adminAccessRouter);
+
+// Admin security: signed-in browsers (revoke) + owner audit trail
+app.use('/api/v1/admin/security', adminSecurityRouter);
 
 // Phase 12 — match roster: participants, per-player rewards, cheat flags, bans
 // Control room first: `/manage` and the live board must win over `/:id`.

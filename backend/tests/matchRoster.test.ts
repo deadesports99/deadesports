@@ -63,7 +63,6 @@ function seed(overrides: { user?: any; slot?: any; match?: any } = {}): void {
         status: 'OPEN',
         matchTime: NOW,
         entryFee: 20,
-        prizePool: 1200,
         perKillPrize: 15,
         totalSlots: 48,
         roomId: null,
@@ -172,19 +171,19 @@ describe('match-scoped ban', () => {
 });
 
 describe('prize payout', () => {
-  it('pays a rank + kill prize exactly once, even when the admin clicks twice', async () => {
-    const award = { userId: playerId, rank: 1, kills: 3 };
+  it('pays the per-kill prize exactly once, even when the admin clicks twice', async () => {
+    const award = { userId: playerId, rank: 1, kills: 1 };
 
     const first = await roster.payoutMatchAwards(staff, matchId, [award], false);
     assert.equal(first.playersPaid, 1);
-    assert.equal(first.totalPaid, 645); // 50% of ₹1200 pool + 3 × ₹15
-    assert.equal(Number(player().winningBalance), 645);
+    assert.equal(first.totalPaid, 15); // 1 × ₹15, no placement money
+    assert.equal(Number(player().winningBalance), 15);
     assert.equal(fake.rowsOf('walletLedger').length, 1);
 
     const second = await roster.payoutMatchAwards(staff, matchId, [award], false);
     assert.equal(second.playersPaid, 0);
     assert.deepEqual(second.skipped, [{ userId: playerId, reason: 'already paid' }]);
-    assert.equal(Number(player().winningBalance), 645, 'no second credit');
+    assert.equal(Number(player().winningBalance), 15, 'no second credit');
     assert.equal(fake.rowsOf('walletLedger').length, 1, 'no second ledger row');
   });
 
@@ -204,8 +203,8 @@ describe('prize payout', () => {
     );
   });
 
-  it('cannot pay out more than the prize pool', async () => {
-    seed({ match: { prizePool: 100, perKillPrize: 0 } });
+  it('cannot pay out more than the entry fees collected', async () => {
+    seed({ match: { perKillPrize: 0 } });
     await assert.rejects(
       () => roster.payoutMatchAwards(staff, matchId, [{ userId: playerId, amount: 500 }], false),
       /Prize budget exceeded/i,

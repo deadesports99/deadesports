@@ -26,9 +26,10 @@ export interface FakePrismaOptions {
   emailOtps?: Row[];
   staffAccessKeys?: Row[];
   adminAuditLogs?: Row[];
+  adminSessions?: Row[];
 }
 
-const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger', 'tournament', 'tournamentSlot', 'matchResult', 'emailOtp', 'staffAccessKey', 'adminAuditLog'] as const;
+const MODELS = ['user', 'tenant', 'paymentOrder', 'depositRequest', 'withdrawalRequest', 'walletLedger', 'tournament', 'tournamentSlot', 'matchResult', 'emailOtp', 'staffAccessKey', 'adminAuditLog', 'adminSession'] as const;
 type ModelName = (typeof MODELS)[number];
 
 const plain = (v: unknown) => (typeof v === 'number' ? v : Number(String(v)));
@@ -120,7 +121,7 @@ export class FakePrisma {
 
   constructor(options: FakePrismaOptions = {}) {
     this.store = {
-      user: (options.users ?? []).map((r) => ({ depositBalance: 0, winningBalance: 0, isBanned: false, ...r })),
+      user: (options.users ?? []).map((r) => ({ depositBalance: 0, winningBalance: 0, isBanned: false, sessionVersion: 0, ...r })),
       tenant: (options.tenants ?? []).map((r) => ({ minDeposit: 10, ...r })),
       paymentOrder: (options.paymentOrders ?? []).map((r) => ({ ...r })),
       depositRequest: (options.depositRequests ?? []).map((r) => ({ ...r })),
@@ -132,6 +133,14 @@ export class FakePrisma {
       emailOtp: (options.emailOtps ?? []).map((r) => ({ ...r })),
       staffAccessKey: (options.staffAccessKeys ?? []).map((r) => ({ ...r })),
       adminAuditLog: (options.adminAuditLogs ?? []).map((r) => ({ ...r })),
+      adminSession: (options.adminSessions ?? []).map((r) => ({
+        userAgent: null,
+        ip: null,
+        lastSeenAt: new Date(),
+        revokedAt: null,
+        revokedReason: null,
+        ...r,
+      })),
     };
   }
 
@@ -147,7 +156,8 @@ export class FakePrisma {
     return {
       findUnique: async (args: any = {}) => {
         this.log(model, 'findUnique', args);
-        const found = this.rows(model).find((r) => matches(r, args.where)) ?? null;
+        const found =
+          this.rows(model).find((r) => matches(this.resolveRelations(model, r, args.where), args.where)) ?? null;
         return this.withIncludes(model, project(found, args.select), args.include);
       },
       findFirst: async (args: any = {}) => {
@@ -157,7 +167,9 @@ export class FakePrisma {
       },
       findUniqueOrThrow: async (args: any = {}) => {
         this.log(model, 'findUniqueOrThrow', args);
-        const found = this.rows(model).find((r) => matches(r, args.where));
+        const found = this.rows(model).find((r) =>
+          matches(this.resolveRelations(model, r, args.where), args.where),
+        );
         if (!found) throw new Error(`${model}.findUniqueOrThrow: not found`);
         return project(found, args.select);
       },
@@ -166,14 +178,26 @@ export class FakePrisma {
         let rows = this.rows(model).filter((r) => matches(this.resolveRelations(model, r, args.where), args.where));
         const orderBy = Array.isArray(args.orderBy) ? args.orderBy : args.orderBy ? [args.orderBy] : [];
         if (orderBy.length > 0) {
+          const valueOf = (row: Row, field: string): unknown => {
+            const value = row[field];
+            return value instanceof Date ? value.getTime() : value;
+          };
+          /** `orderBy: { tournament: { matchTime: 'asc' } }` — sort through the relation. */
+          const relatedValue = (row: Row, relation: string, field: string): unknown => {
+            if (relation !== 'tournament') return undefined;
+            const owner = this.store.tournament.find((t) => t.id === row.tournamentId);
+            return owner ? valueOf(owner, field) : undefined;
+          };
           rows = [...rows].sort((a, b) => {
             for (const clause of orderBy) {
-              const [field, dir] = Object.entries(clause)[0] as [string, 'asc' | 'desc'];
-              const av = a[field] instanceof Date ? a[field].getTime() : a[field];
-              const bv = b[field] instanceof Date ? b[field].getTime() : b[field];
+              const [field, dir] = Object.entries(clause)[0] as [string, any];
+              const nested = dir && typeof dir === 'object' ? (Object.entries(dir)[0] as [string, 'asc' | 'desc']) : null;
+              const av = nested ? relatedValue(a, field, nested[0]) : valueOf(a, field);
+              const bv = nested ? relatedValue(b, field, nested[0]) : valueOf(b, field);
+              const direction = nested ? nested[1] : dir;
               if (av === bv) continue;
-              const cmp = av > bv ? 1 : -1;
-              return dir === 'desc' ? -cmp : cmp;
+              const cmp = (av as any) > (bv as any) ? 1 : -1;
+              return direction === 'desc' ? -cmp : cmp;
             }
             return 0;
           });
@@ -206,11 +230,15 @@ export class FakePrisma {
       },
       count: async (args: any = {}) => {
         this.log(model, 'count', args);
-        return this.rows(model).filter((r) => matches(r, args.where)).length;
+        return this.rows(model).filter((r) =>
+          matches(this.resolveRelations(model, r, args.where), args.where),
+        ).length;
       },
       aggregate: async (args: any = {}) => {
         this.log(model, 'aggregate', args);
-        const rows = this.rows(model).filter((r) => matches(r, args.where));
+        const rows = this.rows(model).filter((r) =>
+          matches(this.resolveRelations(model, r, args.where), args.where),
+        );
         const out: Row = {};
         const sum = args._sum as Row | undefined;
         if (sum) {
@@ -346,14 +374,24 @@ export class FakePrisma {
   get matchResult() { return this.delegate('matchResult'); }
   get staffAccessKey() { return this.delegate('staffAccessKey'); }
   get adminAuditLog() { return this.delegate('adminAuditLog'); }
+  get adminSession() { return this.delegate('adminSession'); }
 
-  /** Resolve `where: { user: { inGameUid } }` style relation filters. */
+  /** Resolve `where: { user: { inGameUid } }` / `where: { tournament: { status } }` relation filters. */
   private static readonly RELATIONAL: readonly ModelName[] = ['tournamentSlot', 'matchResult', 'walletLedger'];
 
   private resolveRelations(model: ModelName, row: Row, where: Row | undefined): Row {
-    if (!where || !FakePrisma.RELATIONAL.includes(model) || !where.user) return row;
-    const owner = this.store.user.find((u) => u.id === row.userId);
-    return { ...row, user: owner };
+    if (!where || !FakePrisma.RELATIONAL.includes(model)) return row;
+    let out = row;
+    if (where.user) {
+      const owner = this.store.user.find((u) => u.id === row.userId);
+      out = { ...out, user: owner };
+    }
+    // `tournamentSlot.where.tournament = { tenantId, status: { in } }`
+    if (where.tournament && typeof where.tournament === 'object') {
+      const tournament = this.store.tournament.find((t) => t.id === row.tournamentId);
+      out = { ...out, tournament };
+    }
+    return out;
   }
 
   /** Resolve `include: { user: true }`. */
@@ -377,6 +415,19 @@ export class FakePrisma {
         }
       }
       result = { ...result, user: owner };
+    }
+
+    // `include: { tournament: true | { select: { status } } }`
+    if (model === 'tournamentSlot' && include.tournament) {
+      const tournamentInclude = include.tournament as Row;
+      let tournament = this.store.tournament.find((t) => t.id === result.tournamentId);
+      if (tournament) {
+        tournament = { ...tournament };
+        if (tournamentInclude.select) {
+          tournament = project(tournament, tournamentInclude.select as Row) ?? {};
+        }
+      }
+      result = { ...result, tournament };
     }
 
     // `include: { _count: { select: { slots: true } } }`

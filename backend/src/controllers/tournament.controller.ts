@@ -14,7 +14,6 @@ const createTournamentSchema = z.object({
   mapType: z.enum(['BERMUDA', 'PURGATORY', 'KALAHARI', 'ALPINE', 'NEXTERRA']),
   entryFee: z.coerce.number().nonnegative('entryFee cannot be negative'),
   /** Ignored — the prize pool is always derived from the per-kill rate and seats sold. */
-  prizePool: z.coerce.number().nonnegative('prizePool cannot be negative').optional(),
   perKillPrize: z.coerce
     .number({ error: 'perKillPrize is required' })
     .positive('perKillPrize must be greater than 0'),
@@ -39,7 +38,7 @@ const createTournamentSchema = z.object({
 
 const listQuerySchema = z.object({
   status: z
-    .enum(['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'LIVE', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'])
+    .enum(['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'STARTING_SOON', 'LIVE', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'])
     .optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
@@ -146,6 +145,17 @@ export async function getTournamentSlots(req: Request, res: Response, next: Next
     if (!req.user) throw new Error('Authenticated user missing');
     const slots = await tournamentService.getTournamentSlots(req.user.tenantId, String(req.params.id));
     sendResponse(res, 200, 'Slots fetched', slots);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Public seat list for players: slot + IGN, earliest join first. */
+export async function getTournamentPlayers(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const players = await tournamentService.getTournamentPlayers(req.user.tenantId, String(req.params.id));
+    sendResponse(res, 200, 'Players fetched', players);
   } catch (err) {
     next(err);
   }

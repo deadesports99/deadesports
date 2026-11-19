@@ -7,9 +7,17 @@ import { DEFAULT_ROOM_REVEAL_MINUTES, MINUTE_MS } from './roomReveal.js';
 /**
  * 🕒 MATCH STATE-MACHINE SWEEP
  *
- * Only two things are time driven now:
+ * The clock can only ever put a match in the "waiting for the organiser"
+ * state — it can never make a match LIVE on its own:
  *
- *   UPCOMING / OPEN / SLOTS_FULL / ROOM_REVEALED ──(kickoff)──► LIVE ──(2h)──► UNDER_REVIEW
+ *   UPCOMING / OPEN / SLOTS_FULL / ROOM_REVEALED
+ *        ──(kickoff)──► STARTING_SOON ──(admin "Go live")──► LIVE ──(2h)──► UNDER_REVIEW
+ *
+ * Why: a match used to flip to LIVE at kickoff even when the admin had not
+ * published a Room ID / Password, so players were told "LIVE NOW" with nothing
+ * to join. Now kickoff only moves the match to STARTING_SOON; the app shows
+ * "Starting shortly — please wait" and only the organiser's explicit kickoff
+ * (forceMatchLive / PATCH /tournaments/:id/go-live) makes it LIVE.
  *
  * The room is **never** revealed on a clock: players see the custom Room ID &
  * Password only after an admin/sub-admin publishes them (see roomReveal.ts).
@@ -22,8 +30,11 @@ import { DEFAULT_ROOM_REVEAL_MINUTES, MINUTE_MS } from './roomReveal.js';
 /** Default reveal window (legacy export — per-match value lives on Tournament). */
 export const ROOM_REVEAL_WINDOW_MS = DEFAULT_ROOM_REVEAL_MINUTES * MINUTE_MS;
 
-/** Not-yet-started statuses that must flip to LIVE at kickoff. */
+/** Not-yet-started statuses that flip to STARTING_SOON at kickoff. */
 const PRE_MATCH_STATUSES = ['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
+
+/** Kickoff has passed; the organiser still has to press "Go live". */
+export const STARTING_SOON_STATUS = 'STARTING_SOON' as const;
 
 /**
  * A LIVE match auto-moves to UNDER_REVIEW this long after kickoff, so the
@@ -40,16 +51,21 @@ export interface SweptMatch {
 
 export interface SweepResult {
   ranAt: string;
-  wentLive: SweptMatch[];
+  /** Kickoff arrived: moved to STARTING_SOON (waiting for the organiser). */
+  awaitingStart: SweptMatch[];
   /** LIVE matches automatically handed over to the results/payout queue. */
   movedToReview: SweptMatch[];
+  /** @deprecated always empty — the clock can no longer start a match. */
+  wentLive: SweptMatch[];
 }
 
 /**
  * Advance every due match to its correct lifecycle state.
  *
- * 1. matchTime <= now → LIVE (from any pre-match status)
+ * 1. matchTime <= now → STARTING_SOON (from any pre-match status)
  * 2. LIVE and 2h past kickoff → UNDER_REVIEW
+ *
+ * Nothing here ever produces LIVE: that is an admin decision.
  *
  * @param now   injectable clock (tests / replays)
  * @param tenantId optional tenant scope (used by the manual trigger)
@@ -69,10 +85,10 @@ export async function sweepMatchStates(
   }
 
   const tenantFilter = tenantId ? { tenantId } : {};
-  // ── Step 1: kick off matches whose start time has arrived ────────────
-  // Any pre-match status goes LIVE at kickoff — a match whose room was never
-  // published must still start (the owner explicitly asked for this).
-  const liveCandidates = await prisma.tournament.findMany({
+  // ── Step 1: kickoff reached → STARTING_SOON (NOT live) ──────────────
+  // The organiser still owns the kickoff. A match whose room was never
+  // published now waits here and the player app shows "starting shortly".
+  const startingCandidates = await prisma.tournament.findMany({
     where: {
       ...tenantFilter,
       status: { in: [...PRE_MATCH_STATUSES] },
@@ -82,19 +98,18 @@ export async function sweepMatchStates(
     orderBy: { matchTime: 'asc' },
   });
 
-  const wentLive: SweptMatch[] = [];
-  for (const candidate of liveCandidates) {
+  const awaitingStart: SweptMatch[] = [];
+  for (const candidate of startingCandidates) {
     const flipped = await prisma.tournament.updateMany({
       where: { id: candidate.id, status: { in: [...PRE_MATCH_STATUSES] } },
-      data: { status: 'LIVE' },
+      data: { status: STARTING_SOON_STATUS },
     });
     if (flipped.count !== 1) continue;
-    wentLive.push({ id: candidate.id, title: candidate.title, matchTime: candidate.matchTime });
+    awaitingStart.push({ id: candidate.id, title: candidate.title, matchTime: candidate.matchTime });
     realtimeService.broadcast('MATCH_STATUS_CHANGED', {
       tournamentId: candidate.id,
-      status: 'LIVE',
+      status: STARTING_SOON_STATUS,
     });
-
   }
 
   // ── Step 2: LONG-FINISHED live matches → UNDER_REVIEW ───────────────
@@ -127,22 +142,23 @@ export async function sweepMatchStates(
 
   return {
     ranAt: effectiveNow.toISOString(),
-    wentLive,
+    awaitingStart,
     movedToReview,
+    wentLive: [],
   };
 }
 
 /**
  * 🎮 MANUAL KICKOFF — the organiser presses "Go LIVE" on the spot.
  *
- * Why this exists: the sweep only flips a match at `matchTime`, and a LIVE
- * match auto-demotes to UNDER_REVIEW 2h after kickoff. In a real tournament the
- * lobby often starts late (or a match is replayed), so the spectator needs to
- * say "this one is live NOW" instead of editing the database by hand.
+ * Why this exists: this is now the ONLY path to LIVE. The sweep stops at
+ * STARTING_SOON at kickoff, so a match with no published room never looks live
+ * to the players. In a real tournament the lobby often starts late (or a match
+ * is replayed), so the spectator says "this one is live NOW".
  *
  * Behaviour:
- *   - any pre-match status  -> LIVE, and `matchTime` is pinned to now so the
- *     2h auto-review window starts counting from the real kickoff.
+ *   - any pre-match status / STARTING_SOON -> LIVE, and `matchTime` is pinned to
+ *     now so the 2h auto-review window counts from the real kickoff.
  *   - already LIVE          -> no-op re-announce (re-broadcasts the status so a
  *     player app that missed the event refreshes).
  *   - COMPLETED / CANCELLED -> rejected; those must never be resurrected.
@@ -166,7 +182,11 @@ export class MatchNotStartableError extends ApiError {
 }
 
 /** Typed as the Prisma enum so the conditional updateMany below stays type-safe. */
-const STARTABLE_STATUSES: TournamentStatus[] = [...PRE_MATCH_STATUSES, 'LIVE'];
+const STARTABLE_STATUSES: TournamentStatus[] = [
+  ...PRE_MATCH_STATUSES,
+  STARTING_SOON_STATUS,
+  'LIVE',
+];
 
 export async function forceMatchLive(
   tournamentId: string,
@@ -235,9 +255,9 @@ export function startMatchSweepScheduler(intervalMs = 60_000): void {
   const run = async (): Promise<void> => {
     try {
       const result = await sweepMatchStates();
-      if (result.wentLive.length > 0 || result.movedToReview.length > 0) {
+      if (result.awaitingStart.length > 0 || result.movedToReview.length > 0) {
         console.log(
-          `[sweep] went live ${result.wentLive.length}, moved to review ${result.movedToReview.length}`,
+          `[sweep] awaiting start ${result.awaitingStart.length}, moved to review ${result.movedToReview.length}`,
         );
       }
     } catch (err) {

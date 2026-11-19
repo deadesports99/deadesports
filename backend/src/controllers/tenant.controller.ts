@@ -10,7 +10,6 @@ const updateSettingsSchema = z
     upiName: z.string().trim().min(2).max(60).optional(),
     supportWhatsapp: z.string().trim().max(20).optional(),
     minDeposit: z.number().int().optional(),
-    commissionRate: z.number().min(0).max(90).optional(),
     allowPhoneAuth: z.boolean().optional(),
     allowGoogleAuth: z.boolean().optional(),
   })

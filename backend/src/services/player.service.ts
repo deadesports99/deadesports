@@ -27,15 +27,19 @@ export async function getPlayerStats(
   if (!player) throw ApiError.notFound('User not found');
 
   const [matchesJoined, aggregate, booyahs, bestRankRow] = await Promise.all([
-    prisma.tournamentSlot.count({ where: { userId } }),
+    // Seats are tenant-scoped: a player who also joined another organiser's
+    // match must not see that match in this tenant's career numbers.
+    prisma.tournamentSlot.count({ where: { userId, tournament: { tenantId } } }),
     prisma.matchResult.aggregate({
-      where: { userId },
+      where: { userId, tournament: { tenantId } },
       _count: { _all: true },
       _sum: { verifiedKills: true, prizeWon: true },
     }),
-    prisma.matchResult.count({ where: { userId, rank: 1, isDisqualified: false } }),
+    prisma.matchResult.count({
+      where: { userId, tournament: { tenantId }, rank: 1, isDisqualified: false },
+    }),
     prisma.matchResult.findFirst({
-      where: { userId, rank: { not: null }, isDisqualified: false },
+      where: { userId, tournament: { tenantId }, rank: { not: null }, isDisqualified: false },
       orderBy: { rank: 'asc' },
       select: { rank: true },
     }),

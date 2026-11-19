@@ -36,6 +36,9 @@ tournamentRouter.get('/:id', authenticate, tournamentController.getTournamentDet
 
 tournamentRouter.get('/:id/slots', authenticate, tournamentController.getTournamentSlots);
 
+/** Seat list for players — slot number + IGN only, earliest join first. */
+tournamentRouter.get('/:id/players', authenticate, tournamentController.getTournamentPlayers);
+
 tournamentRouter.post(
   '/:id/join',
   authenticate,
@@ -48,21 +51,21 @@ tournamentRouter.post(
 tournamentRouter.patch(
   '/:id/go-live',
   authenticate,
-  requirePermission('canCreateMatch'),
+  requirePermission(['canManageMatch', 'canCreateMatch']),
   tournamentController.forceMatchLive,
 );
 
 tournamentRouter.post(
   '/sweep/states',
   authenticate,
-  requirePermission('canCreateMatch'),
+  requirePermission(['canManageMatch', 'canCreateMatch']),
   tournamentController.sweepMatchStates,
 );
 
 tournamentRouter.post(
   '/:id/cancel',
   authenticate,
-  requirePermission('canCreateMatch'),
+  requirePermission(['canManageMatch', 'canCreateMatch']),
   tournamentController.cancelTournamentAndRefundAll,
 );
 

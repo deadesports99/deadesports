@@ -48,7 +48,6 @@ function seed(users: any[] = []) {
         isActive: true,
         allowPhoneAuth: true,
         allowGoogleAuth: true,
-        allowEmailAuth: true,
       },
     ],
     users,

@@ -41,7 +41,6 @@ function seed() {
         minDeposit: 50,
         allowPhoneAuth: true,
         allowGoogleAuth: true,
-        allowEmailAuth: true,
       },
     ],
     users: [
@@ -209,13 +208,12 @@ describe('tenant settings', () => {
         tenantApi.updateTenantSettings(tenantId, {
           allowPhoneAuth: false,
           allowGoogleAuth: false,
-          allowEmailAuth: false,
         }),
       /At least one authentication method/i,
     );
 
-    const out = await tenantApi.updateTenantSettings(tenantId, { allowEmailAuth: false });
-    assert.equal(out.allowEmailAuth, false);
+    const out = await tenantApi.updateTenantSettings(tenantId, { allowGoogleAuth: false });
+    assert.equal(out.allowGoogleAuth, false);
     assert.equal(out.allowPhoneAuth, true);
   });
 

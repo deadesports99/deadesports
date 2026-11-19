@@ -12,7 +12,9 @@ import * as adminAuthService from '../services/adminAuth.service.js';
 const permissionsSchema = z
   .object({
     canCreateMatch: z.boolean().optional(),
+    canManageMatch: z.boolean().optional(),
     canUpdateRoomId: z.boolean().optional(),
+    canViewPayout: z.boolean().optional(),
     canDistributePrize: z.boolean().optional(),
     canManageWallet: z.boolean().optional(),
   })

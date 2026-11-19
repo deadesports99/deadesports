@@ -51,8 +51,28 @@ export async function nextPlayerCode(tenantId: string): Promise<string> {
   return `${prefix}-${String(max + 1).padStart(4, '0')}`;
 }
 
-/** Unique player code with a few retries in case of a rare race. */
+/**
+ * Serialises player-code allocation inside this process.
+ *
+ * `nextPlayerCode()` is a read-then-write: two concurrent registrations can read
+ * the same max and both insert `APE-0007`, so the loser dies on the
+ * `playerCode` unique index (seen when 100 accounts register at the same instant).
+ * Chaining the allocation through one promise keeps the check-and-insert block
+ * sequential. A multi-instance deployment still needs a DB sequence — this lock
+ * only covers the single-process API.
+ */
+let playerCodeChain: Promise<unknown> = Promise.resolve();
+
 export async function allocatePlayerCode(tenantId: string): Promise<string> {
+  const run = playerCodeChain.then(
+    () => allocatePlayerCodeUnlocked(tenantId),
+    () => allocatePlayerCodeUnlocked(tenantId),
+  );
+  playerCodeChain = run.catch(() => undefined);
+  return run;
+}
+
+async function allocatePlayerCodeUnlocked(tenantId: string): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
     const code = await nextPlayerCode(tenantId);
     const clash = await prisma.user.findFirst({

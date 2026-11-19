@@ -15,7 +15,6 @@ model Tenant {
   brandName       String
   logoUrl         String?
   primaryColor    String  @default("#FF4757")
-  commissionRate  Float   @default(10.0) // 10% commission on matches
   cashfreeApiKey  String?
   razorpayKey     String?
   upiId           String? // Collecting UPI handle (players pay here)
@@ -48,9 +47,19 @@ model User {
   inGameUid   String? // Free Fire UID (e.g. "1928374612") - Required for Players
   role        Role    @default(USER) // ADMIN, SUB_ADMIN, USER
 
-  // Sub-Admin (Staff) Permissions controlled by the Client Admin
+  // Sub-Admin (Staff) Permissions controlled by the Client Admin.
+  // One flag per admin-console SECTION, so a staff key can be granted exactly
+  // the areas the owner wants:
+  //   canCreateMatch     → Create Match (new match, clone, visibility window)
+  //   canManageMatch     → Manage Matches (board, kills, room, go-live, submit)
+  //   canUpdateRoomId    → Publish room (Room ID / password + reveal timing)
+  //   canViewPayout      → Final Payout desk (see submitted matches and totals)
+  //   canDistributePrize → release REAL money (payout, seat refunds)
+  //   canManageWallet    → deposits, withdrawals, online payments
   canCreateMatch     Boolean @default(false)
+  canManageMatch     Boolean @default(false)
   canUpdateRoomId    Boolean @default(false)
+  canViewPayout      Boolean @default(false)
   canDistributePrize Boolean @default(false)
   canManageWallet    Boolean @default(false)
 
@@ -80,6 +89,11 @@ model User {
   fcmToken       String? // last registered FCM push token
   lastLoginAt    DateTime?
   lastLoginIp    String?
+  /**
+   * Kill switch for admin-web sessions. Bumped on "log out everywhere", ban or
+   * permission change; a token carrying the old value is rejected immediately.
+   */
+  sessionVersion Int      @default(0)
   createdAt      DateTime @default(now())
 
   slots         TournamentSlot[]
@@ -90,6 +104,7 @@ model User {
   paymentOrders PaymentOrder[]
   watchEntries  DeviceWatch[]
   staffAccessKeys StaffAccessKey[]
+  adminSessions AdminSession[]
 
   @@unique([tenantId, phoneNumber])
   @@unique([tenantId, playerCode])
@@ -121,7 +136,6 @@ model Tournament {
   matchType    MatchType // SOLO, DUO, SQUAD
   mapType      MapType // BERMUDA, PURGATORY, KALAHARI, ALPINE
   entryFee     Decimal          @db.Decimal(10, 2)
-  prizePool    Decimal          @db.Decimal(10, 2)
   perKillPrize Decimal          @default(0.00) @db.Decimal(10, 2)
   totalSlots   Int              @default(48)
   matchTime    DateTime
@@ -143,6 +157,15 @@ model Tournament {
   roomId            String?
   roomPassword      String?
   roomRevealedAt    DateTime?
+
+  /**
+   * Scoring hand-off: set when the admin presses "Submit" in Manage Matches.
+   * From that moment the match leaves the live control room and waits in the
+   * Final Payout desk, where the money is released (step-up OTP) and history
+   * is kept. Null = still being scored.
+   */
+  payoutSubmittedAt DateTime?
+  payoutSubmittedBy String?
 
   createdAt DateTime @default(now())
 
@@ -179,6 +202,12 @@ enum TournamentStatus {
   OPEN
   SLOTS_FULL
   ROOM_REVEALED
+  /**
+   * Kickoff time has passed but the organiser has NOT pressed "Go live" yet.
+   * Players see "starting shortly / delayed — please wait". Only an explicit
+   * admin action moves it to LIVE, so a missing room can never start a match.
+   */
+  STARTING_SOON
   LIVE
   UNDER_REVIEW
   COMPLETED
@@ -370,6 +399,28 @@ enum PaymentStatus {
 }
 
 // 7. EMAIL OTP VERIFICATION
+/// Server-side admin-web session (httpOnly cookie carries its id as `sid`).
+///
+/// One row per signed-in browser. Revoking the row kills that browser only;
+/// `User.sessionVersion` is the "kill everything" switch. `expiresAt` is the
+/// absolute cap and never slides — the cookie does.
+model AdminSession {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId      String
+  userAgent     String?
+  ip            String?
+  createdAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+
+  @@index([userId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
 model EmailOtp {
   id        String   @id @default(uuid())
   tenantId  String

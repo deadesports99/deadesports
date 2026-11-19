@@ -15,8 +15,7 @@ import {
   verifyFirebasePhoneToken,
 } from './firebase.service.js';
 import { allocatePlayerCode } from './identity.service.js';
-import { generateOtpCode, hashOtp, verifyOtpHash } from '../utils/accessKey.js';
-import { sendPlayerOtpEmail } from './email.service.js';
+import { killUserSessions } from './adminAuth.service.js';
 
 /** Sign a JWT for a given identity (role included for cheap client-side checks). */
 export function generateToken(payload: TokenPayload): string {
@@ -472,10 +471,14 @@ function toStaffView(user: User): StaffMemberView {
     phoneNumber: user.phoneNumber,
     role: user.role,
     permissions: {
-      canCreateMatch: user.canCreateMatch,
-      canUpdateRoomId: user.canUpdateRoomId,
-      canDistributePrize: user.canDistributePrize,
-      canManageWallet: user.canManageWallet,
+      // Boolean() keeps the API shape stable for rows created before a flag
+      // existed (and for test doubles), never `undefined`.
+      canCreateMatch: Boolean(user.canCreateMatch),
+      canManageMatch: Boolean(user.canManageMatch),
+      canUpdateRoomId: Boolean(user.canUpdateRoomId),
+      canViewPayout: Boolean(user.canViewPayout),
+      canDistributePrize: Boolean(user.canDistributePrize),
+      canManageWallet: Boolean(user.canManageWallet),
     },
     isBanned: user.isBanned,
     adminId: user.adminId,
@@ -557,6 +560,16 @@ export async function updateStaffMember(
   });
 
   invalidateAuthCache(updated.id);
+  /**
+   * Permission flags are read from the DB on every request (the 30s identity
+   * cache is invalidated right here), so a demotion or promotion takes effect
+   * on the VERY NEXT call without signing the staff out — interrupting a live
+   * scoring session to apply one toggle would be hostile. Deactivation still
+   * kills every session, because a banned account must not keep a live cookie.
+   */
+  if (data.isActive === false) {
+    await killUserSessions(updated.id, 'staff-deactivated');
+  }
   return toStaffView(updated);
 }
 
@@ -578,207 +591,16 @@ export async function removeStaffMember(
     data: {
       isBanned: true,
       canCreateMatch: false,
+      canManageMatch: false,
       canUpdateRoomId: false,
+      canViewPayout: false,
       canDistributePrize: false,
       canManageWallet: false,
     },
   });
 
   invalidateAuthCache(updated.id);
+  await killUserSessions(updated.id, 'staff-removed');
   return toStaffView(updated);
 }
 
-// ─── EMAIL + PASSWORD + OTP AUTHENTICATION ────────────────────────────────
-
-export interface SendEmailOtpInput {
-  tenantId: string;
-  email: string;
-  password?: string;
-  name?: string;
-  type: 'LOGIN' | 'REGISTER';
-}
-
-export interface VerifyEmailOtpInput {
-  tenantId: string;
-  email: string;
-  code: string;
-  password?: string;
-  name?: string;
-  deviceId?: string;
-  type: 'LOGIN' | 'REGISTER';
-}
-
-/** Step 1: Validates credentials and sends a 6-digit verification code to the email. */
-export async function sendEmailOtp(
-  data: SendEmailOtpInput,
-): Promise<{ message: string; email: string; debugOtp?: string }> {
-  await assertTenantActive(data.tenantId);
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: data.tenantId },
-    select: { allowEmailAuth: true, brandName: true },
-  });
-  if (tenant?.allowEmailAuth === false) {
-    throw ApiError.forbidden('Email authentication is currently disabled by administrator');
-  }
-
-  const normalizedEmail = data.email.toLowerCase().trim();
-
-  if (data.type === 'REGISTER') {
-    if (!data.password || data.password.length < 6) {
-      throw ApiError.badRequest('Password must be at least 6 characters long');
-    }
-    const existing = await prisma.user.findFirst({
-      where: { tenantId: data.tenantId, email: normalizedEmail },
-    });
-    if (existing) {
-      throw ApiError.conflict('An account with this email already exists. Please login instead.');
-    }
-  } else {
-    // LOGIN
-    if (!data.password) {
-      throw ApiError.badRequest('Password is required');
-    }
-    const user = await prisma.user.findFirst({
-      where: { tenantId: data.tenantId, email: normalizedEmail },
-    });
-    if (!user || !user.passwordHash) {
-      throw ApiError.unauthorized('Invalid email or password');
-    }
-    if (user.isBanned) {
-      throw ApiError.forbidden('Your account has been banned');
-    }
-    const valid = verifyPassword(data.password, user.passwordHash);
-    if (!valid) {
-      throw ApiError.unauthorized('Invalid email or password');
-    }
-  }
-
-  // Generate 6-digit random code (CSPRNG — never Math.random for OTPs).
-  // Only the HMAC hash is stored; the plain code goes out by email.
-  const code = generateOtpCode();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-  // Delete previous OTPs for this email in this tenant
-  await prisma.emailOtp.deleteMany({
-    where: { tenantId: data.tenantId, email: normalizedEmail },
-  });
-
-  await prisma.emailOtp.create({
-    data: {
-      tenantId: data.tenantId,
-      email: normalizedEmail,
-      codeHash: hashOtp(code),
-      type: data.type,
-      expiresAt,
-    },
-  });
-
-  // Phase 6: the code actually goes out. On provider failure the OTP row is
-  // dropped so the user can retry immediately instead of waiting out an
-  // undeliverable code.
-  try {
-    await sendPlayerOtpEmail(normalizedEmail, code, tenant?.brandName ?? 'Tourney');
-  } catch (error) {
-    await prisma.emailOtp.deleteMany({
-      where: { tenantId: data.tenantId, email: normalizedEmail },
-    });
-    console.error('✖ player OTP email failed:', (error as Error).message);
-    throw new ApiError(502, 'Could not send the verification code. Please try again.');
-  }
-
-  // Dev convenience only — production logs never carry a live code.
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(
-      `📧 [EMAIL OTP] Brand: ${tenant?.brandName} | To: ${normalizedEmail} | Type: ${data.type} | OTP: ${code}`,
-    );
-  }
-
-  return {
-    message: `6-digit verification code sent to ${normalizedEmail}`,
-    email: normalizedEmail,
-    debugOtp: process.env.NODE_ENV !== 'production' ? code : undefined,
-  };
-}
-
-/** Step 2: Verifies the 6-digit OTP code and creates or logs into the account. */
-export async function verifyEmailOtp(
-  data: VerifyEmailOtpInput,
-): Promise<{ user: ReturnType<typeof sanitizeUser>; token: string }> {
-  await assertTenantActive(data.tenantId);
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: data.tenantId },
-    select: { allowEmailAuth: true },
-  });
-  if (tenant?.allowEmailAuth === false) {
-    throw ApiError.forbidden('Email authentication is currently disabled by administrator');
-  }
-
-  const normalizedEmail = data.email.toLowerCase().trim();
-  const now = new Date();
-
-  const otp = await prisma.emailOtp.findFirst({
-    where: {
-      tenantId: data.tenantId,
-      email: normalizedEmail,
-      expiresAt: { gt: now },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  // Constant-time compare against the stored hash; a wrong code bumps attempts.
-  if (!otp || !verifyOtpHash(data.code, otp.codeHash)) {
-    if (otp) {
-      await prisma.emailOtp.update({
-        where: { id: otp.id },
-        data: { attempts: { increment: 1 } },
-      });
-    }
-    throw ApiError.badRequest('Invalid or expired verification code');
-  }
-
-  // Delete the used OTP
-  await prisma.emailOtp.delete({ where: { id: otp.id } });
-
-  let user = await prisma.user.findFirst({
-    where: { tenantId: data.tenantId, email: normalizedEmail },
-  });
-
-  if (data.type === 'REGISTER') {
-    if (user) {
-      throw ApiError.conflict('User already exists with this email');
-    }
-    if (!data.password || data.password.length < 6) {
-      throw ApiError.badRequest('Password must be at least 6 characters');
-    }
-
-    const deviceId = await assertDeviceFree(data.tenantId, data.deviceId);
-    const passwordHash = hashPassword(data.password);
-    const placeholderPhone = `E${Date.now().toString().slice(-9)}`;
-
-    user = await prisma.user.create({
-      data: {
-        tenantId: data.tenantId,
-        email: normalizedEmail,
-        phoneNumber: placeholderPhone,
-        passwordHash,
-        name: data.name?.trim() || 'Gamer',
-        playerCode: await allocatePlayerCode(data.tenantId),
-        deviceId,
-        role: 'USER',
-      },
-    });
-  } else {
-    // LOGIN
-    if (!user) {
-      throw ApiError.notFound('Account not found');
-    }
-    if (user.isBanned) {
-      throw ApiError.forbidden('Your account has been banned');
-    }
-  }
-
-  const token = generateToken({ userId: user.id, tenantId: user.tenantId, role: user.role });
-  return { user: sanitizeUser(user), token };
-}

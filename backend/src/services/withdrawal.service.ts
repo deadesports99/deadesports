@@ -176,6 +176,10 @@ export async function approveWithdrawal(
     where: { id: withdrawalId, tenantId },
   });
   if (!existing) throw ApiError.notFound('Withdrawal request not found');
+  // Four-eyes rule — never approve/reject money going to your own account.
+  if (existing.userId === adminId) {
+    throw ApiError.forbidden('You cannot review your own withdrawal request');
+  }
   if (existing.status !== 'PENDING') {
     throw ApiError.conflict(`Withdrawal is already ${existing.status}`);
   }
@@ -218,6 +222,10 @@ export async function rejectWithdrawal(
     where: { id: withdrawalId, tenantId },
   });
   if (!existing) throw ApiError.notFound('Withdrawal request not found');
+  // Four-eyes rule — never approve/reject money going to your own account.
+  if (existing.userId === adminId) {
+    throw ApiError.forbidden('You cannot review your own withdrawal request');
+  }
   if (existing.status !== 'PENDING') {
     throw ApiError.conflict(`Withdrawal is already ${existing.status}`);
   }

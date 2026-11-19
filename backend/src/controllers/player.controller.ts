@@ -3,6 +3,16 @@ import { z } from 'zod';
 import { ApiError } from '../utils/ApiError.js';
 import { sendResponse } from '../utils/ApiResponse.js';
 import * as playerService from '../services/player.service.js';
+import * as playerMatchesService from '../services/playerMatches.service.js';
+
+const myMatchesQuerySchema = z.object({
+  bucket: z
+    .enum(['all', 'upcoming', 'live', 'completed', 'cancelled'])
+    .optional()
+    .default('all'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+});
 
 const updateGameProfileSchema = z.object({
   inGameName: z
@@ -19,6 +29,21 @@ export async function getMyStats(req: Request, res: Response, next: NextFunction
     if (!req.user) throw ApiError.unauthorized('Authenticated user missing');
     const stats = await playerService.getPlayerStats(req.user.userId, req.user.tenantId);
     sendResponse(res, 200, 'Player stats fetched', stats);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /players/me/matches — the player's own match history (seat, result, money).
+ * `bucket` groups the list: all | upcoming | live | completed | cancelled.
+ */
+export async function getMyMatches(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authenticated user missing');
+    const query = myMatchesQuerySchema.parse(req.query);
+    const result = await playerMatchesService.getMyMatches(req.user.userId, req.user.tenantId, query);
+    sendResponse(res, 200, 'My matches fetched', result);
   } catch (err) {
     next(err);
   }

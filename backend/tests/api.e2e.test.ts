@@ -129,7 +129,7 @@ function seed() {
     users: [player(), { ...player(), id: adminId, role: 'ADMIN', canManageWallet: true, phoneNumber: '9999900002' }],
     tournaments: [{
       id: 'tour-1', tenantId, title: 'Bermuda Solo #1', status: 'OPEN', matchType: 'SOLO',
-      entryFee: 25, totalSlots: 48, prizePool: 400, perKillPrize: 10,
+      entryFee: 25, totalSlots: 48, perKillPrize: 10,
       visibleFrom: null, matchTime: new Date(Date.now() + 3_600_000),
     }],
   });

@@ -4,8 +4,9 @@ import { type Role } from '../generated/prisma/client.js';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
-import { ADMIN_SESSION_COOKIE, readCookie } from '../utils/cookies.js';
+import { ADMIN_SESSION_COOKIE, adminSessionCookieOptions, readCookie } from '../utils/cookies.js';
 import { assertAccessKeyUsable } from '../services/adminAuth.service.js';
+import { getActiveSession, rollSession, touchSession } from '../services/adminSession.service.js';
 import type { AuthUser, PermissionKey, TokenPayload } from '../types/auth.js';
 
 interface CachedAuth {
@@ -40,7 +41,7 @@ function assertCookieRequestOrigin(req: Request): void {
 }
 
 /** Extract + verify the Bearer token, then load the fresh user from the DB. */
-export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     // Android: Authorization header. Admin web: httpOnly cookie (no token in JS).
     const header = req.headers.authorization;
@@ -66,6 +67,8 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
         tenantId: decoded.tenantId,
         role: decoded.role,
         ...(decoded.accessKeyId ? { accessKeyId: decoded.accessKeyId } : {}),
+        ...(decoded.sid ? { sid: decoded.sid } : {}),
+        ...(typeof decoded.sv === 'number' ? { sv: decoded.sv } : {}),
       };
     } catch {
       throw ApiError.unauthorized('Invalid or expired token');
@@ -103,12 +106,48 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       });
     }
 
+    // ── Cookie sessions: server-side row + rolling renewal ────────────────
+    // A stolen cookie dies the moment its row is revoked, even though the JWT
+    // itself would still verify. Tokens minted before this feature (no `sid`)
+    // are refused, which is the one-time "sign in again" after deploy.
+    if (fromCookie) {
+      if (!payload.sid) {
+        throw ApiError.unauthorized('Session expired — sign in again');
+      }
+      if (payload.sv !== undefined && payload.sv !== user.sessionVersion) {
+        throw ApiError.unauthorized('You were signed out — sign in again');
+      }
+
+      const session = await getActiveSession(payload.sid);
+      if (session.userId !== user.id) {
+        throw ApiError.unauthorized('Session does not belong to this account');
+      }
+
+      await touchSession(session);
+
+      // Active admins are never logged out: once half the idle window is used
+      // the token + cookie slide forward (absolute cap still applies).
+      const renewed = await rollSession(user, session, {
+        tokenExpiresAtMs: (payload as jwt.JwtPayload).exp ? Number((payload as jwt.JwtPayload).exp) * 1000 : 0,
+        accessKeyId: payload.accessKeyId,
+      });
+      if (renewed) {
+        res.cookie(ADMIN_SESSION_COOKIE, renewed.token, adminSessionCookieOptions(renewed.cookieMaxAgeMs));
+      }
+
+      req.sessionId = session.id;
+    }
+
+    req.authVia = fromCookie ? 'cookie' : 'bearer';
+
     req.user = {
       userId: user.id,
       tenantId: user.tenantId,
       role: user.role,
       canCreateMatch: user.canCreateMatch,
+      canManageMatch: user.canManageMatch,
       canUpdateRoomId: user.canUpdateRoomId,
+      canViewPayout: user.canViewPayout,
       canDistributePrize: user.canDistributePrize,
       canManageWallet: user.canManageWallet,
     } satisfies AuthUser;
@@ -141,7 +180,24 @@ export function requireRole(...allowedRoles: Role[]) {
  * - SUB_ADMIN must have the specific permission flag = true.
  * - USER is always rejected.
  */
-export function requirePermission(permissionKey: PermissionKey) {
+/**
+ * Guard: the staff member needs at least ONE of the given sections.
+ *
+ * One flag per admin-console section keeps the permission key honest:
+ *   canCreateMatch     → Create Match
+ *   canManageMatch     → Manage Matches
+ *   canUpdateRoomId    → Publish room
+ *   canViewPayout      → Final Payout desk (view)
+ *   canDistributePrize → release REAL money
+ *   canManageWallet    → wallet / deposits / withdrawals
+ *
+ * Array form is for shared endpoints (e.g. the payout desk also opens for the
+ * owner's money permission), so nobody has to hold two flags to view one page.
+ */
+export function requirePermission(permission: PermissionKey | readonly PermissionKey[]) {
+  const needed: readonly PermissionKey[] =
+    typeof permission === 'string' ? [permission] : permission;
+
   return (req: Request, _res: Response, next: NextFunction): void => {
     const user = req.user;
     if (!user) {
@@ -154,7 +210,7 @@ export function requirePermission(permissionKey: PermissionKey) {
       return;
     }
 
-    if (user.role === 'SUB_ADMIN' && user[permissionKey] === true) {
+    if (user.role === 'SUB_ADMIN' && needed.some((key) => user[key] === true)) {
       next();
       return;
     }

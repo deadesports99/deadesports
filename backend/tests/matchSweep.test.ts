@@ -88,31 +88,33 @@ describe('sweepMatchStates', () => {
 
     const out = await api.sweepMatchStates(NOW, 'tenant-1');
 
-    assert.deepEqual(out.wentLive, [], 'nothing starts yet');
+    assert.deepEqual(out.awaitingStart, [], 'nothing starts yet');
     assert.equal(fake.rowsOf('tournament')[0].status, 'OPEN');
     assert.equal(fake.rowsOf('tournament')[0].roomRevealedAt, null, 'room stays private');
     assert.equal(directMessages.length, 0, 'no credentials handed out');
     assert.equal(pushes.length, 0, 'no "room reveal" alert');
   });
 
-  it('starts a match at kickoff even when no room was ever published', async () => {
+  it('waits for the organiser when kickoff arrives and no room was published', async () => {
     seed([{ status: 'OPEN', matchTime: minutes(-1) }]);
     const out = await api.sweepMatchStates(NOW, 'tenant-1');
-    assert.deepEqual(out.wentLive.map((m) => m.id), ['tour-1']);
-    assert.equal(fake.rowsOf('tournament')[0].status, 'LIVE');
+    assert.deepEqual(out.awaitingStart.map((m) => m.id), ['tour-1']);
+    // The clock can never make a match LIVE — only the admin's "Go live" does.
+    assert.deepEqual(out.wentLive, []);
+    assert.equal(fake.rowsOf('tournament')[0].status, 'STARTING_SOON');
   });
 
-  it('starts published matches at kickoff too', async () => {
-    seed([{ status: 'ROOM_REVEALED', matchTime: minutes(-5) }]);
+  it('does not go LIVE at kickoff even when the room was already published', async () => {
+    seed([{ status: 'ROOM_REVEALED', matchTime: minutes(-5), roomRevealedAt: minutes(-20) }]);
     const out = await api.sweepMatchStates(NOW, 'tenant-1');
-    assert.deepEqual(out.wentLive.map((m) => m.id), ['tour-1']);
-    assert.equal(fake.rowsOf('tournament')[0].status, 'LIVE');
+    assert.deepEqual(out.awaitingStart.map((m) => m.id), ['tour-1']);
+    assert.equal(fake.rowsOf('tournament')[0].status, 'STARTING_SOON');
   });
 
   it('leaves a match that starts in a few minutes alone', async () => {
     seed([{ status: 'OPEN', matchTime: minutes(3) }]);
     const out = await api.sweepMatchStates(NOW, 'tenant-1');
-    assert.deepEqual(out.wentLive, []);
+    assert.deepEqual(out.awaitingStart, []);
     assert.equal(fake.rowsOf('tournament')[0].status, 'OPEN');
   });
 
@@ -130,7 +132,34 @@ describe('sweepMatchStates', () => {
   it('does nothing for matches of another tenant', async () => {
     seed([{ status: 'OPEN', matchTime: minutes(-5), tenantId: 'tenant-2' }]);
     const out = await api.sweepMatchStates(NOW, 'tenant-1');
-    assert.deepEqual(out.wentLive, []);
+    assert.deepEqual(out.awaitingStart, []);
     assert.equal(fake.rowsOf('tournament')[0].status, 'OPEN');
+  });
+});
+
+describe('forceMatchLive', () => {
+  beforeEach(() => {
+    broadcasts.length = 0;
+    pushes.length = 0;
+    directMessages.length = 0;
+  });
+
+  it('is the only way a waiting match becomes LIVE', async () => {
+    seed([{ status: 'STARTING_SOON', matchTime: minutes(-5) }]);
+    const out = await api.forceMatchLive('tour-1', 'tenant-1', NOW);
+    assert.equal(out.changed, true);
+    assert.equal(out.status, 'LIVE');
+    assert.equal(fake.rowsOf('tournament')[0].status, 'LIVE');
+    assert.deepEqual(
+      broadcasts.map((b) => b.payload.status),
+      ['LIVE'],
+      'players are told the match really started',
+    );
+  });
+
+  it('never resurrects a finished match', async () => {
+    seed([{ status: 'COMPLETED', matchTime: minutes(-180) }]);
+    await assert.rejects(() => api.forceMatchLive('tour-1', 'tenant-1', NOW), /cannot be started/i);
+    assert.equal(fake.rowsOf('tournament')[0].status, 'COMPLETED');
   });
 });

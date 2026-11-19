@@ -82,7 +82,6 @@ function seed() {
         isActive: true,
         minDeposit: 10,
         allowPhoneAuth: true,
-        allowEmailAuth: true,
         allowGoogleAuth: true,
       },
     ],
@@ -181,29 +180,6 @@ describe('registration + login over HTTP', () => {
     assert.equal(me.status, 200);
     assert.equal(meBody.data.phoneNumber, '9999900001');
     assert.equal(meBody.data.passwordHash, undefined);
-  });
-
-  it('registers by email + OTP code over HTTP', async () => {
-    const sent = await post('/api/v1/auth/player/email/send-otp', {
-      tenantId,
-      email: 'brand-new@example.com',
-      password: 'strongpass',
-      type: 'REGISTER',
-    });
-    assert.equal(sent.status, 200, JSON.stringify(sent.body));
-    const code = sent.body.data.debugOtp;
-    assert.match(code, /^\d{6}$/);
-
-    const verified = await post('/api/v1/auth/player/email/verify-otp', {
-      tenantId,
-      email: 'brand-new@example.com',
-      code,
-      password: 'strongpass',
-      type: 'REGISTER',
-      deviceId: 'device-xyz-999',
-    });
-    assert.equal(verified.status, 200, JSON.stringify(verified.body));
-    assert.equal(verified.body.data.user.email, 'brand-new@example.com');
   });
 
   it('stores the push token and rejects junk', async () => {

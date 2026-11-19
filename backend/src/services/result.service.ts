@@ -1,9 +1,10 @@
 import { Prisma } from '../generated/prisma/client.js';
+import type { TournamentStatus } from '../generated/prisma/client.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { AuthUser } from '../types/auth.js';
 import { clearTournamentRedis } from './slotLock.service.js';
-import { pushToTournamentParticipants, pushToUsers } from './fcm.service.js';
+import { pushToTournamentParticipants } from './fcm.service.js';
 import { realtimeService } from './realtime.service.js';
 import {
   DEFAULT_ROOM_REVEAL_MINUTES,
@@ -30,12 +31,25 @@ export const ROOM_REVEAL_WINDOW_MS = DEFAULT_ROOM_REVEAL_MINUTES * MINUTE_MS;
 const RANK_PRIZE_SHARE: Record<number, number> = {};
 
 /** Statuses from which a payout may be executed by Spectator / Staff. */
-const PAYOUTABLE_STATUSES = ['ROOM_REVEALED', 'LIVE', 'UNDER_REVIEW', 'OPEN', 'SLOTS_FULL'] as const;
+const PAYOUTABLE_STATUSES = ['ROOM_REVEALED', 'STARTING_SOON', 'LIVE', 'UNDER_REVIEW', 'OPEN', 'SLOTS_FULL'] as const;
 
 /** Statuses from which the admin may "End Match & Pay Winner by UID". */
-const FINISHABLE_STATUSES = ['OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'LIVE', 'UNDER_REVIEW'] as const;
+const FINISHABLE_STATUSES = ['OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'STARTING_SOON', 'LIVE', 'UNDER_REVIEW'] as const;
 
 const isStaff = (user: AuthUser): boolean => user.role === 'ADMIN' || user.role === 'SUB_ADMIN';
+
+/**
+ * Room credentials are staff-visible BEFORE the reveal only for the sections
+ * that actually own the room: publish / manage / money. A "Final payout (view)"
+ * or wallet-only staff key must not be able to read the password, and a staff
+ * member with no relevant flag is treated exactly like a player (must hold a
+ * seat AND the room must be revealed).
+ */
+const mayWorkRoom = (user: AuthUser): boolean => {
+  if (user.role === 'ADMIN') return true;
+  if (user.role !== 'SUB_ADMIN') return false;
+  return Boolean(user.canUpdateRoomId || user.canManageMatch || user.canDistributePrize);
+};
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
@@ -60,8 +74,20 @@ export async function updateRoomCredentials(
     where: { id: tournamentId, tenantId: staffUser.tenantId },
   });
   if (!tournament) throw ApiError.notFound('Tournament not found');
-  if (tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED') {
-    throw ApiError.conflict(`Cannot update room for a ${tournament.status} tournament`);
+
+  /**
+   * The room code is final once the match is running: players are already in the
+   * lobby, so a late edit would send half the room to the wrong place. Only the
+   * pre-kickoff window (UPCOMING / OPEN / SLOTS_FULL / ROOM_REVEALED /
+   * STARTING_SOON / DRAFT) may publish or correct credentials.
+   */
+  const ROOM_LOCKED = ['LIVE', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'] as const;
+  if (ROOM_LOCKED.includes(tournament.status as (typeof ROOM_LOCKED)[number])) {
+    throw ApiError.conflict(
+      tournament.status === 'LIVE' || tournament.status === 'UNDER_REVIEW'
+        ? 'This match is LIVE — the Room ID & Password are locked. They cannot be changed now.'
+        : `Cannot update the room for a ${tournament.status.toLowerCase()} match`,
+    );
   }
 
   // Publishing IS the reveal: the owner wants players to receive the custom room
@@ -77,7 +103,7 @@ export async function updateRoomCredentials(
       roomId: roomId.trim(),
       roomPassword: roomPassword.trim(),
       roomRevealedAt: tournament.roomRevealedAt ?? new Date(),
-      status: 'ROOM_REVEALED' as const,
+      status: statusAfterRoomPublish(tournament.status),
     },
   });
 
@@ -105,12 +131,28 @@ export async function updateRoomCredentials(
   };
 }
 
+/**
+ * Publishing a room must never rewind the lifecycle.
+ *
+ * Rooms are most needed exactly when kickoff has already passed, so a match in
+ * STARTING_SOON (or already LIVE / UNDER_REVIEW) keeps its status — otherwise
+ * the sweep would have to push it forward again and the player app would blink
+ * between "starting soon" and "room out". Everything pre-kickoff becomes
+ * ROOM_REVEALED as before.
+ */
+function statusAfterRoomPublish(current: string): TournamentStatus {
+  return current === 'STARTING_SOON' || current === 'LIVE' || current === 'UNDER_REVIEW'
+    ? (current as TournamentStatus)
+    : ('ROOM_REVEALED' as TournamentStatus);
+}
+
 /** Realtime broadcast + private credentials delivery + optional FCM push. */
 async function announceRoomReveal(
   tenantId: string,
   tournament: {
     id: string;
     title: string;
+    status?: string;
     roomId: string | null;
     roomPassword: string | null;
     roomRevealedAt: Date | null;
@@ -119,7 +161,8 @@ async function announceRoomReveal(
 ): Promise<void> {
   realtimeService.broadcastToTenant(tenantId, 'MATCH_STATUS_CHANGED', {
     tournamentId: tournament.id,
-    status: 'ROOM_REVEALED',
+    // The live status after publishing — an already-started match stays started.
+    status: tournament.status ?? 'ROOM_REVEALED',
     roomRevealedAt: tournament.roomRevealedAt,
   });
 
@@ -148,8 +191,8 @@ async function announceRoomReveal(
     void pushToTournamentParticipants(tournament.id, {
       type: 'ROOM_REVEALED',
       tournamentId: tournament.id,
-      title: '🏟 Room ID Released!',
-      body: `Custom room unlocked for "${tournament.title}" — open the app for the code.`,
+      title: 'Room ID Released',
+      body: `"${tournament.title}" room ID and password are ready. Open the app to view.`,
     });
   }
 }
@@ -178,7 +221,7 @@ export async function updateRoomReveal(
   // Reveal timing is only meaningful before kick-off; finished/live matches keep
   // their room state so history (and the payout queue) can never be inverted.
   if (
-    !(['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as readonly string[]).includes(
+    !(['DRAFT', 'UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'STARTING_SOON'] as readonly string[]).includes(
       tournament.status,
     )
   ) {
@@ -208,7 +251,7 @@ export async function updateRoomReveal(
       ...(shouldReveal
         ? {
             roomRevealedAt: tournament.roomRevealedAt ?? new Date(),
-            status: 'ROOM_REVEALED' as const,
+            status: statusAfterRoomPublish(tournament.status),
           }
         : {}),
     },
@@ -255,8 +298,8 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
     throw ApiError.conflict('Room credentials have not been set yet');
   }
 
-  // 1) Caller must be a confirmed slot holder OR staff.
-  let isSlotHolder = isStaff(user);
+  // 1) Caller must be a confirmed slot holder OR room-working staff.
+  let isSlotHolder = mayWorkRoom(user);
   if (!isSlotHolder) {
     const slot = await prisma.tournamentSlot.findUnique({
       where: { tournamentId_userId: { tournamentId, userId: user.userId } },
@@ -271,8 +314,8 @@ export async function getRoomCredentials(user: AuthUser, tournamentId: string): 
   const unlocked = isRoomUnlocked(tournament, now);
   const secondsUntilReveal = secondsUntilRoomReveal(tournament, now);
 
-  // 2) Reveal gate: nothing reaches players until staff publish the room.
-  if (!isStaff(user) && !unlocked) {
+  // 2) Reveal gate: nothing reaches players (or room-less staff) until published.
+  if (!mayWorkRoom(user) && !unlocked) {
     throw ApiError.forbidden(
       'Room ID & Password are not published yet — the organiser will publish them before the match',
       {
@@ -342,8 +385,10 @@ export async function finishMatchAndPayWinner(
     );
   }
 
-  const pool = Number(tournament.prizePool);
   const perKill = Number(tournament.perKillPrize);
+  // Kill bounties can never exceed the cash this match actually collected.
+  const paidSeats = await prisma.tournamentSlot.count({ where: { tournamentId } });
+  const pool = round2(Number(tournament.entryFee) * paidSeats);
   // Per-kill format: the winner is paid for kills only, never for placement.
   const rankPrize = 0;
   const killPrize = round2(kills * perKill);
@@ -360,7 +405,7 @@ export async function finishMatchAndPayWinner(
   }
   if (perKill > 0 && totalPrize > pool + 0.001) {
     throw ApiError.badRequest(
-      `${kills} kills x ${perKill} = ${totalPrize} exceeds the ${pool} prize pool.`,
+      `${kills} kills x ${perKill} = ${totalPrize} exceeds the ₹${pool} collected from entry fees.`,
     );
   }
 
@@ -434,15 +479,6 @@ export async function finishMatchAndPayWinner(
 
   await clearTournamentRedis(tournamentId);
 
-  void pushToUsers([slot.userId], {
-    type: 'PRIZE_WON',
-    tournamentId,
-    title: '🏆 You won the match!',
-    body:
-      `₹${paid} has been credited to your Winning Balance for winning "${tournament.title}".`,
-    data: { totalPaid: String(paid) },
-  });
-
   return {
     tournamentId,
     status: 'COMPLETED',
@@ -480,7 +516,6 @@ export async function getTournamentResults(tenantId: string, tournamentId: strin
       matchType: true,
       mapType: true,
       matchTime: true,
-      prizePool: true,
       perKillPrize: true,
     },
   });
@@ -564,12 +599,12 @@ export async function distributeTournamentPrizes(
   if (results.length === 0) throw ApiError.badRequest('At least one verified result is required');
 
   const perKill = Number(tournament.perKillPrize);
-  const pool = Number(tournament.prizePool);
 
-  // The pool is 80% of the cash this match actually collected, so the kill
+  // The budget is the cash this match actually collected, so the kill
   // bounties can never exceed it. Without this guard a spectator mis-typing
   // kills (17 kills in a 5-seat lobby) pays out money the match never held.
   const seats = await prisma.tournamentSlot.count({ where: { tournamentId } });
+  const pool = round2(Number(tournament.entryFee) * seats);
   const maxKills = Math.max(0, seats - 1);
   const killsClaimed = results.filter((r) => !r.isDisqualified).reduce((sum, r) => sum + r.verifiedKills, 0);
   if (killsClaimed > maxKills) {
@@ -579,7 +614,7 @@ export async function distributeTournamentPrizes(
   }
   if (perKill > 0 && round2(killsClaimed * perKill) > pool + 0.001) {
     throw ApiError.badRequest(
-      `${killsClaimed} kills x ${perKill} = ${round2(killsClaimed * perKill)} exceeds the ${pool} prize pool. Lower the kill count or the per-kill rate.`,
+      `${killsClaimed} kills x ${perKill} = ${round2(killsClaimed * perKill)} exceeds the ₹${pool} collected from entry fees. Lower the kill count or the per-kill rate.`,
     );
   }
 
@@ -713,18 +748,6 @@ export async function distributeTournamentPrizes(
 
   // 5) Wipe Redis seat state — tournament is closed.
   await clearTournamentRedis(tournamentId);
-
-  // Push: alert the winners their prize money was credited.
-  void pushToUsers(
-    summary.map((r) => r.userId),
-    {
-      type: 'PRIZE_WON',
-      tournamentId,
-      title: '💰 Prize Credited!',
-      body: `Your winnings from "${tournament.title}" are in your Winning Balance.`,
-      data: { totalPaid: String(round2(summary.reduce((acc, r) => acc + r.totalPrize, 0))) },
-    },
-  );
 
   return {
     tournamentId,

@@ -4,6 +4,7 @@ import * as withdrawalController from '../controllers/withdrawal.controller.js';
 import * as settlementController from '../controllers/settlement.controller.js';
 import * as paymentAdminController from '../controllers/paymentAdmin.controller.js';
 import { authenticate, requirePermission, requireRole } from '../middlewares/auth.middleware.js';
+import { requireStepUp } from '../middlewares/stepUp.middleware.js';
 
 /**
  * Admin wallet console — mounted at /api/v1/admin/wallet.
@@ -31,7 +32,11 @@ adminWalletRouter.get('/settlement', requireRole('ADMIN'), settlementController.
 adminWalletRouter.get('/settlement/export.csv', requireRole('ADMIN'), settlementController.exportSettlementCsv);
 
 adminWalletRouter.get('/withdrawals', withdrawalController.listWithdrawals);
-adminWalletRouter.post('/withdrawals/:id/approve', withdrawalController.approveWithdrawal);
+adminWalletRouter.post(
+  '/withdrawals/:id/approve',
+  requireStepUp('approving a withdrawal'),
+  withdrawalController.approveWithdrawal,
+);
 adminWalletRouter.post('/withdrawals/:id/reject', withdrawalController.rejectWithdrawal);
 
 adminWalletRouter.get('/payments', paymentAdminController.listPayments);

@@ -1,5 +1,5 @@
 /**
- * Login paths: phone OTP, Google one-tap, email + 6-digit code, and the admin's
+ * Login paths: phone OTP, Google one-tap, and the admin's
  * staff (SUB_ADMIN) management. These are the doors into every other feature.
  */
 import assert from 'node:assert/strict';
@@ -7,7 +7,6 @@ import { before, beforeEach, describe, it, mock } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { FakePrisma } from './helpers/fakePrisma.js';
 import { registerFakeFirebase, setFakeGoogleUser } from './helpers/fakeFirebase.js';
-import { hashOtp } from '../src/utils/accessKey.js';
 
 process.env.NODE_ENV = 'test';
 // Phone OTP kill switch is deployment config — pin it ON for this suite so a
@@ -39,7 +38,7 @@ const admin = { id: 'admin-1', tenantId, role: 'ADMIN' as const };
 function seed(over: { users?: any[]; tenant?: Record<string, unknown>; emailOtps?: any[] } = {}) {
   fake = new FakePrisma({
     tenants: [
-      { id: tenantId, brandName: 'Thunder', isActive: true, allowPhoneAuth: true, allowEmailAuth: true, ...over.tenant },
+      { id: tenantId, brandName: 'Thunder', isActive: true, allowPhoneAuth: true, ...over.tenant },
     ],
     users: over.users ?? [
       {
@@ -168,146 +167,6 @@ describe('googleLoginOrRegister', () => {
   });
 });
 
-describe('email + OTP auth', () => {
-  beforeEach(() => seed());
-
-  it('sends a 6-digit code and replaces the previous one', async () => {
-    seed({
-      emailOtps: [
-        { id: 'old', tenantId, email: 'player@example.com', codeHash: hashOtp('111111'), type: 'LOGIN' },
-      ],
-    });
-
-    const out = await api.sendEmailOtp({
-      tenantId,
-      email: '  Player@Example.com ',
-      password: 'secret123',
-      type: 'LOGIN',
-    });
-
-    assert.equal(out.email, 'player@example.com', 'normalised');
-    assert.match(out.debugOtp ?? '', /^\d{6}$/);
-    const stored = fake.rowsOf('emailOtp');
-    assert.equal(stored.length, 1, 'old code deleted');
-    assert.equal(stored[0].codeHash, hashOtp(out.debugOtp!));
-    assert.equal('code' in stored[0], false, 'plain OTP is never stored');
-    assert.ok(new Date(stored[0].expiresAt).getTime() > Date.now());
-  });
-
-  it('blocks wrong passwords, banned users, short passwords and duplicate emails', async () => {
-    await assert.rejects(
-      () => api.sendEmailOtp({ tenantId, email: 'player@example.com', password: 'nope', type: 'LOGIN' }),
-      /Invalid email or password/i,
-    );
-    await assert.rejects(
-      () => api.sendEmailOtp({ tenantId, email: 'ghost@example.com', password: 'secret123', type: 'LOGIN' }),
-      /Invalid email or password/i,
-    );
-    await assert.rejects(
-      () => api.sendEmailOtp({ tenantId, email: 'a@b.com', password: '123', type: 'REGISTER' }),
-      /at least 6 characters/i,
-    );
-    await assert.rejects(
-      () => api.sendEmailOtp({ tenantId, email: 'player@example.com', password: 'secret123', type: 'REGISTER' }),
-      /already exists/i,
-    );
-
-    seed({ users: [{ id: 'u-banned', tenantId, email: 'bad@example.com', passwordHash: api.hashPassword('secret123'), isBanned: true, phoneNumber: '9', role: 'USER' }] });
-    await assert.rejects(
-      () => api.sendEmailOtp({ tenantId, email: 'bad@example.com', password: 'secret123', type: 'LOGIN' }),
-      /banned/i,
-    );
-  });
-
-  it('registers a new player when the code matches', async () => {
-    const sent = await api.sendEmailOtp({
-      tenantId,
-      email: 'fresh@example.com',
-      password: 'strongpass',
-      name: 'Fresh',
-      type: 'REGISTER',
-    });
-
-    const out = await api.verifyEmailOtp({
-      tenantId,
-      email: 'fresh@example.com',
-      code: sent.debugOtp!,
-      password: 'strongpass',
-      name: 'Fresh',
-      type: 'REGISTER',
-    });
-
-    assert.equal(out.user.email, 'fresh@example.com');
-    assert.equal(out.user.name, 'Fresh');
-    assert.match(out.user.phoneNumber, /^E\d{9}$/);
-    const stored = fake.rowsOf('user').find((u) => u.email === 'fresh@example.com')!;
-    assert.ok(stored.passwordHash, 'password stored as a hash');
-    assert.notEqual(stored.passwordHash, 'strongpass');
-    assert.ok(api.verifyPassword('strongpass', stored.passwordHash));
-    assert.equal(fake.rowsOf('emailOtp').length, 0, 'code burned after use');
-  });
-
-  it('rejects wrong or expired codes and re-used ones', async () => {
-    const sent = await api.sendEmailOtp({ tenantId, email: 'player@example.com', password: 'secret123', type: 'LOGIN' });
-
-    await assert.rejects(
-      () => api.verifyEmailOtp({ tenantId, email: 'player@example.com', code: '000000', type: 'LOGIN' }),
-      /Invalid or expired/i,
-    );
-
-    seed({
-      emailOtps: [
-        {
-          id: 'expired',
-          tenantId,
-          email: 'player@example.com',
-          codeHash: hashOtp('222222'),
-          type: 'LOGIN',
-          expiresAt: new Date(Date.now() - 1000),
-        },
-      ],
-    });
-    await assert.rejects(
-      () => api.verifyEmailOtp({ tenantId, email: 'player@example.com', code: '222222', type: 'LOGIN' }),
-      /Invalid or expired/i,
-    );
-
-    seed({
-      emailOtps: [
-        {
-          id: 'ok',
-          tenantId,
-          email: 'player@example.com',
-          codeHash: hashOtp(sent.debugOtp!),
-          type: 'LOGIN',
-          expiresAt: new Date(Date.now() + 600_000),
-        },
-      ],
-    });
-    const login = await api.verifyEmailOtp({
-      tenantId,
-      email: 'player@example.com',
-      code: sent.debugOtp!,
-      type: 'LOGIN',
-    });
-    assert.equal(decode(login.token).userId, 'user-1');
-
-    await assert.rejects(
-      () => api.verifyEmailOtp({ tenantId, email: 'player@example.com', code: sent.debugOtp!, type: 'LOGIN' }),
-      /Invalid or expired/i,
-      'a used code cannot be replayed',
-    );
-  });
-
-  it('honours the email-auth switch', async () => {
-    seed({ tenant: { allowEmailAuth: false } });
-    await assert.rejects(
-      () => api.sendEmailOtp({ tenantId, email: 'player@example.com', password: 'secret123', type: 'LOGIN' }),
-      /Email authentication is currently disabled/i,
-    );
-  });
-});
-
 describe('staff (SUB_ADMIN) management', () => {
   beforeEach(() => seed());
 
@@ -369,7 +228,9 @@ describe('staff (SUB_ADMIN) management', () => {
     assert.equal(list.staff[0].email, 'staff@example.com');
     assert.deepEqual(list.staff[0].permissions, {
       canCreateMatch: true,
+      canManageMatch: false,
       canUpdateRoomId: false,
+      canViewPayout: false,
       canDistributePrize: false,
       canManageWallet: false,
     });

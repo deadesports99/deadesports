@@ -35,8 +35,6 @@ export interface StatsMoney {
   entryFeesCollected: number;
   prizesPaid: number;
   netOrganizerProfit: number;
-  platformCut: number;
-  commissionRate: number;
   currency: 'INR';
 }
 
@@ -170,8 +168,6 @@ export async function buildSnapshot(
       entryFeesCollected: summary.totalMatchRevenue,
       prizesPaid: summary.totalPrizesPaid,
       netOrganizerProfit: summary.netOrganizerProfit,
-      platformCut: summary.platformCut,
-      commissionRate: summary.commissionRate,
       currency: 'INR',
     },
     counts: {

@@ -186,28 +186,3 @@ export async function sendAdminOtpEmail(
 
   await sendEmail({ to: email, subject, text, html });
 }
-
-/** Player email OTP (register / login) — same shell, different wording. */
-export async function sendPlayerOtpEmail(
-  email: string,
-  code: string,
-  brandName: string,
-): Promise<void> {
-  const subject = `${brandName} — your verification code ${code}`;
-  const text = [
-    `Your ${brandName} verification code is ${code}.`,
-    '',
-    'It expires in 10 minutes and can be used once.',
-    'If you did not request it, ignore this email.',
-  ].join('\n');
-
-  const html = otpEmailHtml({
-    brandName,
-    heading: 'Verification code',
-    intro: 'Use this code to finish signing in. It expires in 10 minutes.',
-    code,
-    footer: 'If you did not request this code, ignore this email — nothing will change.',
-  });
-
-  await sendEmail({ to: email, subject, text, html });
-}

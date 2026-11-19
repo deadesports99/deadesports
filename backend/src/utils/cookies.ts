@@ -1,4 +1,5 @@
-import type { Request } from 'express';
+import type { CookieOptions, Request } from 'express';
+import { env } from '../config/env.js';
 
 /**
  * Tiny cookie helpers — the project deliberately avoids an extra dependency
@@ -29,4 +30,21 @@ export function parseCookieHeader(header: string | undefined): Record<string, st
 /** Reads one cookie from the request (undefined when absent). */
 export function readCookie(req: Request, name: string): string | undefined {
   return parseCookieHeader(req.headers.cookie)[name];
+}
+
+/**
+ * Cookie attributes shared by login, rolling renewal and logout.
+ *
+ * httpOnly + SameSite=Strict + host-only (no Domain) is what keeps the session
+ * out of JS and off cross-site requests. `maxAge` is the IDLE window — every
+ * rolling renewal re-issues the cookie with a fresh one.
+ */
+export function adminSessionCookieOptions(maxAgeMs: number): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+    maxAge: maxAgeMs,
+  };
 }

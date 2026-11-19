@@ -11,7 +11,7 @@ function ensureInitialized(): boolean {
 }
 
 export interface PushPayload {
-  type: 'ROOM_REVEALED' | 'PRIZE_WON' | 'MATCH_CANCELLED';
+  type: 'ROOM_REVEALED' | 'MATCH_CANCELLED';
   tournamentId: string;
   title: string;
   body: string;
@@ -20,7 +20,6 @@ export interface PushPayload {
 
 const TYPE_NOTIFICATION_CHANNEL: Record<PushPayload['type'], string> = {
   ROOM_REVEALED: 'ff_room_alerts',
-  PRIZE_WON: 'ff_prize_alerts',
   MATCH_CANCELLED: 'ff_refund_alerts',
 };
 

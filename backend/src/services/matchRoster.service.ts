@@ -24,9 +24,6 @@ import { realtimeService } from './realtime.service.js';
  *   DISQUALIFIED     match result flagged by the scorer
  */
 
-/** Rank prize share of the pool — mirrors `result.service.ts` (single source of truth). */
-const RANK_PRIZE_SHARE: Record<number, number> = { 1: 0.5, 2: 0.3, 3: 0.2 };
-
 export type ParticipantFlagCode =
   | 'NO_FF_UID'
   | 'UID_MISMATCH'
@@ -77,12 +74,10 @@ export interface RosterResponse {
     status: string;
     matchTime: string;
     entryFee: string;
-    prizePool: string;
     perKillPrize: string;
     totalSlots: number;
     slotsBooked: number;
   };
-  prizeRules: { '1': number; '2': number; '3': number };
   participants: RosterParticipant[];
   summary: {
     total: number;
@@ -97,16 +92,9 @@ export interface RosterResponse {
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-/** Rank + kill prize for one player (same maths the payout engine uses). */
-export function computePrize(
-  pool: number,
-  perKill: number,
-  rank: number | null,
-  kills: number,
-): number {
-  const rankPrize = rank ? round2((RANK_PRIZE_SHARE[rank] ?? 0) * pool) : 0;
-  const killPrize = round2(Math.max(0, kills) * perKill);
-  return round2(rankPrize + killPrize);
+/** Kill prize for one player: every confirmed kill pays the per-kill rate. */
+export function computePrize(perKill: number, kills: number): number {
+  return round2(Math.max(0, kills) * perKill);
 }
 
 async function findMatchOrThrow(tenantId: string, tournamentId: string) {
@@ -309,15 +297,9 @@ export async function getMatchRoster(
       status: tournament.status,
       matchTime: tournament.matchTime.toISOString(),
       entryFee: String(tournament.entryFee),
-      prizePool: String(tournament.prizePool),
       perKillPrize: String(tournament.perKillPrize),
       totalSlots: tournament.totalSlots,
       slotsBooked: await prisma.tournamentSlot.count({ where: { tournamentId } }),
-    },
-    prizeRules: {
-      '1': RANK_PRIZE_SHARE[1]!,
-      '2': RANK_PRIZE_SHARE[2]!,
-      '3': RANK_PRIZE_SHARE[3]!,
     },
     participants: filtered,
     summary: {
@@ -359,7 +341,7 @@ export interface PayoutAwardsResult {
   }>;
 }
 
-const PAYOUT_STATUSES = ['OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'LIVE', 'UNDER_REVIEW'] as const;
+const PAYOUT_STATUSES = ['OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'STARTING_SOON', 'LIVE', 'UNDER_REVIEW'] as const;
 
 /**
  * Pay specific players of a match. Safeguards (all enforced inside one
@@ -374,6 +356,13 @@ export async function payoutMatchAwards(
   tournamentId: string,
   awards: AwardInput[],
   completeMatch: boolean,
+  /**
+   * Final-payout override: the owner (verified with a step-up OTP on the Final
+   * Payout desk) may pay more than the match collected — a guaranteed prize
+   * pool topped up from the wallet is a real business decision, not a bug.
+   * Manage Matches keeps the strict pool guard.
+   */
+  allowOverPool: boolean = false,
 ): Promise<PayoutAwardsResult> {
   const tournament = await findMatchOrThrow(staff.tenantId, tournamentId);
   if (tournament.status === 'CANCELLED') {
@@ -382,11 +371,18 @@ export async function payoutMatchAwards(
   if (!(PAYOUT_STATUSES as readonly string[]).includes(tournament.status)) {
     throw ApiError.conflict(`Payout not allowed while the match is ${tournament.status}`);
   }
-  if (awards.length === 0) throw ApiError.badRequest('At least one award is required');
+  // An empty award list is still an error unless the admin is finishing the
+  // match — the Final Payout desk must never be blocked just because a match
+  // owes no money (no kills, all seats banned, or everything already paid).
+  if (awards.length === 0 && !completeMatch) {
+    throw ApiError.badRequest('At least one award is required');
+  }
   if (awards.length > 60) throw ApiError.badRequest('Too many awards in one request');
 
-  const pool = Number(tournament.prizePool);
   const perKill = Number(tournament.perKillPrize);
+  // Kill bounties can never exceed the cash this match actually collected.
+  const seatsBooked = await prisma.tournamentSlot.count({ where: { tournamentId } });
+  const pool = round2(Number(tournament.entryFee) * seatsBooked);
 
   const payout = await prisma.$transaction(
     async (tx) => {
@@ -493,11 +489,11 @@ export async function payoutMatchAwards(
         const prize =
           award.amount !== undefined && award.amount !== null
             ? round2(Math.max(0, Number(award.amount)))
-            : computePrize(pool, perKill, rank, kills);
+            : computePrize(perKill, kills);
 
-        if (paidSoFar + totalPaid + prize > pool + 0.001) {
+        if (!allowOverPool && paidSoFar + totalPaid + prize > pool + 0.001) {
           throw ApiError.badRequest(
-            `Prize budget exceeded — pool ₹${round2(pool)}, already paid ₹${round2(paidSoFar + totalPaid)}`,
+            `Prize budget exceeded — collected ₹${round2(pool)} from entry fees, already paid ₹${round2(paidSoFar + totalPaid)}`,
           );
         }
 
@@ -705,7 +701,6 @@ export function buildRosterCsv(roster: RosterResponse): string {
   lines.push(`Status,${match.status}`);
   lines.push(`Match Time (IST),${formatIstForCsv(match.matchTime)}`);
   lines.push(`Entry Fee,${match.entryFee}`);
-  lines.push(`Prize Pool,${match.prizePool}`);
   lines.push(`Per Kill,${match.perKillPrize}`);
   lines.push(`Seats,${match.slotsBooked}/${match.totalSlots}`);
   lines.push(`Entry Collected,${summary.totalEntryCollected}`);

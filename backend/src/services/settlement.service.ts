@@ -46,9 +46,6 @@ export interface SettlementSummary {
   prizeCount: number;
   /** Revenue retained by the organizer after prize payout. */
   netOrganizerProfit: number;
-  /** The platform's commission share of net profit (tenant.commissionRate). */
-  platformCut: number;
-  commissionRate: number;
 }
 
 export interface SettlementTransactionRow {
@@ -72,7 +69,7 @@ export interface DailySettlement {
 /**
  * Financial snapshot of a single calendar day for the tenant:
  * money in (deposits + entry fees), money out (withdrawals + prizes),
- * and the organizer's net margin after the platform commission.
+ * and the organizer's net margin.
  */
 export async function getDailySettlement(
   tenantId: string,
@@ -139,12 +136,6 @@ export async function getDailySettlement(
   const totalPrizesPaid = round2(Number(prizesAgg._sum.amount ?? 0));
   const netOrganizerProfit = round2(totalMatchRevenue - totalPrizesPaid);
 
-  // Platform cut = the tenant's commission rate applied to net margin.
-  const commissionRate = await prisma.tenant
-    .findUnique({ where: { id: tenantId }, select: { commissionRate: true } })
-    .then((t) => t?.commissionRate ?? 10);
-  const platformCut = round2(netOrganizerProfit * (commissionRate / 100));
-
   return {
     summary: {
       date: dateStr,
@@ -157,8 +148,6 @@ export async function getDailySettlement(
       totalPrizesPaid,
       prizeCount: prizesAgg._count,
       netOrganizerProfit,
-      platformCut,
-      commissionRate,
     },
     transactions: txRows.map((row) => ({
       id: row.id,
@@ -195,7 +184,6 @@ export function buildSettlementCsv(settlement: DailySettlement): string {
   lines.push('Total Entry Fees Collected,' + summary.totalMatchRevenue.toFixed(2) + ',' + summary.matchCount + ' match(es)');
   lines.push('Total Prizes Paid,' + summary.totalPrizesPaid.toFixed(2) + ',' + summary.prizeCount);
   lines.push('Net Organizer Profit,' + summary.netOrganizerProfit.toFixed(2));
-  lines.push('Platform Cut (' + summary.commissionRate + '%),' + summary.platformCut.toFixed(2));
   lines.push('');
   lines.push(CSV_HEADER);
 

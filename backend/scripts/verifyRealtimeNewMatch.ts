@@ -53,7 +53,6 @@ async function main() {
       matchType: 'SOLO',
       mapType: 'BERMUDA',
       entryFee: 10,
-      prizePool: 480,
       matchTime: new Date(Date.now() + 5 * 3600_000).toISOString(),
       totalSlots: 48,
       visibilityHours: null,

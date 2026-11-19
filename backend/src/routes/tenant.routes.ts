@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as tenantController from '../controllers/tenant.controller.js';
 import { authenticate, optionalAuth, requireRole } from '../middlewares/auth.middleware.js';
+import { requireStepUp } from '../middlewares/stepUp.middleware.js';
 
 /**
  * Tenant settings — runtime branding + payment config.
@@ -19,4 +20,10 @@ tenantRouter.get('/settings', optionalAuth, tenantController.getSettings);
 
 export const adminTenantRouter: Router = Router();
 adminTenantRouter.get('/settings', authenticate, requireRole('ADMIN'), tenantController.getSettings);
-adminTenantRouter.patch('/settings', authenticate, requireRole('ADMIN'), tenantController.updateSettings);
+adminTenantRouter.patch(
+  '/settings',
+  authenticate,
+  requireRole('ADMIN'),
+  requireStepUp('changing collection settings'),
+  tenantController.updateSettings,
+);

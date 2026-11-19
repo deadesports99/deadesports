@@ -16,7 +16,7 @@ export const resultRouter: Router = Router();
 resultRouter.patch(
   '/:id/room',
   authenticate,
-  requirePermission('canUpdateRoomId'),
+  requirePermission(['canUpdateRoomId', 'canManageMatch']),
   resultController.updateRoomCredentials,
 );
 
@@ -25,7 +25,7 @@ resultRouter.patch(
 resultRouter.patch(
   '/:id/room-reveal',
   authenticate,
-  requirePermission('canUpdateRoomId'),
+  requirePermission(['canUpdateRoomId', 'canManageMatch']),
   resultController.updateRoomReveal,
 );
 

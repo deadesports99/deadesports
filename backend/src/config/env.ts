@@ -28,8 +28,24 @@ const envSchema = z.object({
   /** JWT token lifetime, e.g. "7d", "24h". */
   JWT_EXPIRES_IN: z.string().default('7d'),
 
-  /** Admin-web session lifetime (httpOnly cookie). Shorter than player JWTs. */
-  ADMIN_SESSION_TTL_HOURS: z.coerce.number().int().positive().max(72).default(12),
+  /**
+   * Rolls the owner's admin-web session forward on activity. The cookie is
+   * re-issued whenever more than half of this window has been used, so a daily
+   * user never sees the login screen — closing the browser is not a logout.
+   */
+  ADMIN_SESSION_TTL_HOURS: z.coerce.number().int().positive().max(720).default(168),
+
+  /** Idle window for staff (SUB_ADMIN) sessions — tighter than the owner. */
+  ADMIN_STAFF_SESSION_HOURS: z.coerce.number().int().positive().max(720).default(24),
+
+  /** Hard cap: a rolling owner session can never outlive this, idle or not. */
+  ADMIN_SESSION_MAX_DAYS: z.coerce.number().int().positive().max(365).default(30),
+
+  /** Hard cap for staff sessions. */
+  ADMIN_STAFF_SESSION_MAX_DAYS: z.coerce.number().int().positive().max(365).default(7),
+
+  /** Lifetime of the step-up token issued after a fresh OTP (money actions). */
+  ADMIN_STEP_UP_TTL_MINUTES: z.coerce.number().int().positive().max(60).default(10),
 
   /**
    * Exact admin-web origin allowed to send cookie-authenticated mutations.

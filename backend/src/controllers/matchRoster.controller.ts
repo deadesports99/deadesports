@@ -19,8 +19,15 @@ const awardSchema = z.object({
 });
 
 const payoutSchema = z.object({
-  awards: z.array(awardSchema).min(1).max(60),
+  /**
+   * Empty is allowed on purpose: the Final Payout desk must be able to close a
+   * match that owes nothing (no kills, or every prize already paid). The
+   * service only accepts an empty list together with `completeMatch: true`.
+   */
+  awards: z.array(awardSchema).max(60),
   completeMatch: z.boolean().optional(),
+  /** Final Payout desk only: allow paying more than the match collected. */
+  allowOverPool: z.boolean().optional(),
 });
 
 const banSchema = z.object({
@@ -62,6 +69,7 @@ export async function payoutMatchAwards(
       String(req.params.id),
       body.awards,
       body.completeMatch === true,
+      body.allowOverPool === true,
     );
     sendResponse(res, 200, 'Prizes paid', result);
   } catch (err) {

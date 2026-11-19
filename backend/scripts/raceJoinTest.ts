@@ -59,7 +59,6 @@ async function createMatch(adminToken: string) {
       matchType: 'SOLO',
       mapType: 'BERMUDA',
       entryFee: ENTRY_FEE,
-      prizePool: ENTRY_FEE * TOTAL_SLOTS,
       matchTime,
       totalSlots: TOTAL_SLOTS,
     }),

@@ -1,8 +1,8 @@
-import jwt from 'jsonwebtoken';
 import type { User } from '../generated/prisma/client.js';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { signStepUpToken } from '../middlewares/stepUp.middleware.js';
 import {
   accessKeyHint,
   formatAccessKey,
@@ -17,6 +17,11 @@ import { PERMISSION_KEYS, type PermissionsInput } from '../types/auth.js';
 import { sendAdminOtpEmail } from './email.service.js';
 import { writeAuditLog } from './audit.service.js';
 import { allocatePlayerCode } from './identity.service.js';
+import {
+  createAdminSession,
+  revokeAllSessions,
+  revokeSession,
+} from './adminSession.service.js';
 
 /**
  * ─── Admin web authentication ─────────────────────────────────────────────
@@ -33,7 +38,30 @@ const GENERIC_ERROR = 'Invalid email, permission key or code';
 const GENERIC_SENT = 'If this email has access, a sign-in code has been sent.';
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
-const ACCESS_KEY_TTL_DAYS = 90;
+/**
+ * Staff keys are long-lived credentials that mint sessions. 14 days keeps the
+ * blast radius of a leaked key small while still covering a tournament season
+ * without re-issuing.
+ */
+const ACCESS_KEY_TTL_DAYS = 14;
+
+/**
+ * A second request inside this window reuses the code already sitting in the
+ * inbox instead of mailing another one. Stops a double-click / retry storm
+ * from filling the inbox while leaving the user with a code that still works.
+ */
+const OTP_RESEND_GRACE_MS = 60 * 1000;
+
+/**
+ * Hard cap on real emails, counted from the audit trail.
+ *
+ * The per-IP limiter is skipped on the dev machine (RATE_LIMIT_ALLOW_IPS) and
+ * test suites never hold a session, so a loop (or five open login tabs) could
+ * mail the owner ten codes in a minute. Three emails per identity per 10
+ * minutes is plenty for a human; everything after that reuses the live code.
+ */
+const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
+const OTP_MAX_EMAILS_PER_WINDOW = 3;
 
 export interface SessionUser {
   id: string;
@@ -45,7 +73,9 @@ export interface SessionUser {
   role: 'ADMIN' | 'SUB_ADMIN' | 'USER';
   permissions: {
     canCreateMatch: boolean;
+    canManageMatch: boolean;
     canUpdateRoomId: boolean;
+    canViewPayout: boolean;
     canDistributePrize: boolean;
     canManageWallet: boolean;
   };
@@ -62,10 +92,12 @@ export function toSessionUser(user: User): SessionUser {
     playerCode: user.playerCode,
     role: user.role,
     permissions: {
-      canCreateMatch: user.canCreateMatch,
-      canUpdateRoomId: user.canUpdateRoomId,
-      canDistributePrize: user.canDistributePrize,
-      canManageWallet: user.canManageWallet,
+      canCreateMatch: Boolean(user.canCreateMatch),
+      canManageMatch: Boolean(user.canManageMatch),
+      canUpdateRoomId: Boolean(user.canUpdateRoomId),
+      canViewPayout: Boolean(user.canViewPayout),
+      canDistributePrize: Boolean(user.canDistributePrize),
+      canManageWallet: Boolean(user.canManageWallet),
     },
   };
 }
@@ -203,6 +235,65 @@ export async function requestAdminOtp(input: {
   }
 
   const code = generateOtpCode();
+
+  // Reuse a fresh, unused code instead of mailing a duplicate. We cannot read
+  // the plain code back (it is stored hashed), so we simply re-send nothing and
+  // tell the caller to use the code already delivered.
+  const reusable = await prisma.emailOtp.findFirst({
+    where: {
+      tenantId: tenant.id,
+      email,
+      type: 'ADMIN_LOGIN',
+      usedAt: null,
+      attempts: 0,
+      expiresAt: { gt: new Date() },
+      createdAt: { gt: new Date(Date.now() - OTP_RESEND_GRACE_MS) },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Already mailed three codes in the last ten minutes? Stop mailing and let the
+  // newest live code do its job. Without this, an automated login loop floods
+  // the owner's inbox (and the mail provider quota) with identical codes.
+  const recentEmails = await prisma.adminAuditLog.count({
+    where: {
+      tenantId: tenant.id,
+      action: 'ADMIN_OTP_REQUESTED',
+      targetId: identity.id,
+      createdAt: { gte: new Date(Date.now() - OTP_SEND_WINDOW_MS) },
+    },
+  });
+  if (recentEmails >= OTP_MAX_EMAILS_PER_WINDOW) {
+    // Suppression only makes sense when a usable code is still sitting in the
+    // inbox. Codes are wiped whenever a new one is minted, so there are cases
+    // where the newest live row is already older than the resend grace — saying
+    // "code sent" then would strand the admin with no working code at all.
+    if (!reusable) {
+      throw new ApiError(
+        429,
+        'Too many sign-in codes in the last few minutes. Wait a minute and request a fresh code.',
+      );
+    }
+    return {
+      message: GENERIC_SENT,
+      expiresInSeconds: Math.round(OTP_TTL_MS / 1000),
+      requiresKey: Boolean(input.accessKey) || identity?.role === 'SUB_ADMIN',
+    };
+  }
+
+  if (reusable) {
+    // Do NOT log another ADMIN_OTP_REQUESTED: the daily cap counts sends, and
+    // nothing was sent. The caller shows "use the code already in your inbox".
+    return {
+      message: GENERIC_SENT,
+      expiresInSeconds: Math.max(
+        1,
+        Math.round((reusable.expiresAt.getTime() - Date.now()) / 1000),
+      ),
+      requiresKey: Boolean(input.accessKey) || identity?.role === 'SUB_ADMIN',
+    };
+  }
+
   await prisma.emailOtp.deleteMany({ where: { tenantId: tenant.id, email } });
   await prisma.emailOtp.create({
     data: {
@@ -242,7 +333,7 @@ export async function requestAdminOtp(input: {
 }
 
 /**
- * Step 2 — verifies the OTP and issues a 12h session token.
+ * Step 2 — verifies the OTP and starts a server-side session.
  * With a permission key the session belongs to the key's sub-admin identity.
  */
 export async function verifyAdminOtp(input: {
@@ -251,7 +342,7 @@ export async function verifyAdminOtp(input: {
   accessKey?: string;
   ip?: string;
   userAgent?: string;
-}): Promise<{ user: SessionUser; token: string }> {
+}): Promise<{ user: SessionUser; token: string; sessionId: string; cookieMaxAgeMs: number }> {
   const email = input.email.toLowerCase().trim();
   const otp = input.otp.trim();
   if (!/^\d{6}$/.test(otp)) throw ApiError.badRequest('Enter the 6-digit code');
@@ -264,7 +355,7 @@ export async function verifyAdminOtp(input: {
   if (!tenantId) throw ApiError.unauthorized(GENERIC_ERROR);
 
   const row = await prisma.emailOtp.findFirst({
-    where: { tenantId, email, expiresAt: { gt: new Date() } },
+    where: { tenantId, email, type: 'ADMIN_LOGIN', expiresAt: { gt: new Date() } },
     orderBy: { createdAt: 'desc' },
   });
   if (!row) throw ApiError.badRequest('The code is invalid or expired');
@@ -303,20 +394,11 @@ export async function verifyAdminOtp(input: {
     });
   }
 
-  const token = jwt.sign(
-    {
-      userId: user.id,
-      tenantId: user.tenantId,
-      role: user.role,
-      ...(resolvedKey ? { accessKeyId: resolvedKey.keyId } : {}),
-    },
-    env.JWT_SECRET,
-    {
-      expiresIn: `${env.ADMIN_SESSION_TTL_HOURS}h`,
-      issuer: 'freefire-tournament-api',
-      audience: 'freefire-tournament-apps',
-    },
-  );
+  const session = await createAdminSession(user, {
+    ip: input.ip,
+    userAgent: input.userAgent,
+    accessKeyId: resolvedKey?.keyId,
+  });
 
   await writeAuditLog({
     tenantId: user.tenantId,
@@ -325,12 +407,17 @@ export async function verifyAdminOtp(input: {
     action: 'ADMIN_LOGIN',
     targetType: 'User',
     targetId: user.id,
-    meta: { via: resolvedKey ? 'staff-key' : 'owner-otp' },
+    meta: { via: resolvedKey ? 'staff-key' : 'owner-otp', sessionId: session.sessionId },
     ip: input.ip ?? null,
     userAgent: input.userAgent ?? null,
   });
 
-  return { user: toSessionUser(user), token };
+  return {
+    user: toSessionUser(user),
+    token: session.token,
+    sessionId: session.sessionId,
+    cookieMaxAgeMs: session.cookieMaxAgeMs,
+  };
 }
 
 // ─── Access key management (owner only) ───────────────────────────────────
@@ -519,6 +606,7 @@ export async function revokeStaffAccess(
 
   await prisma.staffAccessKey.update({ where: { id: key.id }, data: { revokedAt: new Date() } });
   invalidateAccessKeyCache(key.id);
+  await killUserSessions(key.userId, 'staff-key-revoked');
 
   await writeAuditLog({
     tenantId: owner.tenantId,
@@ -549,6 +637,8 @@ export async function regenerateStaffAccess(
 
   const permissions = permissionsOf(user);
   const created = await createKeyRow(owner.tenantId, user.id, owner.userId, permissions);
+  // A rotated key must invalidate the browsers holding the old one.
+  await killUserSessions(user.id, 'staff-key-rotated');
 
   await writeAuditLog({
     tenantId: owner.tenantId,
@@ -577,4 +667,151 @@ export async function recordAdminLogout(user: {
     action: 'ADMIN_LOGOUT',
     ip: context.ip ?? null,
   });
+}
+
+// ─── Session revocation hooks ────────────────────────────────────────────
+
+/**
+ * Kills every session of a user (used on ban / permission change / key
+ * revoke). Best-effort: a missing session table must never break the action
+ * that triggered it.
+ */
+export async function killUserSessions(userId: string, reason: string): Promise<void> {
+  try {
+    await revokeAllSessions(userId, reason);
+  } catch (error) {
+    console.warn('⚠️ session revoke failed:', (error as Error).message);
+  }
+}
+
+/** Logout of the current browser only — the row dies, the JWT is discarded. */
+export async function endSession(userId: string, sessionId?: string): Promise<void> {
+  if (!sessionId) return;
+  try {
+    await revokeSession(userId, sessionId, 'signed-out');
+  } catch (error) {
+    console.warn('⚠️ session revoke failed:', (error as Error).message);
+  }
+}
+
+// ─── Step-up OTP (money / settings confirmation) ──────────────────────────
+
+export const STEP_UP_OTP_TYPE = 'ADMIN_STEP_UP';
+
+/**
+ * Sends a fresh code to the signed-in admin's own inbox. Deliberately separate
+ * from ADMIN_LOGIN so a login code can never be replayed as a step-up proof.
+ */
+export async function requestStepUpOtp(
+  actor: { userId: string; tenantId: string; role: string },
+  context: { ip?: string } = {},
+): Promise<{ email: string; expiresInSeconds: number; debugOtp?: string }> {
+  const user = await prisma.user.findUnique({ where: { id: actor.userId } });
+  if (!user || user.isBanned) throw ApiError.unauthorized('Your account is not active');
+
+  let email = user.email?.toLowerCase().trim() || '';
+  if (!email) {
+    // Staff may have no email of their own — fall back to the owner inbox.
+    const owner = await prisma.user.findFirst({
+      where: { tenantId: user.tenantId, role: 'ADMIN', isBanned: false },
+      orderBy: { createdAt: 'asc' },
+    });
+    email = owner?.email?.toLowerCase().trim() ?? '';
+  }
+  if (!email) throw ApiError.badRequest('No email is on file for this account');
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId } });
+  if (!tenant || !tenant.isActive) throw ApiError.forbidden('Tenant account is inactive');
+
+  const code = generateOtpCode();
+
+  await prisma.emailOtp.deleteMany({
+    where: { tenantId: user.tenantId, email, type: STEP_UP_OTP_TYPE },
+  });
+  await prisma.emailOtp.create({
+    data: {
+      tenantId: user.tenantId,
+      email,
+      codeHash: hashOtp(code),
+      type: STEP_UP_OTP_TYPE,
+      attempts: 0,
+      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+    },
+  });
+
+  try {
+    await sendAdminOtpEmail(email, code, tenant.brandName);
+  } catch (error) {
+    await prisma.emailOtp.deleteMany({
+      where: { tenantId: user.tenantId, email, type: STEP_UP_OTP_TYPE },
+    });
+    console.error('✖ step-up OTP email failed:', (error as Error).message);
+    throw new ApiError(502, 'Could not send the confirmation code. Please try again.');
+  }
+
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    actorId: user.id,
+    actorRole: user.role,
+    action: 'ADMIN_STEP_UP_REQUESTED',
+    targetType: 'User',
+    targetId: user.id,
+    ip: context.ip ?? null,
+  });
+
+  return {
+    email,
+    expiresInSeconds: OTP_TTL_MS / 1000,
+    debugOtp: env.NODE_ENV === 'production' ? undefined : code,
+  };
+}
+
+/**
+ * Verifies the step-up code and returns the short-lived proof token.
+ * Same 5-attempt lockout as login.
+ */
+export async function verifyStepUpOtp(
+  actor: { userId: string; tenantId: string; role: string },
+  input: { otp: string; email: string; ip?: string; sessionId?: string },
+): Promise<{ token: string; expiresInSeconds: number }> {
+  const otp = input.otp.trim();
+  if (!/^\d{6}$/.test(otp)) throw ApiError.badRequest('Enter the 6-digit code');
+
+  const email = input.email.toLowerCase().trim();
+  const row = await prisma.emailOtp.findFirst({
+    where: {
+      tenantId: actor.tenantId,
+      email,
+      type: STEP_UP_OTP_TYPE,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!row) throw ApiError.badRequest('The code is invalid or expired');
+
+  if (row.attempts >= OTP_MAX_ATTEMPTS) {
+    throw new ApiError(429, 'Too many wrong codes — request a new one');
+  }
+
+  if (!verifyOtpHash(otp, row.codeHash)) {
+    await prisma.emailOtp.update({ where: { id: row.id }, data: { attempts: { increment: 1 } } });
+    throw ApiError.badRequest('The code is invalid or expired');
+  }
+
+  await prisma.emailOtp.delete({ where: { id: row.id } });
+
+  await writeAuditLog({
+    tenantId: actor.tenantId,
+    actorId: actor.userId,
+    actorRole: actor.role,
+    action: 'ADMIN_STEP_UP_VERIFIED',
+    targetType: 'User',
+    targetId: actor.userId,
+    ip: input.ip ?? null,
+  });
+
+  return {
+    token: signStepUpToken({ id: actor.userId, tenantId: actor.tenantId }, input.sessionId),
+    expiresInSeconds: env.ADMIN_STEP_UP_TTL_MINUTES * 60,
+  };
 }

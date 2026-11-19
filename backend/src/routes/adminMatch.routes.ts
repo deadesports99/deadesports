@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as rosterController from '../controllers/matchRoster.controller.js';
 import * as manageController from '../controllers/manageMatch.controller.js';
 import { authenticate, requirePermission } from '../middlewares/auth.middleware.js';
+import { requireStepUp } from '../middlewares/stepUp.middleware.js';
 
 /**
  * Phase 12 — Admin match roster: reward, cheat signals & bans.
@@ -15,12 +16,31 @@ import { authenticate, requirePermission } from '../middlewares/auth.middleware.
  */
 export const adminMatchRouter: Router = Router();
 
-adminMatchRouter.use(authenticate, requirePermission('canDistributePrize'));
+adminMatchRouter.use(authenticate);
 
-adminMatchRouter.get('/:id/participants', rosterController.getMatchRoster);
-adminMatchRouter.get('/:id/participants/export.csv', rosterController.exportMatchRosterCsv);
-adminMatchRouter.post('/:id/payout', rosterController.payoutMatchAwards);
-adminMatchRouter.patch('/:id/participants/:userId/ban', rosterController.banMatchParticipant);
+// Viewing the roster is a Final Payout / scoring action; paying money is not.
+adminMatchRouter.get(
+  '/:id/participants',
+  requirePermission(['canViewPayout', 'canDistributePrize', 'canManageMatch']),
+  rosterController.getMatchRoster,
+);
+adminMatchRouter.get(
+  '/:id/participants/export.csv',
+  requirePermission(['canViewPayout', 'canDistributePrize', 'canManageMatch']),
+  rosterController.exportMatchRosterCsv,
+);
+// Releasing REAL money — only the flag that is named after it.
+adminMatchRouter.post(
+  '/:id/payout',
+  requirePermission('canDistributePrize'),
+  requireStepUp('paying out prizes'),
+  rosterController.payoutMatchAwards,
+);
+adminMatchRouter.patch(
+  '/:id/participants/:userId/ban',
+  requirePermission(['canManageMatch', 'canDistributePrize']),
+  rosterController.banMatchParticipant,
+);
 
 /**
  * Manage Matches — the single control room.
@@ -35,25 +55,25 @@ adminMatchControlRouter.use(authenticate);
 
 adminMatchControlRouter.get(
   '/manage',
-  requirePermission('canCreateMatch'),
+  requirePermission('canManageMatch'),
   manageController.listManageMatches,
 );
 
 adminMatchControlRouter.get(
   '/:id/live-board',
-  requirePermission('canCreateMatch'),
+  requirePermission('canManageMatch'),
   manageController.getLiveBoard,
 );
 
 adminMatchControlRouter.patch(
   '/:id/participants/:userId/kills',
-  requirePermission('canCreateMatch'),
+  requirePermission('canManageMatch'),
   manageController.setParticipantKills,
 );
 
 adminMatchControlRouter.post(
   '/:id/participants/:userId/done',
-  requirePermission('canCreateMatch'),
+  requirePermission('canManageMatch'),
   manageController.setParticipantDone,
 );
 
@@ -61,4 +81,33 @@ adminMatchControlRouter.post(
   '/:id/participants/:userId/refund',
   requirePermission('canDistributePrize'),
   manageController.refundParticipant,
+);
+
+/**
+ * Banned seat money switch (coin icon in the board).
+ *
+ * `refund: true`  -> entry fee back to the banned player (seat + ban stay)
+ * `refund: false` -> no money, ban only (reverses a refund already given)
+ */
+adminMatchControlRouter.patch(
+  '/:id/participants/:userId/ban-refund',
+  requirePermission('canDistributePrize'),
+  manageController.setBannedRefund,
+);
+
+/**
+ * Submit = hand the scored match to the Final Payout desk (no money moves).
+ * Scoring staff can do this; paying stays owner-gated with a step-up OTP.
+ */
+adminMatchControlRouter.post(
+  '/:id/submit',
+  requirePermission('canManageMatch'),
+  manageController.submitForPayout,
+);
+
+/** Final Payout desk — every submitted match with its money totals. */
+adminMatchControlRouter.get(
+  '/payouts/inbox',
+  requirePermission(['canViewPayout', 'canDistributePrize']),
+  manageController.listPayouts,
 );

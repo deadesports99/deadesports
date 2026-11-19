@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import * as manageService from '../services/manageMatch.service.js';
+import * as payoutInboxService from '../services/payoutInbox.service.js';
 import { sendResponse } from '../utils/ApiResponse.js';
 
 const listQuerySchema = z.object({
@@ -18,6 +19,10 @@ const doneSchema = z.object({
 
 const refundSchema = z.object({
   reason: z.string().trim().max(255).optional(),
+});
+
+const banRefundSchema = z.object({
+  refund: z.boolean(),
 });
 
 /** GET /admin/matches/manage — match rows + per-tab counts + search. */
@@ -89,7 +94,9 @@ export async function setParticipantDone(
   }
 }
 
-/** POST /admin/matches/:id/participants/:userId/refund — refund one seat. */
+/**
+ * POST /admin/matches/:id/participants/:userId/refund — refund one seat.
+ */
 export async function refundParticipant(
   req: Request,
   res: Response,
@@ -105,6 +112,91 @@ export async function refundParticipant(
       reason,
     );
     sendResponse(res, 200, `Refunded ₹${result.refunded}`, result.board);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /admin/matches/:id/participants/:userId/ban-refund
+ *
+ * The coin switch on a banned seat: refund = true hands the entry fee back,
+ * refund = false keeps it (plain ban). The seat and the ban stay untouched.
+ */
+export async function setBannedRefund(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const { refund } = banRefundSchema.parse(req.body ?? {});
+    const result = await manageService.setBannedSeatRefund(
+      req.user,
+      String(req.params.id),
+      String(req.params.userId),
+      refund,
+    );
+    const message = !result.refundedNow
+      ? refund
+        ? 'Refund already given for this seat'
+        : 'This seat has no refund to take back'
+      : refund
+        ? `₹${result.refunded} refunded to the banned player`
+        : `₹${result.refunded} refund taken back — ban only`;
+    sendResponse(res, 200, message, result.board);
+  } catch (error) {
+    next(error);
+  }
+}
+/**
+ * POST /admin/matches/:id/submit
+ *
+ * Hand the scored match to the Final Payout desk. No money moves here — the
+ * match simply leaves the live control room and waits for the final payout.
+ */
+export async function submitForPayout(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const result = await payoutInboxService.submitMatchForPayout(
+      req.user,
+      String(req.params.id),
+    );
+    sendResponse(
+      res,
+      200,
+      result.alreadySubmitted ? 'This match is already in Final Payout' : 'Submitted — moved to Final Payout',
+      result,
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
+const payoutFilterSchema = z.object({
+  filter: z.enum(['pending', 'paid', 'all']).default('pending'),
+  q: z.string().trim().max(64).optional(),
+});
+
+/** GET /admin/payouts — the Final Payout desk (submitted matches + totals). */
+export async function listPayouts(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) throw new Error('Authenticated user missing');
+    const query = payoutFilterSchema.parse(req.query ?? {});
+    const result = await payoutInboxService.listPayoutInbox(
+      req.user.tenantId,
+      query.filter,
+      query.q,
+    );
+    sendResponse(res, 200, 'Final payout desk', result);
   } catch (error) {
     next(error);
   }

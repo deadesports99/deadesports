@@ -78,7 +78,7 @@ const db = {
   async match(id: string) {
     const r = await pool.query(
       `select t.id, t."matchNumber", t.status, t."entryFee"::float8 as fee,
-              t."prizePool"::float8 as pool, t."perKillPrize"::float8 as per_kill,
+              t."perKillPrize"::float8 as per_kill,
               t."roomId", t."roomPassword", t."roomRevealedAt",
               (select count(*)::int from "TournamentSlot" s where s."tournamentId" = t.id) as slots
          from "Tournament" t where t.id = $1`,
@@ -118,7 +118,6 @@ async function main() {
       mapType: 'BERMUDA',
       totalSlots: SLOTS,
       entryFee: ENTRY_FEE,
-      prizePool: PRIZE_POOL,
       perKillPrize: PER_KILL,
       matchTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       isPublished: true,

@@ -36,17 +36,17 @@ const players = [
   { id: 'p2', tenantId, name: 'Aman', inGameName: 'FF|Aman', phoneNumber: '9999900002', depositBalance: 0, winningBalance: 0 },
 ];
 
-function seed(over: { commissionRate?: number } = {}) {
+function seed() {
   fake = new FakePrisma({
-    tenants: [{ id: tenantId, brandName: 'Thunder', isActive: true, commissionRate: over.commissionRate ?? 10 }],
+    tenants: [{ id: tenantId, brandName: 'Thunder', isActive: true }],
     users: players,
     tournaments: [
-      { id: 'tour-1', tenantId, title: 'Solo #1', status: 'COMPLETED', matchTime: at(18), entryFee: 25, prizePool: 400, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
-      { id: 'tour-2', tenantId, title: 'Solo #2', status: 'COMPLETED', matchTime: at(20), entryFee: 25, prizePool: 400, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
-      { id: 'tour-yesterday', tenantId, title: 'Old', status: 'COMPLETED', matchTime: otherDay, entryFee: 25, prizePool: 0, perKillPrize: 0, totalSlots: 48, matchType: 'SOLO' },
+      { id: 'tour-1', tenantId, title: 'Solo #1', status: 'COMPLETED', matchTime: at(18), entryFee: 25, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
+      { id: 'tour-2', tenantId, title: 'Solo #2', status: 'COMPLETED', matchTime: at(20), entryFee: 25, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
+      { id: 'tour-yesterday', tenantId, title: 'Old', status: 'COMPLETED', matchTime: otherDay, entryFee: 25, perKillPrize: 0, totalSlots: 48, matchType: 'SOLO' },
       // Sold today, kicks off tomorrow: seats are cash-in TODAY, so the
       // scheduled date must not move that money to another day's report.
-      { id: 'tour-tomorrow', tenantId, title: 'Solo #3', status: 'OPEN', matchTime: new Date('2026-03-16T18:00:00.000Z'), entryFee: 25, prizePool: 400, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
+      { id: 'tour-tomorrow', tenantId, title: 'Solo #3', status: 'OPEN', matchTime: new Date('2026-03-16T18:00:00.000Z'), entryFee: 25, perKillPrize: 10, totalSlots: 48, matchType: 'SOLO' },
     ],
     depositRequests: [
       { id: 'd1', tenantId, userId: 'p1', amount: 500, status: 'APPROVED', reviewedAt: at(10) },
@@ -87,15 +87,6 @@ describe('getDailySettlement', () => {
     assert.equal(summary.totalPrizesPaid, 240);
     assert.equal(summary.prizeCount, 1);
     assert.equal(summary.netOrganizerProfit, -140, '₹100 in - ₹240 out');
-    assert.equal(summary.commissionRate, 10);
-    assert.equal(summary.platformCut, -14, '10% of the margin');
-  });
-
-  it('uses the tenant commission rate', async () => {
-    seed({ commissionRate: 20 });
-    const { summary } = await api.getDailySettlement(tenantId, DAY);
-    assert.equal(summary.commissionRate, 20);
-    assert.equal(summary.platformCut, -28);
   });
 
   it('counts entry fees on the day the seat was paid, not the scheduled date', async () => {

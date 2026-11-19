@@ -17,8 +17,6 @@ function fixture(overrides: Partial<Settlement> = {}): Settlement {
       totalPrizesPaid: 700,
       prizeCount: 2,
       netOrganizerProfit: 500,
-      commissionRate: 10,
-      platformCut: 90,
     },
     transactions: [
       {
@@ -46,15 +44,14 @@ describe('buildSettlementCsv', () => {
     assert.equal(rows[3], 'Total Entry Fees Collected,900.00,6 match(es)');
     assert.equal(rows[4], 'Total Prizes Paid,700.00,2');
     assert.equal(rows[5], 'Net Organizer Profit,500.00');
-    assert.equal(rows[6], 'Platform Cut (10%),90.00');
-    assert.equal(rows[7], '');
-    assert.match(rows[8], /Date|Time|Player/);
+    assert.equal(rows[6], '');
+    assert.match(rows[7], /Date|Time|Player/);
   });
 
   it('writes one ledger row per transaction with amounts fixed to 2 decimals', () => {
     const csv = buildSettlementCsv(fixture());
     const rows = csv.split('\r\n');
-    const ledger = rows[9];
+    const ledger = rows[8];
     assert.match(ledger, /^1,2026-11-05,10:15:30,/);
     assert.match(ledger, /500\.00/);
     assert.match(ledger, /1500\.00/);
@@ -79,6 +76,6 @@ describe('buildSettlementCsv', () => {
 
   it('emits an empty ledger when there are no transactions', () => {
     const rows = buildSettlementCsv(fixture({ transactions: [] } as unknown as Partial<Settlement>)).split('\r\n');
-    assert.equal(rows.length, 9, 'summary + blank + header only');
+    assert.equal(rows.length, 8, 'summary + blank + header only');
   });
 });

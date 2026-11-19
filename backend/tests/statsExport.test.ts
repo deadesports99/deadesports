@@ -42,7 +42,7 @@ function setEnv(overrides: Record<string, unknown>): void {
 function seedOneTenant() {
   fake = new FakePrisma({
     tenants: [
-      { id: tenantId, subdomain: 'thunder', brandName: 'Thunder', isActive: true, commissionRate: 10 },
+      { id: tenantId, subdomain: 'thunder', brandName: 'Thunder', isActive: true },
     ],
     users: [
       {
@@ -187,7 +187,6 @@ describe('stats — snapshot content', () => {
     assert.equal(doc.data.money.entryFeesCollected, 20, 'join fee ledger');
     assert.equal(doc.data.money.prizesPaid, 15, 'prize ledger');
     assert.equal(doc.data.money.netOrganizerProfit, 5, '20 revenue - 15 prizes');
-    assert.equal(doc.data.money.commissionRate, 10);
     assert.equal(doc.data.money.currency, 'INR');
 
     assert.equal(doc.data.counts.matchesScheduled, 1);

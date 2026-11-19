@@ -9,6 +9,10 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      /** Admin-web session row id (cookie sessions only). */
+      sessionId?: string;
+      /** How this request authenticated — cookie sessions get extra guards. */
+      authVia?: 'cookie' | 'bearer';
       /** Raw request bytes, only populated for signature-verified webhooks. */
       rawBody?: Buffer;
     }

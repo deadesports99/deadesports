@@ -190,6 +190,12 @@ export async function approveDeposit(
     where: { id: depositId, tenantId },
   });
   if (!existing) throw ApiError.notFound('Deposit request not found');
+  // Four-eyes rule: the account that receives the money can never be the one
+  // that approves it — otherwise a wallet-permission staff key could mint its
+  // own balance with a fake UTR.
+  if (existing.userId === adminId) {
+    throw ApiError.forbidden('You cannot approve your own deposit request');
+  }
   if (existing.status !== 'PENDING') {
     throw ApiError.conflict(`Deposit is already ${existing.status}`);
   }
@@ -287,6 +293,9 @@ export async function rejectDeposit(
     where: { id: depositId, tenantId },
   });
   if (!existing) throw ApiError.notFound('Deposit request not found');
+  if (existing.userId === adminId) {
+    throw ApiError.forbidden('You cannot review your own deposit request');
+  }
   if (existing.status !== 'PENDING') {
     throw ApiError.conflict(`Deposit is already ${existing.status}`);
   }

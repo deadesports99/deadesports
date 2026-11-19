@@ -54,7 +54,16 @@ const winnerUid = '123456789';
 const tournamentId = 'tour-1';
 const staff = { userId: 'admin-1', tenantId, role: 'ADMIN' } as any;
 
-function seed(opts: { status?: string; pool?: number; perKill?: number; winning?: number; slot?: boolean } = {}) {
+function seed(
+  opts: { status?: string; perKill?: number; winning?: number; slot?: boolean; seats?: number } = {},
+) {
+  const seats = opts.seats ?? 5;
+  const otherSlots = Array.from({ length: seats - 1 }, (_, i) => ({
+    id: `slot-x${i}`,
+    tournamentId,
+    userId: `other-${i}`,
+    slotNumber: i + 2,
+  }));
   fake = new FakePrisma({
     users: [
       {
@@ -73,7 +82,6 @@ function seed(opts: { status?: string; pool?: number; perKill?: number; winning?
         tenantId,
         title: 'Bermuda Solo #1',
         status: opts.status ?? 'LIVE',
-        prizePool: opts.pool ?? 400,
         perKillPrize: opts.perKill ?? 10,
         entryFee: 25,
         totalSlots: 48,
@@ -82,7 +90,9 @@ function seed(opts: { status?: string; pool?: number; perKill?: number; winning?
       },
     ],
     tournamentSlots:
-      opts.slot === false ? [] : [{ id: 'slot-1', tournamentId, userId: winnerUserId, slotNumber: 5 }],
+      opts.slot === false
+        ? []
+        : [{ id: 'slot-1', tournamentId, userId: winnerUserId, slotNumber: 1 }, ...otherSlots],
   });
   return fake;
 }
@@ -90,16 +100,15 @@ function seed(opts: { status?: string; pool?: number; perKill?: number; winning?
 describe('finishMatchAndPayWinner', () => {
   beforeEach(() => seed());
 
-  it('pays 50% of the pool plus per-kill prize into the WINNING balance', async () => {
+  it('pays the per-kill prize into the WINNING balance', async () => {
     const out = await api.finishMatchAndPayWinner(staff, tournamentId, { winnerUid, winnerKills: 4 } as any);
 
-    assert.equal(out.totalPaid, 240, '₹200 rank + 4x ₹10 kills');
-    assert.equal(out.winner.rankPrize, 200);
+    assert.equal(out.totalPaid, 40, '4 x ₹10 kills, no placement prize');
     assert.equal(out.winner.killPrize, 40);
     assert.equal(out.status, 'COMPLETED');
 
     const winner = fake.rowsOf('user')[0];
-    assert.equal(winner.winningBalance, 290, '₹50 + ₹240');
+    assert.equal(winner.winningBalance, 90, '₹50 + ₹40');
     assert.equal(winner.depositBalance, 0, 'prizes never land in the deposit balance');
 
     const ledger = fake.rowsOf('walletLedger');
@@ -107,8 +116,8 @@ describe('finishMatchAndPayWinner', () => {
     assert.equal(ledger[0].type, 'CREDIT');
     assert.equal(ledger[0].category, 'WINNING_PRIZE');
     assert.equal(ledger[0].balanceType, 'WINNING');
-    assert.equal(Number(ledger[0].amount), 240);
-    assert.equal(Number(ledger[0].balanceAfter), 290);
+    assert.equal(Number(ledger[0].amount), 40);
+    assert.equal(Number(ledger[0].balanceAfter), 90);
     assert.equal(ledger[0].referenceId, tournamentId);
 
     assert.equal(fake.rowsOf('tournament')[0].status, 'COMPLETED');
@@ -116,18 +125,27 @@ describe('finishMatchAndPayWinner', () => {
     assert.equal(result.userId, winnerUserId);
     assert.equal(result.rank, 1);
     assert.equal(result.verifiedKills, 4);
-    assert.equal(Number(result.prizeWon), 240);
+    assert.equal(Number(result.prizeWon), 40);
     assert.equal(result.isApproved, true);
   });
 
-  it('clamps kills to 0..99 so a typo cannot over-pay', async () => {
+  it('clamps kills to the lobby size so a typo cannot over-pay', async () => {
+    seed({ seats: 101 });
     const out = await api.finishMatchAndPayWinner(staff, tournamentId, { winnerUid, winnerKills: 5000 } as any);
-    assert.equal(out.winner.kills, 99);
-    assert.equal(out.totalPaid, 200 + 99 * 10);
+    assert.equal(out.winner.kills, 99, 'capped at 99 kills');
+    assert.equal(out.totalPaid, 99 * 10);
+  });
+
+  it('refuses a payout bigger than the entry fees collected', async () => {
+    seed({ seats: 1, perKill: 30 });
+    await assert.rejects(
+      () => api.finishMatchAndPayWinner(staff, tournamentId, { winnerUid, winnerKills: 2 } as any),
+      /at most 0 kill/i,
+    );
   });
 
   it('completes the match without a ledger row when the prize is zero', async () => {
-    seed({ pool: 0, perKill: 0 });
+    seed({ perKill: 0 });
     const out = await api.finishMatchAndPayWinner(staff, tournamentId, { winnerUid, winnerKills: 0 } as any);
     assert.equal(out.totalPaid, 0);
     assert.equal(fake.rowsOf('walletLedger').length, 0);
@@ -140,7 +158,7 @@ describe('finishMatchAndPayWinner', () => {
       () => api.finishMatchAndPayWinner(staff, tournamentId, { winnerUid, winnerKills: 0 } as any),
       /already completed/i,
     );
-    assert.equal(fake.rowsOf('walletLedger').length, 1, 'no double payout');
+    assert.equal(fake.rowsOf('walletLedger').length, 0, 'zero-kill winner pays nothing, twice');
 
     seed({ status: 'CANCELLED' });
     await assert.rejects(
@@ -150,6 +168,7 @@ describe('finishMatchAndPayWinner', () => {
   });
 
   it('validates the winner UID and requires the player to have joined', async () => {
+    seed({ slot: false });
     await assert.rejects(
       () => api.finishMatchAndPayWinner(staff, tournamentId, { winnerUid: '12ab', winnerKills: 0 } as any),
       /6-12 digit/i,

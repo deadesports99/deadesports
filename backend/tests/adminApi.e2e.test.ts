@@ -138,10 +138,8 @@ function seed() {
         upiId: 'thunder@okaxis',
         upiName: 'Thunder Esports',
         minDeposit: 10,
-        commissionRate: 10,
         allowPhoneAuth: true,
         allowGoogleAuth: true,
-        allowEmailAuth: true,
       },
     ],
     users: [adminUser(), playerUser(), staffUser()],
@@ -155,7 +153,6 @@ function seed() {
         matchType: 'SOLO',
         mapType: 'BERMUDA',
         entryFee: 25,
-        prizePool: 400,
         perKillPrize: 10,
         totalSlots: 48,
         joinedCount: 2,
@@ -230,7 +227,6 @@ describe('match management', () => {
         matchType: 'SQUAD',
         mapType: 'BERMUDA',
         entryFee: 40,
-        prizePool: 1200,
         perKillPrize: 5,
         matchTime: minutes(180).toISOString(),
       },
@@ -260,7 +256,6 @@ describe('match management', () => {
         matchType: 'SOLO',
         mapType: 'BERMUDA',
         entryFee: 40,
-        prizePool: 100,
         matchTime: minutes(180).toISOString(),
       },
     });
@@ -352,15 +347,15 @@ describe('room, results and payout', () => {
   it('pays winners by UID and shows the scoreboard', async () => {
     const finish = await call('/api/v1/tournaments/tour-1/finish', {
       method: 'POST',
-      body: { winnerUid: '123456789', winnerKills: 4 },
+      body: { winnerUid: '123456789', winnerKills: 1 },
     });
     assert.equal(finish.status, 200);
-    assert.equal(finish.body.data.totalPaid, 240);
-    assert.equal(fake.rowsOf('user').find((u) => u.id === playerId)?.winningBalance, 290);
+    assert.equal(finish.body.data.totalPaid, 10, '1 x ₹10 kill, no placement prize');
+    assert.equal(fake.rowsOf('user').find((u) => u.id === playerId)?.winningBalance, 60);
 
     const board = await call('/api/v1/tournaments/tour-1/results');
     assert.equal(board.status, 200);
-    assert.equal(board.body.data.scoreboard[0].kills, 4);
+    assert.equal(board.body.data.scoreboard[0].kills, 1);
 
     const again = await call('/api/v1/tournaments/tour-1/finish', {
       method: 'POST',
@@ -372,7 +367,7 @@ describe('room, results and payout', () => {
   it('distributes prizes through the staff payout route only with permission', async () => {
     const res = await call('/api/v1/tournaments/tour-1/payout', {
       method: 'POST',
-      body: { results: [{ userId: playerId, verifiedKills: 3, rank: 1 }] },
+      body: { results: [{ userId: playerId, verifiedKills: 1, rank: 1 }] },
     });
     assert.equal(res.status, 200);
     assert.equal(res.body.data.playersPaid, 1);

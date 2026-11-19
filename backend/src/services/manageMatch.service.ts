@@ -16,11 +16,10 @@ import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { AuthUser } from '../types/auth.js';
 import { realtimeService } from './realtime.service.js';
-import { computePrizePool } from './tournament.service.js';
 
 /** Matches a control room cares about, in the order the tabs show them. */
-const LIVE_STATUSES = ['LIVE', 'SLOTS_FULL'] as const;
-const UPCOMING_STATUSES = ['OPEN', 'UPCOMING', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
+const LIVE_STATUSES = ['LIVE', 'UNDER_REVIEW'] as const;
+const UPCOMING_STATUSES = ['OPEN', 'UPCOMING', 'SLOTS_FULL', 'ROOM_REVEALED', 'STARTING_SOON'] as const;
 const CLOSED_STATUSES = ['COMPLETED', 'CANCELLED'] as const;
 
 export type ManageFilter = 'live' | 'upcoming' | 'all' | 'closed';
@@ -35,7 +34,6 @@ export interface ManageMatchRow {
   status: string;
   entryFee: number;
   perKillPrize: number;
-  prizePool: number;
   totalSlots: number;
   joined: number;
   banned: number;
@@ -44,7 +42,12 @@ export interface ManageMatchRow {
   matchTime: string;
   roomId: string | null;
   roomPassword: string | null;
+  /** Saved credentials, regardless of whether players can already see them. */
+  hasRoomCredentials: boolean;
+  /** Saved AND revealed — true means every seated player already has the code. */
   roomPublished: boolean;
+  /** Set when the admin pressed Submit — the match lives in the Final Payout desk. */
+  payoutSubmittedAt: string | null;
 }
 
 export interface ManageBoardRow {
@@ -57,6 +60,14 @@ export interface ManageBoardRow {
   isEliminated: boolean;
   isBanned: boolean;
   banReason: string | null;
+  /** Account-wide ban (`User.isBanned`) — the player is logged out everywhere. */
+  accountBanned: boolean;
+  /**
+   * Net entry fee already handed back on this seat (0 = nothing returned).
+   * For a banned seat this is the "ban ke baad bhi paisa milega" switch the
+   * admin flips with the coin icon: > 0 = refund dikh raha hai / chalu hai.
+   */
+  refunded: number;
   joinedAt: string;
   paid: number;
 }
@@ -99,12 +110,12 @@ function toMatchRow(match: {
   status: string;
   entryFee: Prisma.Decimal;
   perKillPrize: Prisma.Decimal;
-  prizePool: Prisma.Decimal;
   totalSlots: number;
   matchTime: Date;
   roomId: string | null;
   roomPassword: string | null;
   roomRevealedAt: Date | null;
+  payoutSubmittedAt?: Date | null;
   _count?: { slots: number };
 }, extra: { banned: number; totalKills: number; finished: number }): ManageMatchRow {
   return {
@@ -117,7 +128,6 @@ function toMatchRow(match: {
     status: match.status,
     entryFee: num(match.entryFee),
     perKillPrize: num(match.perKillPrize),
-    prizePool: num(match.prizePool),
     totalSlots: match.totalSlots,
     joined: match._count?.slots ?? 0,
     banned: extra.banned,
@@ -126,7 +136,9 @@ function toMatchRow(match: {
     matchTime: match.matchTime.toISOString(),
     roomId: match.roomId,
     roomPassword: match.roomPassword,
+    hasRoomCredentials: Boolean(match.roomId && match.roomPassword),
     roomPublished: Boolean(match.roomId && match.roomPassword && match.roomRevealedAt),
+    payoutSubmittedAt: match.payoutSubmittedAt ? match.payoutSubmittedAt.toISOString() : null,
   };
 }
 
@@ -140,8 +152,19 @@ export async function listManageMatches(
   tenantId: string,
   filter: ManageFilter,
   search?: string,
-): Promise<{ matches: ManageMatchRow[]; counts: Record<ManageFilter, number> }> {
-  const where: Prisma.TournamentWhereInput = { tenantId };
+): Promise<{
+  matches: ManageMatchRow[];
+  counts: Record<ManageFilter, number> & {
+    /** Kickoff passed, still waiting for the admin to press "Start match now". */
+    awaitingStart: number;
+  };
+}> {
+  /**
+   * A submitted match has left the live control room: scoring is frozen and the
+   * money is released from the Final Payout desk. Keeping it here would let two
+   * screens fight over the same match.
+   */
+  const where: Prisma.TournamentWhereInput = { tenantId, payoutSubmittedAt: null };
   if (filter === 'live') where.status = { in: [...LIVE_STATUSES] };
   else if (filter === 'upcoming') where.status = { in: [...UPCOMING_STATUSES] };
   else if (filter === 'closed') where.status = { in: [...CLOSED_STATUSES] };
@@ -172,7 +195,12 @@ export async function listManageMatches(
 
   const matches = await prisma.tournament.findMany({
     where,
-    orderBy: [{ matchTime: 'desc' }, { matchNumber: 'desc' }],
+    // Soonest kickoff first — the match an admin must act on is always on top.
+    // Finished matches read newest-first (they only matter for payout history).
+    orderBy:
+      filter === 'closed'
+        ? [{ matchTime: 'desc' }, { matchNumber: 'desc' }]
+        : [{ matchTime: 'asc' }, { matchNumber: 'asc' }],
     take: 60,
     include: {
       _count: { select: { slots: true } },
@@ -182,11 +210,12 @@ export async function listManageMatches(
     },
   });
 
-  const [liveCount, upcomingCount, closedCount, allCount] = await Promise.all([
-    prisma.tournament.count({ where: { tenantId, status: { in: [...LIVE_STATUSES] } } }),
-    prisma.tournament.count({ where: { tenantId, status: { in: [...UPCOMING_STATUSES] } } }),
-    prisma.tournament.count({ where: { tenantId, status: { in: [...CLOSED_STATUSES] } } }),
-    prisma.tournament.count({ where: { tenantId } }),
+  const [liveCount, upcomingCount, closedCount, allCount, awaitingStartCount] = await Promise.all([
+    prisma.tournament.count({ where: { tenantId, payoutSubmittedAt: null, status: { in: [...LIVE_STATUSES] } } }),
+    prisma.tournament.count({ where: { tenantId, payoutSubmittedAt: null, status: { in: [...UPCOMING_STATUSES] } } }),
+    prisma.tournament.count({ where: { tenantId, payoutSubmittedAt: null, status: { in: [...CLOSED_STATUSES] } } }),
+    prisma.tournament.count({ where: { tenantId, payoutSubmittedAt: null } }),
+    prisma.tournament.count({ where: { tenantId, payoutSubmittedAt: null, status: 'STARTING_SOON' } }),
   ]);
 
   return {
@@ -197,7 +226,13 @@ export async function listManageMatches(
         finished: match.slots.filter((slot) => slot.isEliminated).length,
       }),
     ),
-    counts: { live: liveCount, upcoming: upcomingCount, closed: closedCount, all: allCount },
+    counts: {
+      live: liveCount,
+      upcoming: upcomingCount,
+      closed: closedCount,
+      all: allCount,
+      awaitingStart: awaitingStartCount,
+    },
   };
 }
 
@@ -212,6 +247,7 @@ export async function getLiveBoard(tenantId: string, tournamentId: string): Prom
       user: {
         select: {
           phoneNumber: true,
+          isBanned: true,
           matchResults: {
             where: { tournamentId },
             select: { prizeWon: true },
@@ -221,6 +257,13 @@ export async function getLiveBoard(tenantId: string, tournamentId: string): Prom
       },
     },
   });
+
+  /**
+   * Refund state per seat, derived from the wallet ledger (single source of
+   * truth): CREDIT - DEBIT over REFUND rows for this match. A reversal writes
+   * a DEBIT REFUND row, so the net goes back to 0 and the coin stops glowing.
+   */
+  const refundedByUser = await refundedPerSeat(tournamentId);
 
   const players: ManageBoardRow[] = slots.map((slot) => ({
     userId: slot.userId,
@@ -232,6 +275,8 @@ export async function getLiveBoard(tenantId: string, tournamentId: string): Prom
     isEliminated: slot.isEliminated,
     isBanned: slot.isBanned,
     banReason: slot.banReason,
+    accountBanned: Boolean(slot.user?.isBanned),
+    refunded: round2(refundedByUser.get(slot.userId) ?? 0),
     joinedAt: slot.joinedAt.toISOString(),
     paid: num(slot.user?.matchResults?.[0]?.prizeWon),
   }));
@@ -253,6 +298,27 @@ export async function getLiveBoard(tenantId: string, tournamentId: string): Prom
     maxKills: Math.max(0, match.totalSlots - 1),
     payoutPreview: round2(totalKills * num(match.perKillPrize)),
   };
+}
+
+/**
+ * Net refund per seat for one match, derived from the wallet ledger:
+ * CREDIT(REFUND) - DEBIT(REFUND) grouped by player. Using the ledger (and not
+ * a new column) keeps the audit trail and the UI switch in perfect sync, and
+ * works for seats that were fully removed by the plain "refund seat" action.
+ */
+async function refundedPerSeat(tournamentId: string): Promise<Map<string, number>> {
+  const rows = await prisma.walletLedger.groupBy({
+    by: ['userId', 'type'],
+    where: { referenceId: tournamentId, category: 'REFUND' },
+    _sum: { amount: true },
+  });
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const amount = num(row._sum.amount);
+    const delta = row.type === 'DEBIT' ? -amount : amount;
+    map.set(row.userId, (map.get(row.userId) ?? 0) + delta);
+  }
+  return map;
 }
 
 /** Pushes the fresh balance to one player so their wallet tab updates live. */
@@ -353,6 +419,155 @@ export async function setPlayerDone(
 }
 
 /**
+ * BAN-REFUND SWITCH — "ban hua player ko paisa milega ya nahi?"
+ *
+ * A banned seat stays in the match (so the roster keeps its history and the
+ * ban keeps excluding it from the payout) but the entry fee can be handed back
+ * or held. The admin's coin icon next to the ban button drives this:
+ *
+ *   refund = true   -> entry fee back to the same wallet it came from
+ *   refund = false  -> money taken back again (only if the wallet still has it)
+ *
+ * Money never moves twice: the wallet ledger's net REFUND for the seat decides
+ * whether the toggle is already ON, so clicking twice is harmless.
+ */
+export async function setBannedSeatRefund(
+  staff: AuthUser,
+  tournamentId: string,
+  userId: string,
+  refund: boolean,
+): Promise<{ board: ManageBoard; refunded: number; refundedNow: boolean }> {
+  const match = await findMatchOrThrow(staff.tenantId, tournamentId);
+  const slot = await findSlotOrThrow(tournamentId, userId);
+
+  if (CLOSED_STATUSES.includes(match.status as (typeof CLOSED_STATUSES)[number])) {
+    throw ApiError.conflict(`This match is ${match.status} — money actions are closed`);
+  }
+  if (!slot.isBanned) {
+    throw ApiError.conflict('This switch is only for a banned player — ban the player first');
+  }
+  if (slot.liveKills > 0) {
+    throw ApiError.conflict(
+      'This player already has kills on the board — reset the kills to 0 first',
+    );
+  }
+
+  const entryFee = num(match.entryFee);
+  if (entryFee <= 0) {
+    throw ApiError.conflict('This match has no entry fee — nothing to refund');
+  }
+
+  let refundedUser: { depositBalance: number; winningBalance: number } | null = null;
+  let refundedNow = false;
+
+  await prisma.$transaction(
+    async (tx) => {
+      // Same balance the join debited, so the ledger stays an honest story.
+      const joinLedger = await tx.walletLedger.findFirst({
+        where: { userId, referenceId: tournamentId, category: 'JOIN_FEE' },
+        orderBy: { createdAt: 'asc' },
+      });
+      const balanceType: 'DEPOSIT' | 'WINNING' = joinLedger?.balanceType ?? 'DEPOSIT';
+
+      const rows = await tx.walletLedger.groupBy({
+        by: ['type'],
+        where: { userId, referenceId: tournamentId, category: 'REFUND' },
+        _sum: { amount: true },
+      });
+      const credit = rows.find((row) => row.type === 'CREDIT')?._sum.amount ?? 0;
+      const debit = rows.find((row) => row.type === 'DEBIT')?._sum.amount ?? 0;
+      const net = num(credit) - num(debit);
+
+      if (refund && net <= 0) {
+        const updated =
+          balanceType === 'DEPOSIT'
+            ? await tx.user.update({
+                where: { id: userId },
+                data: { depositBalance: { increment: entryFee } },
+              })
+            : await tx.user.update({
+                where: { id: userId },
+                data: { winningBalance: { increment: entryFee } },
+              });
+
+        await tx.walletLedger.create({
+          data: {
+            tenantId: staff.tenantId,
+            userId,
+            amount: entryFee,
+            balanceType,
+            type: 'CREDIT',
+            category: 'REFUND',
+            balanceAfter: balanceType === 'DEPOSIT' ? updated.depositBalance : updated.winningBalance,
+            referenceId: tournamentId,
+            notes: 'Banned seat — entry fee refunded by admin',
+          },
+        });
+        refundedNow = true;
+        refundedUser = {
+          depositBalance: Number(updated.depositBalance),
+          winningBalance: Number(updated.winningBalance),
+        };
+        return;
+      }
+
+      if (!refund && net > 0) {
+        // Take the money back — refuse when the player already spent it, so a
+        // wallet can never go negative from an admin click.
+        const debited = await tx.$queryRaw<Array<{ depositBalance: string; winningBalance: string }>>`
+          UPDATE "User"
+             SET "depositBalance" = CASE WHEN ${
+               balanceType === 'DEPOSIT'
+             } THEN "depositBalance" - ${entryFee}::numeric ELSE "depositBalance" END,
+                 "winningBalance" = CASE WHEN ${
+                   balanceType === 'WINNING'
+                 } THEN "winningBalance" - ${entryFee}::numeric ELSE "winningBalance" END
+           WHERE id = ${userId}
+             AND (
+               (${balanceType === 'DEPOSIT'} AND "depositBalance" >= ${entryFee}::numeric)
+               OR (${balanceType === 'WINNING'} AND "winningBalance" >= ${entryFee}::numeric)
+             )
+          RETURNING "depositBalance", "winningBalance"`;
+
+        const row = debited[0];
+        if (!row) {
+          throw ApiError.conflict(
+            'This player has already spent the refunded money — balance cannot be taken back',
+          );
+        }
+
+        await tx.walletLedger.create({
+          data: {
+            tenantId: staff.tenantId,
+            userId,
+            amount: entryFee,
+            balanceType,
+            type: 'DEBIT',
+            category: 'REFUND',
+            balanceAfter: balanceType === 'DEPOSIT' ? row.depositBalance : row.winningBalance,
+            referenceId: tournamentId,
+            notes: 'Banned seat — refund reversed by admin',
+          },
+        });
+        refundedNow = true;
+        refundedUser = {
+          depositBalance: Number(row.depositBalance),
+          winningBalance: Number(row.winningBalance),
+        };
+      }
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 20000 },
+  );
+
+  if (refundedNow) sendWalletNudge(userId, refundedUser);
+  announceBoard(staff.tenantId, tournamentId, { userId, bannedRefund: refund });
+
+  const board = await getLiveBoard(staff.tenantId, tournamentId);
+  const seat = board.players.find((player) => player.userId === userId);
+  return { board, refunded: seat?.refunded ?? 0, refundedNow };
+}
+
+/**
  * Refunds one seat: back to the balance the fee came from, removes the seat,
  * shrinks the pool. Refused once that seat has kills on the board, because the
  * money is already spoken for.
@@ -379,12 +594,6 @@ export async function refundParticipant(
 
   const entryFee = num(match.entryFee);
   const note = reason?.trim() || 'Seat refunded by admin';
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: staff.tenantId },
-    select: { commissionRate: true },
-  });
-  const commission = num(tenant?.commissionRate);
-
   await prisma.$transaction(
     async (tx) => {
       // Same balance the join debited, so the ledger stays an honest story.
@@ -421,24 +630,10 @@ export async function refundParticipant(
 
       await tx.tournamentSlot.delete({ where: { id: slot.id } });
 
-      // The pool is only ever the money actually collected, minus the cut.
-      const remaining = await tx.tournamentSlot.count({ where: { tournamentId } });
       refundedUser = {
         depositBalance: Number(updatedUser.depositBalance),
         winningBalance: Number(updatedUser.winningBalance),
       };
-
-      await tx.tournament.update({
-        where: { id: tournamentId },
-        data: {
-          prizePool: computePrizePool(
-            entryFee,
-            remaining,
-            num(match.perKillPrize),
-            commission,
-          ),
-        },
-      });
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 20000 },
   );

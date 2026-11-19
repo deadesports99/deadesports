@@ -16,7 +16,7 @@ import {
   releaseSlot,
   reserveSlot,
 } from './slotLock.service.js';
-import { pushToTournamentParticipants } from './fcm.service.js';
+import { pushToTournamentParticipants, pushToUsers } from './fcm.service.js';
 import { realtimeService } from './realtime.service.js';
 import {
   isRoomUnlocked,
@@ -52,49 +52,6 @@ export const SLOT_LIMITS = {
 export type SlotLimits = (typeof SLOT_LIMITS)[keyof typeof SLOT_LIMITS];
 
 /**
-/**
- * Default platform cut, in percent. Kept only as a fallback for callers that
- * have not loaded the tenant; the live value is Tenant.commissionRate.
- *
- * This is a pure per-kill format: there is no 1st/2nd/3rd placement prize, the
- * pool exists only to guarantee that every confirmed kill can be paid. 20% is
- * the market norm in Indian Free Fire custom rooms, and the admin can move it
- * anywhere between 0% and 50%.
- */
-export const DEFAULT_COMMISSION_PERCENT = 20;
-
-/**
- * The prize pool for a per-kill match: seats sold x entry fee x (100 - cut)%.
- *
- * It grows as players join and shrinks back if a seat is cancelled/refunded,
- * so the pool shown to players never promises money the match does not hold.
- */
-export function computePrizePool(
-  entryFee: number,
-  seatsSold: number,
-  perKillPrize: number,
-  commissionPercent: number = DEFAULT_COMMISSION_PERCENT,
-): number {
-  const collected = Math.max(0, seatsSold) * Math.max(0, entryFee);
-  const share = 1 - Math.min(100, Math.max(0, commissionPercent)) / 100;
-  const pool = collected * share;
-  // A pool with no kills recorded is still a pool; never round below one kill's
-  // worth when at least one seat is paid for, so the display is never "₹0"
-  // next to a live per-kill rate.
-  const floor = seatsSold > 0 ? Math.max(0, perKillPrize) : 0;
-  return Math.round(Math.max(pool, floor) * 100) / 100;
-}
-
-/** Pool advertised before anyone joins: a full house at the current rate. */
-/** Loads the tenant's cut, falling back to the default when not yet set. */async function commissionFor(tenantId: string): Promise<number> {
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { commissionRate: true },
-  });
-  const rate = tenant?.commissionRate;
-  return typeof rate === 'number' && Number.isFinite(rate) ? rate : DEFAULT_COMMISSION_PERCENT;
-}
-
 /** Resolve the seat window for a game mode (unknown mode falls back to BR). */
 export function slotLimitsFor(gameMode: string): SlotLimits {
   return gameMode === 'CLASH_SQUAD' ? SLOT_LIMITS.CLASH_SQUAD : SLOT_LIMITS.BATTLE_ROYALE;
@@ -119,7 +76,12 @@ const CANCELLABLE_STATUSES = [
   'OPEN',
   'SLOTS_FULL',
   'ROOM_REVEALED',
+  // Kickoff passed, organiser never started it: refunding is the right exit.
+  'STARTING_SOON',
   'LIVE',
+  // Stale live match the sweep parked for review — no prize has been paid yet
+  // (payouts only happen on COMPLETED), so refunding every seat is still safe.
+  'UNDER_REVIEW',
 ] as const;
 
 /** Statuses a player may still book a seat in (ROOM_REVEALED is included: a
@@ -130,6 +92,7 @@ const VISIBILITY_EDITABLE_STATUSES = [
   'OPEN',
   'SLOTS_FULL',
   'ROOM_REVEALED',
+  'STARTING_SOON',
 ] as const;
 
 /** Player-list visibility window bounds (hours before match start). */
@@ -145,7 +108,7 @@ const getTeamSize = (matchType: string): number => TEAM_SIZE[matchType as 'SOLO'
  * rooms already out. Old LIVE or COMPLETED matches from previous days are not
  * publishable and must never clutter the admin's publish picker.
  */
-const PUBLISHABLE_STATUSES = ['UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED'] as const;
+const PUBLISHABLE_STATUSES = ['UPCOMING', 'OPEN', 'SLOTS_FULL', 'ROOM_REVEALED', 'STARTING_SOON'] as const;
 
 /** Small grace so a match that just kicked off can still get its room published. */
 const PUBLISH_GRACE_MS = 60 * 60 * 1000;
@@ -165,8 +128,6 @@ export interface CreateTournamentInput {
   matchType: 'SOLO' | 'DUO' | 'SQUAD';
   mapType: 'BERMUDA' | 'PURGATORY' | 'KALAHARI' | 'ALPINE' | 'NEXTERRA';
   entryFee: number;
-  /** Ignored — derived from seats sold x entry fee x the payout share. */
-  prizePool?: number;
   /** Required: this is a per-kill format, every confirmed kill pays this. */
   perKillPrize: number;
   matchTime: Date;
@@ -301,7 +262,6 @@ export async function createTournament(creator: AuthUser, data: CreateTournament
           // Nobody has paid yet, so the pool starts empty and only grows from
           // real seats. Showing the full-house figure here used to make an
           // empty match look like it already held thousands.
-          prizePool: 0,
           perKillPrize: data.perKillPrize,
           totalSlots,
           matchTime: data.matchTime,
@@ -413,7 +373,7 @@ export async function listTournaments(
       ? {}
       : {
           matchTime: { gte: new Date(nowMs - PLAYER_FEED_GRACE_MS) },
-          status: { notIn: ['COMPLETED', 'CANCELLED'] as TournamentStatus[] },
+          status: { notIn: ['COMPLETED', 'CANCELLED', 'UNDER_REVIEW'] as TournamentStatus[] },
         }),
   };
 
@@ -527,7 +487,7 @@ export async function getTournamentSlots(tenantId: string, tournamentId: string)
 
   const slots = await prisma.tournamentSlot.findMany({
     where: { tournamentId },
-    include: { user: { select: { id: true, inGameName: true, inGameUid: true, phoneNumber: true } } },
+    include: { user: { select: { id: true, inGameName: true, inGameUid: true } } },
     orderBy: { slotNumber: 'asc' },
   });
 
@@ -541,15 +501,51 @@ export async function getTournamentSlots(tenantId: string, tournamentId: string)
         ? { slotNumber: slotNum, teamId: booked.teamId, player: booked.user }
         : { slotNumber: slotNum, teamId: null, player: null };
     }),
+  };
+}
 
+/**
+ * Player-facing "who joined this match" list — slot number and in-game name
+ * only, **earliest join first** (the player who booked first sits at the top).
+ * Phone numbers and Free Fire UIDs are never sent here: one player must not be
+ * able to read another player's contact details from the seat list.
+ */
+export async function getTournamentPlayers(tenantId: string, tournamentId: string) {
+  const tournament = await prisma.tournament.findFirst({
+    where: { id: tournamentId, tenantId },
+    select: { id: true, totalSlots: true },
+  });
+  if (!tournament) throw ApiError.notFound('Tournament not found');
 
+  const slots = await prisma.tournamentSlot.findMany({
+    where: { tournamentId },
+    orderBy: [{ joinedAt: 'asc' }, { slotNumber: 'asc' }],
+    select: {
+      slotNumber: true,
+      joinedAt: true,
+      isBanned: true,
+      inGameNameSnapshot: true,
+      user: { select: { inGameName: true } },
+    },
+  });
 
-
+  return {
+    totalSlots: tournament.totalSlots,
+    joined: slots.length,
+    players: slots.map((slot, index) => ({
+      position: index + 1,
+      slotNumber: slot.slotNumber,
+      ign:
+        slot.inGameNameSnapshot?.trim() ||
+        slot.user?.inGameName?.trim() ||
+        `Player ${slot.slotNumber}`,
+      joinedAt: slot.joinedAt.toISOString(),
+      isBanned: slot.isBanned,
+    })),
   };
 }
 
 // ─── 5. JOIN TOURNAMENT (ATOMIC) ─────────────────────────────────────────
-
 export interface JoinTournamentResult {
   slotNumber: number;
   teamId: string | null;
@@ -939,10 +935,6 @@ const MAX_JOIN_ATTEMPTS = 8;
       }
     };
 
-    // The tenant's platform cut is read once, outside the transaction: the pool
-    // for this seat must use the rate the admin has configured right now.
-    const commissionPercent = await commissionFor(user.tenantId);
-
     try {
         const result = await prisma.$transaction(
           async (tx) => {
@@ -1069,21 +1061,7 @@ const MAX_JOIN_ATTEMPTS = 8;
               status = 'SLOTS_FULL';
             }
 
-            // Per-kill pool grows with every paid seat, in the same transaction
-            // as the debit, so the number players see always matches the cash
-            // actually collected for this match.
-            const prizePool = computePrizePool(
-              Number(liveTournament.entryFee),
-              booked,
-              Number(liveTournament.perKillPrize),
-              commissionPercent,
-            );
-            await tx.tournament.update({
-              where: { id: tournamentId },
-              data: { prizePool },
-            });
-
-            return { slot, freshUser, status, bookedCount: booked, prizePool };
+            return { slot, freshUser, status, bookedCount: booked };
           },
           {
             // ReadCommitted on purpose: the unique (tournamentId, slotNumber) index
@@ -1116,9 +1094,6 @@ const MAX_JOIN_ATTEMPTS = 8;
             fillFraction: Math.min(1, bookedCount / maxSlots),
             isFull: bookedCount >= maxSlots,
             status: result.status,
-            // The pool grows with every seat, so the card must carry it too;
-            // otherwise the app keeps the opening number until a refetch.
-            prizePool: String(result.prizePool),
           });
 
           realtimeService.sendToUser(user.userId, 'WALLET_UPDATED', {
@@ -1165,6 +1140,10 @@ export interface CancelResult {
   status: string;
   refundedPlayers: number;
   totalRefunded: number;
+  /** Banned seats that were left unpaid — the admin's ban-refund switch is OFF. */
+  skippedBanned: number;
+  /** Seats that already had their fee back (ban-refund switch ON) — never paid twice. */
+  skippedAlreadyRefunded: number;
 }
 
 export async function cancelTournamentAndRefundAll(
@@ -1196,13 +1175,50 @@ export async function cancelTournamentAndRefundAll(
 
       const slots = await tx.tournamentSlot.findMany({ where: { tournamentId } });
 
+      /**
+       * Net refund already given per seat (CREDIT - DEBIT on REFUND rows).
+       * A banned seat whose coin switch is ON has this > 0 — paying it again on
+       * cancel would hand the same entry fee out twice.
+       */
+      const refundRows = await tx.walletLedger.groupBy({
+        by: ['userId', 'type'],
+        where: { referenceId: tournamentId, category: 'REFUND' },
+        _sum: { amount: true },
+      });
+      const alreadyRefunded = new Map<string, number>();
+      for (const row of refundRows) {
+        const amount = Number(row._sum.amount ?? 0);
+        alreadyRefunded.set(
+          row.userId,
+          (alreadyRefunded.get(row.userId) ?? 0) + (row.type === 'DEBIT' ? -amount : amount),
+        );
+      }
+
       let totalRefunded = 0;
+      let refundedPlayers = 0;
+      let skippedBanned = 0;
+      let skippedAlreadyRefunded = 0;
       const walletNotices: Array<{
         userId: string;
         depositBalance: number;
         winningBalance: number;
       }> = [];
       for (const slot of slots) {
+        // Already paid back earlier (ban-refund switch ON): never pay it twice.
+        if ((alreadyRefunded.get(slot.userId) ?? 0) > 0) {
+          skippedAlreadyRefunded += 1;
+          continue;
+        }
+        /**
+         * THE BAN RULE: a banned seat only gets money when the admin switched its
+         * refund ON. Cancelling the match must not quietly pay a player who was
+         * thrown out — otherwise "ban + refund OFF" means nothing.
+         */
+        if (slot.isBanned) {
+          skippedBanned += 1;
+          continue;
+        }
+
         // Refund to the same balance the fee was debited from (audit trail).
         const joinLedger = await tx.walletLedger.findFirst({
           where: { userId: slot.userId, referenceId: tournamentId, category: 'JOIN_FEE' },
@@ -1239,11 +1255,18 @@ export async function cancelTournamentAndRefundAll(
           winningBalance: Number(refundedUser.winningBalance),
         });
         totalRefunded += Number(tournament.entryFee);
+        refundedPlayers += 1;
       }
 
       clearFeedCache();
 
-    return { refundedPlayers: slots.length, totalRefunded, walletNotices };
+      return {
+        refundedPlayers,
+        totalRefunded,
+        skippedBanned,
+        skippedAlreadyRefunded,
+        walletNotices,
+      };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -1272,13 +1295,17 @@ export async function cancelTournamentAndRefundAll(
   // Players still listing the match must drop it now, not on their next refresh.
   broadcastFeedChanged(adminUser.tenantId, tournamentId, 'CANCELLED', 'CANCELLED');
 
-  // Push: refund alert to every confirmed participant.
-  void pushToTournamentParticipants(tournamentId, {
-    type: 'MATCH_CANCELLED',
-    tournamentId,
-    title: '❌ Match Cancelled',
-    body: 'Your entry fee has been refunded to your balance.',
-  });
+  // Push: refund alert only to the players who actually got their money back.
+  // A banned seat with the refund switch OFF must not be told "fee refunded".
+  void pushToUsers(
+    result.walletNotices.map((notice) => notice.userId),
+    {
+      type: 'MATCH_CANCELLED',
+      tournamentId,
+      title: 'Match Cancelled',
+      body: `"${tournament.title}" has been cancelled. Your entry fee has been refunded.`,
+    },
+  );
 
   return { tournamentId, status: 'CANCELLED', ...result };
 }
@@ -1320,7 +1347,6 @@ export async function cloneTournament(
           matchType: original.matchType,
           mapType: original.mapType,
           entryFee: original.entryFee,
-          prizePool: original.prizePool,
           perKillPrize: original.perKillPrize,
           totalSlots: original.totalSlots,
           matchTime: input.matchTime,

@@ -105,7 +105,7 @@ async function main() {
     body: {
       title: `Lifecycle Smoke ${stamp}`,
       gameMode: 'BATTLE_ROYALE', matchType: 'SOLO', mapType: 'BERMUDA',
-      entryFee: 10, prizePool: 100, perKillPrize: 5,
+      entryFee: 10, perKillPrize: 5,
       matchTime: new Date(Date.now() + 10 * 60_000).toISOString(),
     },
   });

@@ -71,6 +71,16 @@ function seed(over: Record<string, unknown> = {}, slots = true) {
     users: [
       { id: 'player-1', tenantId, inGameName: 'FF|Ravi', inGameUid: '123456789', depositBalance: 0, winningBalance: 0 },
       { id: 'player-2', tenantId, inGameName: 'FF|Aman', inGameUid: '987654321', depositBalance: 0, winningBalance: 0 },
+      // A lobby big enough for double-digit kill counts: the payout engine
+      // never pays more kills than the seats sold.
+      ...Array.from({ length: 10 }, (_, i) => ({
+        id: `filler-${i + 3}`,
+        tenantId,
+        inGameName: `FF|Filler${i + 3}`,
+        inGameUid: `55500000${String(i + 3).padStart(2, '0')}`,
+        depositBalance: 0,
+        winningBalance: 0,
+      })),
     ],
     tournaments: [
       {
@@ -83,7 +93,6 @@ function seed(over: Record<string, unknown> = {}, slots = true) {
         mapType: 'BERMUDA',
         entryFee: 25,
         totalSlots: 48,
-        prizePool: 400,
         perKillPrize: 10,
         matchTime: inMinutes(120),
         roomRevealMinutes: 15,
@@ -97,6 +106,12 @@ function seed(over: Record<string, unknown> = {}, slots = true) {
       ? [
           { id: 'slot-1', tournamentId, userId: 'player-1', slotNumber: 1 },
           { id: 'slot-2', tournamentId, userId: 'player-2', slotNumber: 2 },
+          ...Array.from({ length: 10 }, (_, i) => ({
+            id: `slot-f${i + 3}`,
+            tournamentId,
+            userId: `filler-${i + 3}`,
+            slotNumber: i + 3,
+          })),
         ]
       : [],
   });
@@ -136,10 +151,8 @@ describe('room credentials lifecycle', () => {
     assert.equal(out.status, 'ROOM_REVEALED');
     assert.ok(fake.rowsOf('tournament')[0].roomRevealedAt instanceof Date);
     assert.ok(broadcasts.includes('MATCH_STATUS_CHANGED'));
-    assert.deepEqual(direct.find((d) => d.event === 'ROOM_CREDENTIALS_REVEALED')?.userIds.sort(), [
-      'player-1',
-      'player-2',
-    ]);
+    const revealed = direct.find((d) => d.event === 'ROOM_CREDENTIALS_REVEALED')?.userIds ?? [];
+    assert.ok(revealed.includes('player-1') && revealed.includes('player-2'), 'every seat gets the code');
     assert.equal(pushes.filter((p) => p.type === 'ROOM_REVEALED').length, 1);
   });
 
@@ -155,7 +168,7 @@ describe('room credentials lifecycle', () => {
     seed({ status: 'COMPLETED' });
     await assert.rejects(
       () => api.updateRoomCredentials(admin as any, tournamentId, '1', 'p'),
-      /Cannot update room for a COMPLETED tournament/i,
+      /Cannot update the room for a completed match/i,
     );
 
     seed();
@@ -233,17 +246,17 @@ describe('results + 1-click payout', () => {
     seed();
   });
 
-  it('pays 50 / 30 / 20 percent of the pool plus per-kill money', async () => {
+  it('pays every confirmed kill at the per-kill rate', async () => {
     const out = await api.distributeTournamentPrizes(admin as any, tournamentId, [
       { userId: 'player-1', verifiedKills: 5, rank: 1 },
       { userId: 'player-2', verifiedKills: 2, rank: 2 },
     ]);
 
     assert.equal(out.playersPaid, 2);
-    assert.equal(out.totalPaid, 200 + 50 + 120 + 20, 'rank prizes + kills');
+    assert.equal(out.totalPaid, 50 + 20, '4 kills have no money of their own: 5x₹10 + 2x₹10');
     const [w1, w2] = fake.rowsOf('user');
-    assert.equal(w1.winningBalance, 250, '₹200 rank + ₹50 kills');
-    assert.equal(w2.winningBalance, 140);
+    assert.equal(w1.winningBalance, 50, '5 kills x ₹10');
+    assert.equal(w2.winningBalance, 20);
     assert.equal(w1.depositBalance, 0);
 
     const ledger = fake.rowsOf('walletLedger');
@@ -270,7 +283,7 @@ describe('results + 1-click payout', () => {
     await api.distributeTournamentPrizes(admin as any, tournamentId, [
       { userId: 'player-1', verifiedKills: 3, rank: 1 },
     ]);
-    assert.equal(fake.rowsOf('user')[0].winningBalance, 230);
+    assert.equal(fake.rowsOf('user')[0].winningBalance, 30);
 
     // The first payout completes the match, so a retry is refused outright.
     await assert.rejects(
@@ -280,7 +293,7 @@ describe('results + 1-click payout', () => {
         ]),
       /not allowed while tournament is COMPLETED/i,
     );
-    assert.equal(fake.rowsOf('user')[0].winningBalance, 230, 'no double payout');
+    assert.equal(fake.rowsOf('user')[0].winningBalance, 30, 'no double payout');
     assert.equal(fake.rowsOf('walletLedger').length, 1);
   });
 
@@ -316,7 +329,7 @@ describe('results + 1-click payout', () => {
     assert.deepEqual(board.scoreboard.map((r) => r.rank), [1, 2]);
     assert.equal(board.scoreboard[0].player.inGameName, 'FF|Ravi');
     assert.equal(board.scoreboard[0].kills, 7);
-    assert.equal(board.scoreboard[0].prizeWon, 270);
+    assert.equal(board.scoreboard[0].prizeWon, 70);
 
     await assert.rejects(() => api.getTournamentResults(tenantId, 'nope'), /Tournament not found/i);
   });

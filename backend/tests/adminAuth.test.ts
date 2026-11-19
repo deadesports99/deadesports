@@ -68,7 +68,6 @@ function seed(overrides: {
         subdomain: 'apex-ff',
         brandName: 'Apex Free Fire Club',
         isActive: true,
-        allowEmailAuth: true,
       },
     ],
     users: overrides.users ?? [

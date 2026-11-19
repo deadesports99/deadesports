@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { sendResponse } from '../utils/ApiResponse.js';
-import { ADMIN_SESSION_COOKIE } from '../utils/cookies.js';
+import { ADMIN_SESSION_COOKIE, adminSessionCookieOptions } from '../utils/cookies.js';
 import { ApiError } from '../utils/ApiError.js';
 import * as adminAuthService from '../services/adminAuth.service.js';
 
@@ -29,15 +29,6 @@ const verifyOtpSchema = z
   .strict();
 
 /** Shared cookie options — httpOnly, host-only, Strict. */
-function sessionCookieOptions() {
-  return {
-    httpOnly: true,
-    secure: env.NODE_ENV === 'production',
-    sameSite: 'strict' as const,
-    path: '/',
-    maxAge: env.ADMIN_SESSION_TTL_HOURS * 60 * 60 * 1000,
-  };
-}
 
 /** Step 1 — email (+ staff key) → OTP sent to the owner inbox. */
 export async function requestOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -73,17 +64,23 @@ export async function verifyOtp(req: Request, res: Response, next: NextFunction)
       userAgent: req.headers['user-agent'],
     });
 
-    res.cookie(ADMIN_SESSION_COOKIE, result.token, sessionCookieOptions());
+    res.cookie(
+      ADMIN_SESSION_COOKIE,
+      result.token,
+      adminSessionCookieOptions(result.cookieMaxAgeMs),
+    );
     sendResponse(res, 200, 'Signed in', { user: result.user });
   } catch (error) {
     next(error);
   }
 }
 
-/** Clears the cookie and audits the logout. */
+/** Clears the cookie, kills this browser's session row and audits the logout. */
 export async function logout(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (!req.user) throw ApiError.unauthorized('Authentication required');
+
+    await adminAuthService.endSession(req.user.userId, req.sessionId);
     await adminAuthService.recordAdminLogout(
       { userId: req.user.userId, tenantId: req.user.tenantId, role: req.user.role },
       { ip: req.ip },
@@ -96,6 +93,53 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
       path: '/',
     });
     sendResponse(res, 200, 'Signed out');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ─── Step-up confirmation (money / settings routes) ───────────────
+
+const stepUpVerifySchema = z
+  .object({
+    otp: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+    email: z.string().trim().email('Enter a valid email address'),
+  })
+  .strict();
+
+/** Mails a fresh confirmation code to the signed-in admin's own inbox. */
+export async function requestStepUp(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required');
+    const result = await adminAuthService.requestStepUpOtp(
+      { userId: req.user.userId, tenantId: req.user.tenantId, role: req.user.role },
+      { ip: req.ip },
+    );
+
+    sendResponse(res, 200, 'Confirmation code sent', {
+      email: result.email,
+      expiresInSeconds: result.expiresInSeconds,
+      debugOtp: result.debugOtp,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** Verifies the code → short-lived proof token the console sends per request. */
+export async function verifyStepUp(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required');
+    const body = stepUpVerifySchema.parse(req.body);
+    const result = await adminAuthService.verifyStepUpOtp(
+      { userId: req.user.userId, tenantId: req.user.tenantId, role: req.user.role },
+      { otp: body.otp, email: body.email, ip: req.ip, sessionId: req.sessionId },
+    );
+
+    sendResponse(res, 200, 'Confirmed', {
+      stepUpToken: result.token,
+      expiresInSeconds: result.expiresInSeconds,
+    });
   } catch (error) {
     next(error);
   }

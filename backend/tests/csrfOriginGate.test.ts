@@ -35,6 +35,7 @@ const adminUser = () => ({
   playerCode: 'THU-0011',
   email: 'owner@csrftest.local',
   isBanned: false,
+  sessionVersion: 0,
   canCreateMatch: true,
   canUpdateRoomId: true,
   canDistributePrize: true,
@@ -102,9 +103,25 @@ before(async () => {
 
 after(() => server?.close());
 
-/** Fresh cookie session token (same payload the login controller signs). */
-const sessionToken = () =>
-  jwt.sign({ userId: adminId, tenantId, role: 'ADMIN' }, env.JWT_SECRET, { expiresIn: '1h' });
+/**
+ * Fresh cookie session token. Cookie sessions now carry a `sid` that must
+ * point at a live AdminSession row, so each call registers one first — that is
+ * exactly the guard that lets a stolen cookie be revoked.
+ */
+const sessionToken = async () => {
+  const row = await fake.adminSession.create({
+    data: {
+      userId: adminId,
+      tenantId,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  });
+  return jwt.sign(
+    { userId: adminId, tenantId, role: 'ADMIN', sid: row.id, sv: 0 },
+    env.JWT_SECRET,
+    { expiresIn: '1h' },
+  );
+};
 
 interface CallOptions {
   method?: string;
@@ -114,9 +131,10 @@ interface CallOptions {
 }
 
 async function call(path: string, options: CallOptions = {}): Promise<Response> {
+  const token = await sessionToken();
   const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (options.bearer) headers.authorization = `Bearer ${sessionToken()}`;
-  else headers.cookie = `admin_session=${sessionToken()}`;
+  if (options.bearer) headers.authorization = `Bearer ${token}`;
+  else headers.cookie = `admin_session=${token}`;
   if (options.origin !== undefined) headers.origin = options.origin;
   if (options.referer !== undefined) headers.referer = options.referer;
   return fetch(`${baseUrl}${path}`, { method: options.method ?? 'GET', headers });

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as adminAuthController from '../controllers/adminAuth.controller.js';
 import * as adminAccessController from '../controllers/adminAccess.controller.js';
 import { authenticate, requireRole } from '../middlewares/auth.middleware.js';
+import { requireStepUp } from '../middlewares/stepUp.middleware.js';
 import { adminLoginLimiter, adminOtpRequestLimiter } from '../middlewares/rateLimiter.js';
 
 /**
@@ -16,6 +17,10 @@ adminAuthRouter.post('/otp/request', adminOtpRequestLimiter, adminAuthController
 adminAuthRouter.post('/otp/verify', adminLoginLimiter, adminAuthController.verifyOtp);
 adminAuthRouter.post('/logout', authenticate, adminAuthController.logout);
 
+// Step-up confirmation for money / settings actions on cookie sessions.
+adminAuthRouter.post('/step-up/request', authenticate, adminOtpRequestLimiter, adminAuthController.requestStepUp);
+adminAuthRouter.post('/step-up/verify', authenticate, adminLoginLimiter, adminAuthController.verifyStepUp);
+
 /**
  * Owner-only staff permission keys — mounted at /api/v1/admin/access.
  * Every route is ADMIN-only (the requireRole guard is applied here once).
@@ -24,6 +29,6 @@ export const adminAccessRouter: Router = Router();
 
 adminAccessRouter.use(authenticate, requireRole('ADMIN'));
 adminAccessRouter.get('/', adminAccessController.listKeys);
-adminAccessRouter.post('/', adminAccessController.issueKey);
+adminAccessRouter.post('/', requireStepUp('issuing a staff key'), adminAccessController.issueKey);
 adminAccessRouter.post('/:id/revoke', adminAccessController.revokeKey);
-adminAccessRouter.post('/:id/regenerate', adminAccessController.regenerateKey);
+adminAccessRouter.post('/:id/regenerate', requireStepUp('rotating a staff key'), adminAccessController.regenerateKey);
