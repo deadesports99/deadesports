@@ -53,8 +53,14 @@ services:
         value: 7d
       - key: ACCESS_KEY_PEPPER # 32+ random chars, paste in dashboard
         sync: false
-      - key: ADMIN_SESSION_TTL_HOURS
-        value: "12"
+      - key: ADMIN_SESSION_TTL_HOURS # owner idle window; cookie slides on activity
+        value: "168"
+      - key: ADMIN_SESSION_MAX_DAYS
+        value: "30"
+      - key: ADMIN_STAFF_SESSION_HOURS
+        value: "24"
+      - key: ADMIN_STAFF_SESSION_MAX_DAYS
+        value: "7"
       - key: ADMIN_WEB_ORIGIN # https://<service>.onrender.com
         sync: false
 

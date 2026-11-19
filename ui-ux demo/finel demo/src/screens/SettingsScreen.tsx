@@ -418,7 +418,7 @@ export function SettingsScreen({
       {/* App Version Info Footnote */}
       <div className="pt-2 text-center">
         <p className={cx('text-[11px] font-semibold tracking-wide', isDark ? 'text-slate-500' : 'text-slate-400')}>
-          Spartan Esports Arena • v2.4.0 (Build 104)
+          Spartan Arena • v2.4.0 (Build 104)
         </p>
       </div>
 

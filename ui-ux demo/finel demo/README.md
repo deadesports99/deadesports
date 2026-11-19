@@ -1,4 +1,4 @@
-# Spartan Esports Arena — Final UI/UX Architecture
+# Spartan Arena — Final UI/UX Architecture
 
 Ye folder Free Fire Tournament platform ka **Final Modular Production Demo** hai. Yaha pura code screen-wise, component-wise aur utility-wise modularize kiya gaya hai taaki kisi ek file me khichdi na bane.
 

@@ -160,7 +160,7 @@ order and refreshes the balance).
 
 ## 8. Admin visibility (NEW)
 
-The wallet console now has a third tab **⚡ Online** (`AdminWalletScreen`):
+The admin console Wallet screen now has a third tab **⚡ Online**:
 
 - **Today ₹X** and **Total collected ₹Y** (captured only), plus pending/failed counts.
 - Every online order with player, amount, status, provider badge and time.

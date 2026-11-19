@@ -8,64 +8,79 @@
 | Role | Kaise milta hai | Matlab |
 |---|---|---|
 | `ADMIN` | owner (email OTP) | **sab kuch** — har permission flag bypass |
-| `SUB_ADMIN` | owner email + 24-char key | sirf jo 4 flags on hain |
+| `SUB_ADMIN` | owner email + 24-char key | sirf jo section flags on hain |
 | `USER` | player | admin panel me **login hi nahi** kar sakta |
 
 Server rule (`requirePermission`):
 
 ```
 ADMIN      → hamesha pass (owner ko flag ki zaroorat nahi)
-SUB_ADMIN  → wo specific flag true hona chahiye
+SUB_ADMIN  → us section ka flag true hona chahiye (array = koi ek kaafi)
 USER       → hamesha 403
 ```
 
-## 2. Chaar permissions
+## 2. Chhe permissions — ek section = ek flag
+
+Har admin-console section ka **apna** toggle hai, isliye ek key sirf "pay dekho,
+paise mat do" jaisi bhi ban sakti hai.
 
 | Flag | UI label | Kaam |
 |---|---|---|
-| `canCreateMatch` | Create matches | naya match, clone, cancel+refund, visibility, go-live, sweep |
+| `canCreateMatch` | Create match | naya match, clone, visibility |
+| `canManageMatch` | Manage match | manage board, kills, done, room, go-live, sweep, submit, cancel |
 | `canUpdateRoomId` | Publish room | room ID/password, reveal timing |
-| `canDistributePrize` | Payout prizes | live scorer, roster payout, DQ/ban, finish-by-UID |
+| `canViewPayout` | Final payout (view) | `/payouts` desk, roster + money totals dekhna |
+| `canDistributePrize` | Pay real money | payout, seat refund, DQ/ban, finish-by-UID |
 | `canManageWallet` | Manage wallet | deposits, withdrawals, payment sync |
+
+> Naya key banate waqt **saare 6 toggles ON** aate hain; jo nahi chahiye wo
+> **All off** karke on karo. Purane staff rows migration me backfill ho gaye
+> (`canManageMatch` ← `canCreateMatch`, `canViewPayout` ← `canDistributePrize`).
 
 ## 3. Matrix — UI screens
 
-| Screen / Route | Owner | `canCreateMatch` | `canUpdateRoomId` | `canDistributePrize` | `canManageWallet` |
-|---|---|---|---|---|---|
-| `/` Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/matches` list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/matches/:id` detail | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/matches/create` | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `/matches/publish` | ✅ | ❌ | ✅ | ❌ | ❌ |
-| `/roster` (Live Scorer) | ✅ | ❌ | ❌ | ✅ | ❌ |
-| `/wallet` | ✅ | ❌ | ❌ | ❌ | ✅ |
-| `/wallet/settlement` | ✅ | ❌ | ❌ | ❌ | ❌ (owner-only) |
-| `/players` (+ watchlist, devices, suspicious, `:id`) | ✅ | ❌ | ❌ | ❌ | ❌ (owner-only) |
-| `/staff` | ✅ | ❌ | ❌ | ❌ | ❌ (owner-only) |
-| `/settings` | ✅ | ❌ | ❌ | ❌ | ❌ (owner-only) |
-| `*` (unknown) | → Dashboard | | | | |
+| Screen / Route | Owner | `canCreateMatch` | `canManageMatch` | `canUpdateRoomId` | `canViewPayout` | `canDistributePrize` | `canManageWallet` |
+|---|---|---|---|---|---|---|---|
+| `/` Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/matches` list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/matches/:id` detail | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/matches/create` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `/manage` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `/payouts` (Final Payout desk) | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `/wallet` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `/wallet/settlement` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ (owner-only) |
+| `/players` (+ watchlist, devices, suspicious, `:id`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ (owner-only) |
+| `/staff` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ (owner-only) |
+| `/settings` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ (owner-only) |
+| `*` (unknown) | → Dashboard | | | | | | |
 
-> **Staff ko `/matches` list dikhti hai** — wo dekh sakta hai, par usme actions sirf
-> permission ke hisaab se unlock hote hain. Koi bhi locked route kholne pe Dashboard pe
-> wapas bhej diya jaata hai (`ROUTE_ACCESS`).
+> `/payouts` dekhne ke liye **`canViewPayout`** kaafi hai — pay button tabhi
+> dikhta hai jab **`canDistributePrize`** bhi ho, warna panel likhta hai
+> "Paying needs the Pay real money permission" (403 se pehle hi pata chal jaata hai).
 
 ## 4. Matrix — API (asli enforcement yahan hai)
 
 | Endpoint | Guard |
 |---|---|
 | `POST /api/v1/tournaments` (create) | `canCreateMatch` |
-| `PATCH /api/v1/tournaments/:id/go-live` | `canCreateMatch` |
-| `POST /api/v1/tournaments/sweep/states` | `canCreateMatch` |
-| `POST /api/v1/tournaments/:id/cancel` | `canCreateMatch` |
 | `POST /api/v1/tournaments/:id/clone` | `canCreateMatch` |
 | `PATCH /api/v1/tournaments/:id/visibility` | `canCreateMatch` |
-| `PATCH /api/v1/tournaments/:id/room` | `canUpdateRoomId` |
-| `PATCH /api/v1/tournaments/:id/room-reveal` | `canUpdateRoomId` |
+| `PATCH /api/v1/tournaments/:id/go-live` | `canManageMatch` (ya `canCreateMatch`) |
+| `POST /api/v1/tournaments/sweep/states` | `canManageMatch` (ya `canCreateMatch`) |
+| `POST /api/v1/tournaments/:id/cancel` | `canManageMatch` (ya `canCreateMatch`) |
+| `/api/v1/admin/matches/manage` | `canManageMatch` |
+| `GET /api/v1/admin/matches/:id/live-board` | `canManageMatch` |
+| `PATCH /api/v1/admin/matches/:id/participants/:userId/kills` | `canManageMatch` |
+| `POST /api/v1/admin/matches/:id/participants/:userId/done` | `canManageMatch` |
+| `POST /api/v1/admin/matches/:id/submit` | `canManageMatch` |
+| `PATCH /api/v1/tournaments/:id/room` | `canUpdateRoomId` (ya `canManageMatch`) |
+| `PATCH /api/v1/tournaments/:id/room-reveal` | `canUpdateRoomId` (ya `canManageMatch`) |
+| `/api/v1/admin/matches/payouts/inbox` | `canViewPayout` (ya `canDistributePrize`) |
+| `/api/v1/admin/matches/:id/participants` (+ `export.csv`) | `canViewPayout`, `canDistributePrize` ya `canManageMatch` |
+| `POST /api/v1/admin/matches/:id/payout` | **`canDistributePrize`** + step-up |
+| `PATCH /api/v1/admin/matches/:id/participants/:userId/ban` | `canDistributePrize` (ya `canManageMatch`) |
 | `POST /api/v1/tournaments/:id/payout` | `canDistributePrize` |
 | `POST /api/v1/tournaments/:id/finish` | `canDistributePrize` |
-| `/api/v1/admin/matches/:id/participants` (+ `export.csv`) | `canDistributePrize` |
-| `POST /api/v1/admin/matches/:id/payout` | `canDistributePrize` |
-| `PATCH /api/v1/admin/matches/:id/participants/:userId/ban` | `canDistributePrize` |
 | `/api/v1/admin/wallet/deposits` (+ approve/reject) | `canManageWallet` |
 | `/api/v1/admin/wallet/withdrawals` (+ approve/reject) | `canManageWallet` |
 | `/api/v1/admin/wallet/payments` (+ sync) | `canManageWallet` |
@@ -78,6 +93,17 @@ USER       → hamesha 403
 
 > UI sirf **chhupata** hai. Asli rok **API guard** hai — isliye DevTools se bhi koi
 > permission bypass nahi kar sakta.
+
+## 4b. Extra safety rules (jailbreak audit ke baad)
+
+| Rule | Kyun | Kahan |
+|---|---|---|
+| Staff apna deposit/withdrawal **approve nahi kar sakta** | warna fake UTR se apna hi balance bana leta | `deposit.service` / `withdrawal.service` — `userId === adminId` → 403 |
+| Staff player wallet se **deposit/withdraw request bhi nahi** bana sakta | `/wallet/deposit`, `/wallet/withdraw` ab `requireRole('USER')` | `wallet.routes.ts` |
+| Room ID/password sirf **room kaam karne wale staff** ko reveal se pehle | view/wallet-only key ko password nahi dikhna chahiye | `result.service` → `mayWorkRoom()` |
+| Permission badalne pe **logout nahi hota**, agle request pe naya flag lagta hai | live scoring session beech me na toote; server har request DB se flags padhta hai | `auth.service.updateStaffMember` + `invalidateAuthCache` |
+| Deactivate/ban pe **saari sessions dead** | banned account live cookie se kuch na kar sake | `killUserSessions` + middleware `isBanned` → 403 |
+| Step-up token **user + browser** se bandha | dusre ki proof copy nahi ho sakti | `stepUp.middleware` (`userId`, `sid`) |
 
 ## 5. Permission live badalna (bina logout)
 
@@ -120,3 +146,15 @@ curl -o /dev/null -w "csrf: %{http_code}\n" -b owner.txt -X POST \
 ```
 
 Sab expected (401/403/200/403/403) mile = permission system sahi hai.
+
+## 8. Jailbreak audit (verified 2026-11-19)
+
+Real API pe 6 staff roles (zero / manage / view / pay / wallet / all) ke saath **47 checks**,
+sab pass. Script run ke baad data cleanup (staff, keys, tenant, room creds restore).
+
+Covered: owner-only surfaces (keys, staff CRUD, settings, audit, settlement, players),
+section separation (wallet / payout / manage / room), cross-tenant IDOR (details, roster,
+room write, cancel → 404 + status untouched), role confusion (`join` staff se 403),
+step-up bypass (missing/forged/other-user token → 403), live permission revoke (agle
+request pe 403), input smuggling (unknown key / non-boolean / `role: ADMIN` → 400),
+ban → 401/403, session list/revoke self-scoped, wallet self-dealing → 403.

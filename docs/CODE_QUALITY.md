@@ -117,7 +117,7 @@ place and the coverage condition has to be met by tests, not by lowering the bar
 - `finishMatchPayout.test.ts` — 50% pool + per-kill prize into WINNING balance, kills clamp 0..99, zero-prize case, no double payout, cancelled/already-completed guards
 - `api.e2e.test.ts` — real Express app on an ephemeral port: health, 401/403/404 envelopes, wallet summary, Add-Cash + duplicate UTR, validation details, tournament join (fee debited, seat stored), insufficient balance, withdrawal hold, admin RBAC, server-time header, online top-up order → verify (single credit, no double credit), forged signature, cross-player order access
 - `cancelRefund.test.ts` — cancelled match refunds every participant to the balance the fee came from, REFUND ledger rows, no double refund, tenant isolation
-- `matchSweep.test.ts` — reveal window (default + per-match), kickoff to LIVE, 2h to UNDER_REVIEW, credential delivery, tenant scoping, no double reveal
+- `matchSweep.test.ts` — kickoff parks a match in STARTING_SOON (the clock never goes LIVE), admin `forceMatchLive` is the only path to LIVE, 2h to UNDER_REVIEW, no clock-based room reveal, tenant scoping
 - `adminPayments.test.ts` — collected today vs all time, status filters, page-size clamps, player join, demo-mode flag
 - `resultLifecycle.test.ts` — publish/reveal credentials (timer + Reveal Now + staff bypass), player access gate, 50/30/20 payout, DQ gets zero, single payout, scoreboard order
 - `authFlows.test.ts` — phone OTP login (unknown/banned/disabled), Google one-tap register + login, email OTP send/verify (wrong/expired/replayed codes, hashed password), staff hire/update/deactivate, profile + push token

@@ -1,16 +1,16 @@
-# Thunder eSports — Free Fire Tournament Platform
+# Spartan Arena — Free Fire Tournament Platform
 
-A white-label Free Fire tournament platform: two Android apps (player + admin), one
-Node/Express + Prisma API, and a web preview of the player app. Everything is
-multi-tenant (one deployment can host many organisers) and built around a
-double-entry wallet, so money can never be created or lost silently.
+A white-label Free Fire tournament platform: one Android app (player), a browser
+admin console, one Node/Express + Prisma API, and a web preview of the player app.
+Everything is multi-tenant (one deployment can host many organisers) and built
+around a double-entry wallet, so money can never be created or lost silently.
 
 | Part | What it is |
 |---|---|
 | `android/app-player` | Player app — sign in, wallet, join a match, room ID, live scoreboard |
-| `android/app-admin` | Admin app — create matches, publish rooms, run the scorer, pay winners, manage staff |
 | `android/core` | Shared Kotlin module (design system, auth screens, networking, models) |
 | `backend` | REST API + Postgres (local Docker / Neon) + Prisma + realtime WebSocket + FCM |
+| `admin-web` | Browser admin console — create matches, publish rooms, run the scorer, pay winners, manage staff |
 | `player-web` | React preview of the player screens (design reference / marketing) |
 
 ---
@@ -21,7 +21,6 @@ double-entry wallet, so money can never be created or lost silently.
 android/
   core/                 shared design system (AuthDesign, DemoUi, network, models)
   app-player/           player app  (com.thunderesports.player)
-  app-admin/            admin app   (com.thunderesports.admin)
 backend/
   src/                  API (routes / controllers / services / middlewares)
   prisma/schema.prisma  database schema
@@ -36,7 +35,7 @@ docs/                   payment, code quality, test-account sheets
 
 ## 2. What the player can do (`app-player`)
 
-**Login** (`☎ phone + OTP`, shared auth design with the admin app)
+**Login** (`☎ phone + OTP`, shared auth design with the admin console)
 
 - Any 10-digit number + any 6-digit OTP in demo mode; Firebase SMS OTP once
   `PHONE_OTP_BYPASS=false` and `PHONE_OTP_ENABLED=true`.
@@ -87,7 +86,7 @@ docs/                   payment, code quality, test-account sheets
 
 ---
 
-## 3. What the admin can do (`app-admin`)
+## 3. What the admin can do (`admin-web` console)
 
 | Screen | Capability |
 |---|---|
@@ -202,8 +201,8 @@ npx tsc --noEmit   # type check only
 
 ### 7.3 Android apps
 
-1. Point the apps at your API — `android/app-player/src/main/assets/client_config.json`
-   and `android/app-admin/src/main/assets/client_config.json`:
+1. Point the player app at your API — `android/app-player/src/main/assets/client_config.json`:
+   (the admin console reads its API URL from its own web config)
 
 ```json
 {
@@ -221,9 +220,8 @@ npx tsc --noEmit   # type check only
 
 ```bash
 cd android
-./gradlew :app-player:assembleDebug :app-admin:assembleDebug
+./gradlew :app-player:assembleDebug
 adb install -r app-player/build/outputs/apk/debug/app-player-debug.apk
-adb install -r app-admin/build/outputs/apk/debug/app-admin-debug.apk
 ```
 
 3. Phone talks to the laptop API over USB:
@@ -275,7 +273,10 @@ The file is git-ignored — real keys never enter the repo.
 | `PUBLIC_BASE_URL` | `http://localhost:5000` | used to build checkout URLs |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | — | only when `PAYMENT_PROVIDER=razorpay` (see `docs/RAZORPAY_LIVE_RUNBOOK.md`) |
 | `JOIN_MAX_INFLIGHT` / `JOIN_MAX_QUEUE` | `12` / `400` | join burst control; keep `JOIN_MAX_INFLIGHT ≤` DB pool size |
-| `ADMIN_SESSION_TTL_HOURS` | `12` | admin-web session |
+| `ADMIN_SESSION_TTL_HOURS` | `168` | owner session idle window (rolling, cookie slides on activity) |
+| `ADMIN_SESSION_MAX_DAYS` | `30` | hard cap for an owner session, idle or not |
+| `ADMIN_STAFF_SESSION_HOURS` / `ADMIN_STAFF_SESSION_MAX_DAYS` | `24` / `7` | staff session idle window / cap |
+| `ADMIN_STEP_UP_TTL_MINUTES` | `10` | lifetime of the step-up proof after a fresh code |
 | `ADMIN_WEB_ORIGIN` | `http://localhost:5174` | CSRF origin gate for the admin web |
 | `EMAIL_PROVIDER` | `console` | `console` (dev) / `smtp` / `resend` / `brevo` |
 | `EMAIL_FROM` | `Apex Free Fire Club <no-reply@apexff.com>` | sender header |
@@ -289,8 +290,8 @@ with `PAYMENT_PROVIDER=mock`, with the development `ACCESS_KEY_PEPPER`, or with
 ### 8.1 Firebase (only when real phone OTP is wanted)
 
 1. Firebase console → project → **Authentication → Sign-in method → Phone** → enable.
-2. Add the Android apps (`com.thunderesports.player`, `com.thunderesports.admin`) and
-   put the real `google-services.json` into each app module.
+2. Add the Android app (`com.thunderesports.player`) and put the real
+   `google-services.json` into `android/app-player/`.
 3. Backend: add a service account JSON as `FCM_CREDENTIALS_JSON` (single line) and set
    `PHONE_OTP_ENABLED=true`, `PHONE_OTP_BYPASS=false`, `DEV_FAKE_FIREBASE=false`.
 
@@ -312,7 +313,6 @@ with `PAYMENT_PROVIDER=mock`, with the development `ACCESS_KEY_PEPPER`, or with
 
 ```
 POST   /auth/player/register | /auth/player/login | /auth/player/google
-POST   /auth/player/email/send-otp | /auth/player/email/verify-otp
 GET    /players/me                    profile + wallet
 PATCH  /players/me                    name / IGN / FF UID / device
 GET    /wallet                        balances + ledger
@@ -368,7 +368,7 @@ More detail lives in:
 
 | Role | Login |
 |---|---|
-| Owner | phone `9999900001` (admin app), any 6-digit OTP |
+| Owner | phone `9999900001` (admin console), any 6-digit OTP |
 | Player | phone `9111100222` (player app), any 6-digit OTP |
 | Demo players | `9000000001` … `9000000100`, any 6-digit OTP, ₹200 each |
 
@@ -376,7 +376,7 @@ Tenant: `Apex Free Fire Club` — `a3c11cd0-324e-4886-b27c-9667fd7f59dc`.
 
 Going back to real OTP: `PHONE_OTP_BYPASS=false`, `PHONE_OTP_ENABLED=true`,
 `DEV_FAKE_FIREBASE=false`, enable Phone auth in Firebase, and switch on
-*Settings → Phone Auth* in the admin app.
+*Settings → Phone Auth* in the admin console.
 
 ---
 

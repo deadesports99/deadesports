@@ -58,9 +58,9 @@ todo me ye tha 
 - Backend: auto match number + auto title (remove title input), backfill old matches
 - Backend: admin 'End Match &amp; Pay Winner by UID' endpoint + payout ledger
 - Backend: admin player search + ban/unban endpoints (instant logout via auth cache)
-- Admin app: Create Match without title; cards show #N + map/mode + ID/Pass status
-- Admin app: single Match section tabs LIVE / UPCOMING / HISTORY + End Match &amp; Pay Winner dialog
-- Admin app: Player Management screen (search, ban/unban) + dashboard card/route
+- Admin console: Create Match without title; cards show #N + map/mode + ID/Pass status
+- Admin console: single Match section tabs LIVE / UPCOMING / HISTORY + End Match &amp; Pay Winner dialog
+- Admin console: Player Management screen (search, ban/unban) + dashboard card/route
 - Player app: no title — show map + Solo/Duo/Squad; show auto Player ID in profile
 - Build, install, device E2E test (create, join, end+pay, ban)
 - Regression suites + docs update

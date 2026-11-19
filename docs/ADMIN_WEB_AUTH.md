@@ -23,7 +23,7 @@
 | Naya code maangne ki limit | **3 / 10 min** per IP (`adminOtpRequestLimiter`) | adminAuth.routes.ts:15 |
 | Verify ki limit | **5 / 15 min** (`adminLoginLimiter`) | :16 |
 | Daily cap (per identity) | **10 codes / rolling 24h** (`ADMIN_OTP_DAILY_CAP`) — audit log se ginti | env + service |
-| Session | **12 ghante** (`ADMIN_SESSION_TTL_HOURS`), httpOnly cookie | controller |
+| Session | owner **idle 7 din / cap 30 din**, staff **idle 24h / cap 7 din** (rolling), httpOnly cookie | adminSession.service.ts |
 
 Cap cross hone par: `429 — Daily sign-in code limit reached.`
 
@@ -32,23 +32,68 @@ Cap cross hone par: `429 — Daily sign-in code limit reached.`
 - **24 characters**, DB me sirf **hash** (pepper = `ACCESS_KEY_PEPPER`), UI me sirf `keyHint` (last 4) dikhta hai.
 - **Revoke** turant: `POST /api/v1/admin/access/:id/revoke` → `revokedAt` set.
 - **Regenerate**: purani key dead, nayi 24-char key **ek hi baar** dikhti hai.
-- **Expiry** optional (`expiresAt`), **ban** bhi (`isBanned`).
+- **Expiry** default **14 din** (`ACCESS_KEY_TTL_DAYS`), plus **ban** (`isBanned`).
+  Purane 90-din keys deploy ke baad bhi apni `expiresAt` tak chalenge — rotate karke
+  naye 14-din wale bana lo.
 - Staff session key se **bandha** hota hai: cookie me `accessKeyId` hai → har request pe
   `assertAccessKeyUsable()` chalta hai. **Key revoke = session agle request pe hi dead.**
   (Yahi reason hai ki revoke ke baad logout ka wait nahi karna padta.)
 
-## 4. Session cookie
+## 4. Session cookie + server-side session
 
 ```
-admin_session=<JWT>; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200
+admin_session=<JWT>; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800
                    (+ Secure jab NODE_ENV=production)
 ```
 
 - JS se **read nahi hota** (httpOnly) → XSS se token chori nahi hota.
 - `SameSite=Strict` + CSRF gate (neeche) = double protection.
-- JWT me: `userId`, `tenantId`, `role`, (staff ke liye) `accessKeyId`.
+- JWT me: `userId`, `tenantId`, `role`, **`sid`** (AdminSession row), **`sv`**
+  (`User.sessionVersion`), (staff ke liye) `accessKeyId`.
 - Har request pe auth middleware: user exist? · `tenantId` match? · **banned?** ·
-  tenant **active?** → warna `401/403`.
+  tenant **active?** · **`sid` row live hai?** · **`sv` DB se match?** → warna `401/403`.
+
+### Rolling session (browser band karne pe logout nahi)
+
+- Cookie **persistent** hai (Max-Age = idle window), to browser/tab band karke wapas
+  aane pe sign-in nahi maangta.
+- JWT ki aadhi life nikalte hi middleware **naya token + cookie** issue karta hai
+  (`rollSession`), isliye roz ka admin kabhi logout nahi hota.
+- **Idle window** = `ADMIN_SESSION_TTL_HOURS` (owner, default 168h),
+  `ADMIN_STAFF_SESSION_HOURS` (staff, 24h).
+- **Absolute cap** = `ADMIN_SESSION_MAX_DAYS` (owner 30) /
+  `ADMIN_STAFF_SESSION_MAX_DAYS` (staff 7) — rolling isse aage nahi ja sakta.
+
+### Session chori ho jaye to (kill switches)
+
+| Rasta | Kya karta hai |
+|---|---|
+| Settings → **Sign out** (ek device) | us row ko `revokedAt` → agle request pe 401 |
+| Settings → **Sign out other devices** | baaki sab rows revoke, ye browser chalta rahega |
+| Settings → **Sign out everywhere** | `sessionVersion++` + sab rows revoke → **har copy** dead |
+| Staff key revoke / rotate / permission change / staff remove | us staff ke saare sessions turant dead |
+| Server restart / `JWT_SECRET` rotate | sab dead (nuclear, aakhri option) |
+
+Purane (deploy se pehle ke) tokens me `sid` nahi hota → ek baar dobara sign-in karna padega,
+uske baad session persist karega.
+
+### Step-up OTP (paisa move karne se pehle dobara confirm)
+
+Cookie session pe ye actions bina fresh code ke **403 `STEP_UP_REQUIRED`** dete hain:
+
+| Action | Route |
+|---|---|
+| UPI / settings badalna | `PATCH /admin/tenant/settings` |
+| Staff key issue / rotate | `POST /admin/access`, `POST /admin/access/:id/regenerate` |
+| Withdrawal approve | `POST /admin/wallet/withdrawals/:id/approve` |
+| Prize payout | `POST /admin/matches/:id/payout` |
+
+Flow: `POST /auth/admin/step-up/request` (code admin ke inbox pe) →
+`POST /auth/admin/step-up/verify` → `stepUpToken` (10 min, `ADMIN_STEP_UP_TTL_MINUTES`),
+jo console har sensitive request me `X-Step-Up-Token` header se bhejta hai. Proof
+us browser ke session (`sid`) se bandha hota hai.
+
+> Android/Bearer sessions pe step-up **nahi** lagta — wo ambient cookie nahi hai.
 
 ## 5. CSRF gate (cookie requests)
 

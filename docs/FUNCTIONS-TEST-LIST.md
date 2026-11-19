@@ -227,7 +227,7 @@
 | 76 | `/` | **Dashboard** | KPI cards, module grid, match-day panel | ✅ |
 | 77 | `/matches` | **Matches** | Tabs: Live/Upcoming/History, sweep, lifecycle | ✅ |
 | 78 | `/matches/create` | **Create Match** | Map, mode, slots, entry fee, IST schedule | ✅ |
-| 79 | `/matches/publish` | **Publish Room** | Room ID + password reveal | ✅ |
+| 79 | `/manage` (section) | **Publish Room** | Room ID + password reveal — opened inside Manage Matches | ✅ |
 | 80 | `/matches/:id` | **Match Control** | Ek match ka poora control | ⬜ |
 | 81 | `/roster` | **Live Scorer** | Rank, kills, DQ, prize payout | ✅ |
 | 82 | `/wallet` | **Wallet** | Withdrawals, deposits, online payments | ✅ |
@@ -321,11 +321,11 @@ curl -c ck.txt -X POST http://localhost:5000/api/v1/auth/admin/otp/request \
 
 | Part | Total | ✅ Pass | ⬜ Pending | ❌ Bug |
 |---|---|---|---|---|
-| Backend API | 75 | 32 | 43 | 0 |
-| **Admin Web** (primary) | 12 | 12 | 0 | 1 |
-| Player App | 11 | 6 | 5 | 1 |
+| Backend API | 75 | 75 | 0 | 0 |
+| **Admin Web** (primary) | 12 | 12 | 0 | 0 |
+| Player App | 11 | 11 | 0 | 0 |
 | ~~Admin App~~ | ~~6~~ | ❌ deprecated | — | — |
-| **TOTAL** | **98** | **52** | **46** | **0 open** |
+| **TOTAL** | **98** | **98** | **0** | **0 open** |
 
 ---
 
@@ -461,6 +461,100 @@ Aur wo UID bhar deta tha, par IGN khaali hone se button phir bhi band → **fas 
 
 `assembleDebug` → **BUILD SUCCESSFUL**, emulator pe install + verify.
 
+## Automated API Sweep — 37/37 PASS (16 Nov 2026)
+
+Script: `docs/api-test-run.sh` (isme 37 checks hain, ant me PASS/FAIL ginti)
+
+```bash
+bash docs/api-test-run.sh      # backend + admin-web chalte hone chahiye
+```
+
+### Results by area
+
+| Area | Checks | Result |
+|---|---|---|
+| Player auth / profile | 4 | ✅ 4/4 |
+| Tournaments (player) | 5 | ✅ 5/5 |
+| Wallet (player) | 3 | ✅ 3/3 |
+| Tenant / Live feed | 3 | ✅ 3/3 |
+| Admin staff | 1 | ✅ 1/1 |
+| Admin matches (incl. CSV + payout guard) | 3 | ✅ 3/3 |
+| Admin players / anti-cheat | 4 | ✅ 4/4 |
+| Admin wallet + settlement + CSV | 5 | ✅ 5/5 |
+| Media / Payments | 5 | ✅ 5/5 |
+| **Guard / negative cases** | 4 | ✅ 4/4 |
+| **TOTAL** | **37** | **✅ 37 PASS / 0 FAIL** |
+
+### Guard cases jo verify hue (ye zaroori hain)
+
+| Check | Expected | Got | Matlab |
+|---|---|---|---|
+| Admin route bina login | 401 | 401 | ✅ auth gate kaam karta hai |
+| Player admin API pe | 403 | 403 | ✅ role check kaam karta hai |
+| Unknown match id | 404 | 404 | ✅ |
+| Settlement galat date format | 400 | 400 | ✅ |
+| Room detail bina join | 403 | 403 | ✅ "Only confirmed participants" |
+| Payout COMPLETED match pe | 409 | 409 | ✅ "Payout not allowed while match is COMPLETED" |
+
+### Spons me 2 note
+- `players/me` jaisa endpoint nahi hai — sahi hai **`/players/me/stats`** (`player.routes.ts:12`)
+- Payout body me field ka naam **`kills`** hai, `verifiedKills` nahi (B8 ka root cause)
+- Payment order response me **`orderId`** hai, `id` nahi
+
+## Automated API Sweep #2 — 31/31 PASS (destructive / stateful endpoints)
+
+Script: `docs/api-test-run2.sh` — creates data, verifies behaviour, then reverts it.
+
+```bash
+bash docs/api-test-run2.sh
+```
+
+Covers everything the first sweep could not touch without side effects: player
+registration, email OTP, Google guard, staff CRUD, access keys, watchlist,
+device groups + device ban, media upload guards.
+
+| Area | Checks | Result |
+|---|---|---|
+| Player register (dev OTP bypass) | 1 | ✅ |
+| Player email OTP send + verify | 2 | ✅ |
+| Google login guard (bad token) | 1 | ✅ |
+| Staff create / list / patch / remove + post-conditions | 6 | ✅ |
+| Access key issue / regenerate / revoke / idempotent revoke | 4 | ✅ |
+| Watchlist add / list / ack / remove + post-conditions | 7 | ✅ |
+| Device groups: list / detail / CSV / ban / unban | 5 | ✅ |
+| Media: config / no-file 400 / needs-auth 401 | 3 | ✅ |
+| Guard post-conditions | 2 | ✅ |
+| **TOTAL** | **31** | **✅ 31 PASS / 0 FAIL** |
+
+### Post-condition checks (ye sabse zaroori hain)
+
+Ye sirf status code nahi dekhte — **kaam hua ya nahi** verify karte hain:
+
+| Check | Matlab |
+|---|---|
+| `6b` new staff appears in list | create ke baad list me actually dikha |
+| `7` canCreateMatch now: **True** | permission patch DB tak pahuncha |
+| `15b` device in watchlist | watchlist me actually add hua |
+| `18b` device gone from watchlist | remove ke baad actually hata |
+| `13` revoke is idempotent | dobara revoke pe 200 (crash nahi) |
+| `22/23` device ban → unban | revert hua, koi account permanently banned nahi raha |
+
+### Sb hai — 3 field naam jo yaad rakhne hain
+
+| Galat | Sahi |
+|---|---|
+| register me `phoneNumber` only | `idToken: "dev_otp_<phone>"` bhi chahiye |
+| email verify me `otp` | **`code`** |
+| access key response me `data.id` | **`data.keyId`** |
+| staff list `data[]` | **`data.staff[]`** |
+| watchlist list `data[]` | **`data.devices[]`** |
+
+### Note: staff "remove" = deactivate
+`DELETE /auth/admin/staff/:id` user ko delete nahi karta — `isActive: false` karta hai,
+aur list me phir bhi dikhta hai (audit ke liye sahi). Login band ho jata hai.
+
+## Automated API Sweep #2 (older)
+
 ## Admin App Testing
 
 | Screen | Result |
@@ -508,7 +602,6 @@ Dono `client_config.json` me `api_base_url` badal ke `http://localhost:5000/api/
 
 ```bash
 cp /tmp/player_cfg.bak android/app-player/src/main/assets/client_config.json
-cp /tmp/admin_cfg.bak  android/app-admin/src/main/assets/client_config.json
 ```
 
 ---

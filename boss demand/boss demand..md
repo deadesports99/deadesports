@@ -8,9 +8,9 @@ Alag-alag project kholne ke bajaye Android Studio mein ek hi Project banayein au
 
  \* :app-player: Isse Player ka APK niklega.
 
- \* :app-admin: Isse Manager aur uske hired Staff ka APK niklega.
+ \* Admin console: Browser me chalne wala admin tool — Manager aur hired Staff yahi se kaam karte hain (koi alag APK nahi).
 
- \* :core: Ismein aapke Kotlin data class models (Tournament.kt, User.kt, StaffPermissions.kt) aur Firebase repository functions rahenge, taaki aapko dono apps mein dobara code na likhna pade.
+ \* :core: Ismein aapke Kotlin data class models (Tournament.kt, User.kt, StaffPermissions.kt) aur Firebase repository functions rahenge, taaki aapko player app aur admin console mein code dobara na likhna pade.
 
  \* Local Database: :core module mein Jetpack DataStore lagayein jo phone mein user ka uid, role (manager ya staff), aur permissions locally cache karega taaki app khulte hi bina internet delay ke sahi dashboard dikhe.
 
@@ -74,8 +74,8 @@ Jab aapka system ek baar ban gaya, toh har naye client ke aane par bas yeh 4 ste
 
  \* Client ke Gmail se Firebase Project banayein, Auth aur Firestore enable karein, aur admins collection mein pehla document client ke email ke saath role = "manager" daal dein.
 
- \* Wahan se dono apps (com.client.player aur com.client.admin) ka google-services.json download karke apne :app-player aur :app-admin folders mein replace kar dein.
+ \* Wahan se player app (com.client.player) ka google-services.json download karke apne :app-player folder mein replace kar dein. Admin browser console ke liye alag APK ya Firebase config nahi chahiye.
 
  \* Client ka Logo aur App Name update karein.
 
- \* Android Studio se Generate Signed Bundle / APK chala kar dono APKs (Player.apk aur Admin.apk) client ko WhatsApp/Drive par bhej dein.
+ \* Android Studio se Generate Signed Bundle / APK chala kar Player.apk client ko WhatsApp/Drive par bhej dein aur admin console ka URL + owner credentials bhej dein.

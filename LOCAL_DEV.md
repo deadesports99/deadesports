@@ -7,6 +7,7 @@
 | Backend API | `http://localhost:5000` | `cd backend && npm run dev` |
 | Admin console | `http://localhost:5174` | `cd admin-web && npm run dev` — port fixed (CSRF origin) |
 | Player web | `http://localhost:5173` | `cd player-web && npm run dev` |
+| Phone dev console | `http://localhost:5199` | `node scripts/dev-console.mjs` — build+install, watcher, logcat |
 | Android apps | via `adb reverse tcp:5000 tcp:5000` | APK `api_base_url` is `http://localhost:5000/api/v1` |
 
 One-click start/stop (repo root):
@@ -19,6 +20,10 @@ stop-local.bat       :: Postgres + Redis band (volume safe)
 
 `start-local.bat` idempotent hai — dobara chalao to jo already up hai use skip kar deta hai.
 Reboot ke baad bas ye ek file chalao, aur kuch manual nahi karna.
+
+Phone + emulator dono ek saath chal sakte hain — script har attached device par
+`adb reverse` lagata hai (`adb -s <serial>`), isliye 2 device hone par bhi kaam karta hai.
+Emulator akela chahiye to `START-EMULATOR.bat`.
 
 Firebase delivery layer (mirror + live feed) locally **ON** hai — details
 `plan/firebase-migration/` me, service account `backend/.env` ke `FCM_CREDENTIALS_JSON` me.

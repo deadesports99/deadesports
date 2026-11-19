@@ -106,8 +106,8 @@ RETURNING id;   -- ← copy this id: it is the client's tenant_id
 INSERT INTO "User" (id, "tenantId", "phoneNumber", name, email, role, "createdAt")
 VALUES (gen_random_uuid(), '<tenant_id>', '9876543210', 'Owner Name', 'owner@alpha.com', 'ADMIN', now());
 ```
-The owner logs into the **Admin app** with that phone number (phone login — no
-password to leak). Staff are created from inside the app (Staff Management).
+The owner logs into the **admin console** in the browser with that phone number (phone login — no
+password to leak). Staff are created from inside the console (Staff Management).
 
 ### A4. Deploy the API
 - **Render / Railway / Fly.io:** start command `npm run build && npm start`, root `backend/`.
@@ -220,7 +220,7 @@ if you keep the config external. **Bump `version_code` for every upload.**
 
 ---
 
-## 7. Part D — Client go-live checklist (in the Admin app)
+## 7. Part D — Client go-live checklist (in the admin console)
 
 1. **Login** with the owner phone number → Dashboard.
 2. **Staff Management** → Hire room manager / scorer / cashier with only the needed permissions.

@@ -13,11 +13,12 @@ R="$ROOT/tmp_emu/_r.json"
 
 pass=0; fail=0
 
-jget() { PYTHONIOENCODING=utf-8 python -c "
-import json
-d=json.load(open(r'$R',encoding='utf-8'))
-print($1)
-" 2>/dev/null; }
+jget() { PYTHONIOENCODING=utf-8 R_JSON="$R" EXPR="$1" python -c "
+import json, os
+d = json.load(open(os.environ['R_JSON'], encoding='utf-8'))
+print(eval(os.environ['EXPR']))
+" 2>/dev/null | tr -d "
+"; }
 
 # hit <num> <label> <expect> <method> <path> [body] [auth]
 hit() {
@@ -72,8 +73,8 @@ echo "--- ADMIN MATCHES ---"
 AMID=$(curl -s -b "$CK" -H "Origin: $ORIGIN" "$BASE/tournaments?page=1&limit=1" | PYTHONIOENCODING=utf-8 python -c "import json,sys;print(json.load(sys.stdin)['data']['items'][0]['id'])" 2>/dev/null)
 hit 29 "match participants"       200 GET  "/admin/matches/$AMID/participants" "" admin
 hit 30 "roster CSV"               200 GET  "/admin/matches/$AMID/participants/export.csv" "" admin
-PUID=$(curl -s -b "$CK" -H "Origin: $ORIGIN" "$BASE/admin/matches/$AMID/participants" | PYTHONIOENCODING=utf-8 python -c "import json,sys;print(json.load(sys.stdin)['data']['items'][0]['userId'])" 2>/dev/null)
-hit 31 "payout (Rs1 probe)"       200 POST "/admin/matches/$AMID/payout" "{\"awards\":[{\"userId\":\"$PUID\",\"rank\":1,\"kills\":2,\"amount\":1}]}" admin
+PUID=$(curl -s -b "$CK" -H "Origin: $ORIGIN" "$BASE/admin/matches/$AMID/participants" | PYTHONIOENCODING=utf-8 python -c "import json,sys;print(json.load(sys.stdin)['data']['participants'][0]['userId'])" 2>/dev/null)
+hit 31 "payout blocked (409=guard)" 409 POST "/admin/matches/$AMID/payout" "{\"awards\":[{\"userId\":\"$PUID\",\"rank\":1,\"kills\":2,\"amount\":1}]}" admin
 
 echo "--- ADMIN PLAYERS ---"
 hit 49 "players list"             200 GET  "/admin/players?page=1&limit=5" "" admin

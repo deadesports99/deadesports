@@ -29,6 +29,6 @@ Pehle deeply think aur analyze karo:
 1. Production Dockerfile & .dockerignore (`backend/Dockerfile`).
 2. Cloud Deployment Blueprints (`backend/render.yaml`, `backend/docker-compose.prod.yml`, `backend/.env.production.example`).
 3. Custom Domain & Automated SSL Setup Guide (Cloudflare / Namecheap / Let's Encrypt).
-4. Android App Production URL Switch (`:app-player` & `:app-admin` client_config.json update).
+4. Android App Production URL Switch (`:app-player` client_config.json update).
 5. Pre-flight verification (Docker build, HTTPS curl health check, Android assembleDebug, USB-free 4G/5G mobile test).
 ```

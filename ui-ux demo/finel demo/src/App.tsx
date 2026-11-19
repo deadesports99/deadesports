@@ -285,7 +285,7 @@ export function App() {
             provider,
           });
           setStep('APP');
-          showToast('Welcome to Spartan Esports Arena!');
+          showToast('Welcome to Spartan Arena!');
         }}
       />
     );
